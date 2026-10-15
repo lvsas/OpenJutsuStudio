@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import core
 from api_schema import _public_job, _target_size
 from readiness import check_readiness
+from uploads import save_video
 
 app = FastAPI(title="OpenGenjutsu LTX", version="0.1.0")
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
@@ -28,12 +29,6 @@ MEDIA_DIR = core.WORK / "media"
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 _EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="opengenjutsu")
 PIPELINE_RUNNER = core.run_pipeline
-
-
-
-
-
-
 
 
 @app.get("/health")
@@ -131,25 +126,7 @@ async def create_job(
     MEDIA_DIR.mkdir(parents=True, exist_ok=True)
     job_id = uuid.uuid4().hex
     video_path = MEDIA_DIR / f"{job_id}{suffix}"
-    total = 0
-    try:
-        with video_path.open("wb") as out:
-            while chunk := await video.read(1024 * 1024):
-                total += len(chunk)
-                if total > MAX_UPLOAD_BYTES:
-                    raise HTTPException(status_code=413, detail="Vidéo trop volumineuse (limite 500 Mio).")
-                out.write(chunk)
-        if total == 0:
-            raise HTTPException(status_code=400, detail="Le fichier vidéo est vide.")
-        info = core.ffprobe(video_path)
-    except HTTPException:
-        video_path.unlink(missing_ok=True)
-        raise
-    except Exception as exc:
-        video_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=400, detail=f"Vidéo illisible : {exc}") from exc
-    finally:
-        await video.close()
+    info = await save_video(video, video_path, MAX_UPLOAD_BYTES)
 
     if info["frames"] < 9:
         video_path.unlink(missing_ok=True)
@@ -177,6 +154,7 @@ async def create_job(
     )
     job.save()
     opts = {
+        "preserve_audio": True,
         "edit": {"steps": 4, "seed": seed},
         "ripple_prompt": propagation_prompt.strip() or core.RIPPLE_PROMPT,
         "propagate": {

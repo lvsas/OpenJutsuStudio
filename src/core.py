@@ -121,9 +121,14 @@ def detect_scenes(video_path: str | Path, threshold: float = 0.3) -> list[dict]:
 # --------------------------------------------------------------------------
 def build_frame_edit(image: str | dict, prompt: str, seed: int = 26416064315367,
                      steps: int = 4, cfg: float = 1.0,
-                     megapixels: float = 1.0, prefix: str = "og_frame") -> dict:
-    """FLUX.2 Klein 9B image edit (distilled, 4 steps)."""
-    return {
+                     megapixels: float = 1.0, prefix: str = "og_frame",
+                     reference_image: str | dict | None = None) -> dict:
+    """FLUX.2 Klein 9B image edit (distilled, 4 steps).
+
+    If reference_image is provided, injects it as a second reference via
+    LoadImage + VAEEncode + ReferenceLatent for character/persona consistency.
+    """
+    graph = {
         "76":  {"class_type": "LoadImage", "inputs": {"image": image}},
         "80":  {"class_type": "ImageScaleToTotalPixels",
                 "inputs": {"image": ["76", 0], "upscale_method": "nearest-exact",
@@ -159,6 +164,16 @@ def build_frame_edit(image: str | dict, prompt: str, seed: int = 26416064315367,
         "9":   {"class_type": "SaveImage",
                 "inputs": {"images": ["65", 0], "filename_prefix": prefix}},
     }
+
+    # Inject reference image as second LoadImage + VAEEncode + ReferenceLatent
+    if reference_image is not None:
+        graph["200"] = {"class_type": "LoadImage", "inputs": {"image": reference_image}}
+        graph["201"] = {"class_type": "VAEEncode",
+                        "inputs": {"pixels": ["200", 0], "vae": ["72", 0]}}
+        graph["202"] = {"class_type": "ReferenceLatent",
+                        "inputs": {"conditioning": ["74", 0], "latent": ["201", 0]}}
+
+    return graph
 
 
 def build_ripple(video: str | dict, edited_frame: str | dict, prompt: str = RIPPLE_PROMPT,

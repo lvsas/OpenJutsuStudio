@@ -42,6 +42,22 @@ class PipelineStateTests(unittest.TestCase):
         self.assertIsNotNone(job.finished)
         client.close.assert_called_once()
 
+    def test_padding_is_reported_per_shot(self):
+        with (
+            patch.object(core, "WORK", Path(self.tmp.name)),
+            patch.object(core, "make_client", return_value=MagicMock()),
+            patch.object(core, "detect_scenes", return_value=[
+                {"start": 0, "end": 67}, {"start": 68, "end": 120}]),
+            patch.object(core, "edit_segment", return_value="shot.mp4"),
+            patch.object(core, "merge_segments", return_value="merged.mp4"),
+        ):
+            job = core.Job(id="padding")
+            core.run_pipeline(job, Path("source.mp4"), {})
+            shots = core.Job.load(job.id).meta["shots"]
+        self.assertEqual([s["source_frames"] for s in shots], [68, 53])
+        self.assertEqual([s["inference_frames"] for s in shots], [73, 57])
+        self.assertEqual([s["padding_frames"] for s in shots], [5, 4])
+
     def test_no_scenes_finishes_without_constructing_client(self):
         job, client = self.run_case(empty=True)
         self.assertEqual(job.status, "error")

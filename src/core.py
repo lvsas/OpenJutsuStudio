@@ -107,6 +107,15 @@ def run_pipeline(job: Job, video_path: Path, opts: dict) -> None:
         if not segments:
             raise ValueError("no scenes detected")
 
+        from segments import latent_frames
+        job.meta["shots"] = [
+            {**shot, "source_frames": shot["end"] - shot["start"] + 1,
+             "inference_frames": latent_frames(shot["end"] - shot["start"] + 1),
+             "padding_frames": latent_frames(shot["end"] - shot["start"] + 1)
+                               - (shot["end"] - shot["start"] + 1)}
+            for shot in segments
+        ]
+        job.save()
         # 2. create client
         client = make_client()
 

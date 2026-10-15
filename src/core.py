@@ -687,4 +687,48 @@ def run_pipeline(job: Job, video_path: Path, opts: dict) -> None:
         job.status, job.error = "error", f"{type(e).__name__}: {e}"
         job.save()
 
+def upscale_video(input_path: str | Path, output_path: str | Path | None = None,
+                  scale: float = 2.0) -> str:
+    """Upscale video resolution using ffmpeg scale filter.
+
+    Args:
+        input_path: Path to input video
+        output_path: Where to save upscaled video (default: WORK/media/upscaled_<timestamp>.mp4)
+        scale: Upscale factor (2.0 = double resolution)
+
+    Returns:
+        Path to upscaled video file
+    """
+    input_path = str(input_path)
+    if not os.path.exists(input_path):
+        raise FileNotFoundError(f"Input video not found: {input_path}")
+    if output_path is None:
+        output_path = WORK / "media" / f"upscaled_{int(time.time())}.mp4"
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Get input dimensions
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0",
+         "-show_entries", "stream=width,height", "-of", "json", input_path],
+        capture_output=True, text=True, check=True
+    )
+    info = json.loads(probe.stdout)
+    stream = info["streams"][0]
+    width = int(stream["width"])
+    height = int(stream["height"])
+
+    new_width = int(width * scale)
+    new_height = int(height * scale)
+
+    # Use ffmpeg scale filter with lanczos for quality
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", input_path,
+         "-vf", f"scale={new_width}:{new_height}:flags=lanczos",
+         "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+         "-c:a", "copy", str(output_path)],
+        capture_output=True, check=True
+    )
+
+    return str(output_path)
 

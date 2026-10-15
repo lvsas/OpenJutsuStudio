@@ -533,7 +533,7 @@ def edit_segment(video_path: str | Path, segment: dict, prompt: str,
 
     # 1. Extract first frame of this segment
     tmp_frame = WORK / "media" / f"seg_f{start:04d}.png"
-    select_filter = "select=eq(n\," + str(start) + ")"
+    select_filter = f"select=eq(n,{start})".replace(",", "\\,")
     subprocess.run(
         ["ffmpeg", "-y", "-i", str(video_path),
          "-vf", select_filter, "-vframes", "1", str(tmp_frame)],

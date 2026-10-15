@@ -180,7 +180,7 @@ def _result_path(result: str) -> Path | None:
 
 
 @app.get("/api/jobs/{job_id}/result")
-def get_result(job_id: str) -> FileResponse:
+def get_result(job_id: str, download: bool = False) -> FileResponse:
     try:
         job = core.Job.load(job_id)
     except KeyError as exc:
@@ -190,7 +190,8 @@ def get_result(job_id: str) -> FileResponse:
     path = _result_path(job.result)
     if path is None:
         raise HTTPException(status_code=404, detail="Le fichier de rendu n'a pas été retrouvé sur ce poste.")
-    return FileResponse(path, media_type="video/mp4", filename=f"opengenjutsu-{job_id}.mp4")
+    return FileResponse(path, media_type="video/mp4", filename=f"opengenjutsu-{job_id}.mp4",
+                        content_disposition_type="attachment" if download else "inline")
 
 
 PAGE = (Path(__file__).parent / "templates" / "index.html").read_text()

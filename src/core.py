@@ -506,6 +506,65 @@ def merge_segments(segment_paths: list[str | Path], output_path: Path | None = N
     return str(output_path)
 
 
+
+def edit_segment(video_path: str | Path, segment: dict, prompt: str,
+                client=None, engine=None, **opts) -> str:
+    """Edit a single video segment: extract first frame → edit → propagate.
+
+    Args:
+        video_path: Path to source video
+        segment: {"start": int, "end": int} frame range
+        prompt: Edit prompt (e.g. "Replace riders with knights")
+        client: ComfySDK client (created if None)
+        engine: Engine instance (default: LTXRippleEngine)
+        **opts: Additional options for edit_frame/propagate
+
+    Returns:
+        Path to edited segment video file
+    """
+    start, end = segment["start"], segment["end"]
+    if start >= end:
+        raise ValueError(f"Invalid segment: start ({start}) >= end ({end})")
+
+    if client is None:
+        client = make_client()
+    if engine is None:
+        engine = ENGINES.get("ltx25-ripple")
+
+    # 1. Extract first frame of this segment
+    tmp_frame = WORK / "media" / f"seg_f{start:04d}.png"
+    select_filter = "select=eq(n\," + str(start) + ")"
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(video_path),
+         "-vf", select_filter, "-vframes", "1", str(tmp_frame)],
+        capture_output=True, check=True
+    )
+
+    # 2. Edit the frame
+    asset = client.assets.from_file(str(tmp_frame))
+    edited = engine.edit_frame(client, asset.as_reference(), prompt,
+                              **opts.get("edit", {}))
+
+    # 3. Propagate to full segment
+    # Extract segment video first
+    seg_video = WORK / "media" / f"seg_{start:04d}_{end:04d}.mp4"
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(video_path),
+         "-vf", f"select='between(n,{start},{end})',setpts=PTS-STARTPTS",
+         "-vsync", "vfr", str(seg_video)],
+        capture_output=True, check=True
+    )
+
+    vasset = client.assets.from_file(str(seg_video))
+    edited_asset = client.assets.from_file(str(WORK / "media" / edited))
+    result = engine.propagate(client, vasset.file_path,
+                              edited_asset.as_reference(),
+                              opts.get("ripple_prompt", RIPPLE_PROMPT),
+                              **opts.get("propagate", {}))
+
+    return result
+
+
 def has_ffmpeg() -> bool:
     return bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 

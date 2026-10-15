@@ -26,6 +26,7 @@ def _prepare(video, start, end, folder, fps, padded):
     _ffmpeg("-i", video, "-vf", f"select=eq(n\\,{start})", "-frames:v", "1", frame)
     count = end - start + 1
     filters = (f"select=between(n\\,{start}\\,{end}),setpts=N/({fps}*TB),"
+               "pad=ceil(iw/2)*2:ceil(ih/2)*2:0:0,"
                f"tpad=stop_mode=clone:stop={padded-count}")
     _ffmpeg("-i", video, "-vf", filters, "-frames:v", padded, "-r", fps,
             "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", clip)

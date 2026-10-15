@@ -90,6 +90,17 @@ class TestEditSegment(unittest.TestCase):
         self.assertIsInstance(a, dict)
         self.assertNotEqual(a["info"]["file_path"], b["info"]["file_path"])
 
+    def test_odd_dimensions_preserve_frame_count(self):
+        self.video = self.root / "odd.mp4"
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+                        "testsrc=size=129x97:rate=24", "-frames:v", "17",
+                        "-c:v", "libx264", "-pix_fmt", "yuv444p", str(self.video)], check=True)
+        result = self.render(0, 16)
+        info = core.ffprobe(result)
+        self.assertEqual(info["frames"], 17)
+        self.assertEqual((info["width"], info["height"]), (130, 98))
+        self.assertEqual(len(self.engine.calls), 1)
+
     def test_reverse_segment_raises(self):
         with self.assertRaises(ValueError):
             self.render(10, 5)

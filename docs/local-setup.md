@@ -176,11 +176,10 @@ bash -n scripts/setup.sh scripts/run_app.sh
 git diff --check
 ```
 
-The setup tests use isolated temporary trees and stub external tools. Some legacy
-media tests still expect an external `test_input_downloaded.mp4` fixture outside
-the repository; without it, the full suite can skip tests or fail. This is not
-fixed by installing the proxy and must not be mistaken for a clean-checkout test
-pass. The setup tests do not require that fixture.
+The setup tests use isolated temporary trees and stub external tools. CPU media
+tests generate their own small FFmpeg fixtures; they do not require a downloaded
+clip outside this repository. Orchestration tests mock model calls and isolate
+job files in temporary directories. These tests are not GPU or Cloud evidence.
 
 Real clean installation must also be tested with the actual uv and package
 sources. When exporting a working checkout for that smoke test, explicitly

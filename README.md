@@ -42,7 +42,7 @@ The LTX 2.5 components and Ripple adapter have separate model licenses/terms. Re
 |---|---|
 | ComfyUI | ≥ 0.40, with the LTXVideo, VideoHelperSuite and KJNodes packs used by the workflow |
 | Comfy SDK | `comfy-sdk` 0.5.x |
-| GPU | 24 GB VRAM recommended; tested on RTX 3090, but the full edit path still needs a clean end-to-end verification |
+| GPU | 24 GB VRAM recommended; a real two-shot app run completed on RTX 3090 (see validation limits below) |
 | Python | 3.12 (setup creates a project-local `.venv` with `uv`) |
 | FFmpeg | `ffmpeg` and `ffprobe` available on `PATH` |
 | Local SDK proxy | `comfy-api-proxy` 0.1.6, installed only with `--with-proxy`; bridges the SDK v2 API to self-hosted ComfyUI |
@@ -126,7 +126,10 @@ The CLI in `src/genjutsu.py` is a legacy LTX 2.3 prototype and is not the curren
 
 - [Local setup and troubleshooting](docs/local-setup.md) — Python 3.12, FFmpeg, opt-in proxy, remote upstream and readiness
 - [`src/app.py`](src/app.py) — local UI, upload endpoint, job tracking and result route
-- [`src/core.py`](src/core.py) — Comfy SDK graph builders and the LTX 2.5 + Ripple pipeline
+- [`src/core.py`](src/core.py) — job persistence and pipeline orchestration
+- [`src/graphs.py`](src/graphs.py) — FLUX.2 Klein and LTX/Ripple API-format graphs
+- [`src/comfy_transport.py`](src/comfy_transport.py) — official SDK target, execution and downloads
+- [`src/segments.py`](src/segments.py) — per-shot asset transfer, padding and exact frame restoration
 - [`scripts/download_models.py`](scripts/download_models.py) — idempotent LTX/Ripple weight setup
 - [ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo)
 - [ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite)
@@ -161,9 +164,10 @@ scripts/
 
 ## Current Evidence
 
-- One local single-shot render was previously produced and inspected; this is not a reproducible test suite or a contest-ready validation result.
-- Multi-shot orchestration, reference-image injection, and upscale have unit coverage, but their end-to-end GPU behavior has not been validated as a complete app workflow.
-- The current app, Cloud path, and Character Reference UX are prototypes and remain under development.
+- A real two-shot run was submitted through the web form, processed by FLUX.2 Klein and LTX/Ripple, downloaded, and played through to the end in Chromium: 121 frames, 24 fps, 768×416. Shot padding is removed before assembly; the app restores source audio when present.
+- **Visual quality is not validated:** the corrected run preserves the scene cut, but recolors/armors the tiger despite instructions to preserve it. Successful execution is not a successful selective edit or a contest-ready result.
+- CPU tests are self-contained; they do not require the private development clip. They do not prove GPU quality, reference-image behavior, Cloud compatibility or licensing eligibility.
+- Character Reference, Cloud and upscale-in-the-app remain unverified end to end. The UI is still a prototype, not the planned international/social-first experience.
 
 ## Contributing
 

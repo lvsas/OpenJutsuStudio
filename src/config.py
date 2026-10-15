@@ -8,7 +8,14 @@ WORK.mkdir(parents=True, exist_ok=True)
 ( WORK / "jobs").mkdir(exist_ok=True)
 (WORK / "media").mkdir(exist_ok=True)
 
-COMFY_BASE_URL = os.environ.get("COMFY_BASE_URL", "http://127.0.0.1:8189")
+def comfy_base_url() -> str:
+    """Apply the local-first default to the SDK's documented environment setting."""
+    value = os.environ.get("COMFY_BASE_URL", "").strip() or "http://127.0.0.1:8189"
+    os.environ["COMFY_BASE_URL"] = value
+    return value
+
+
+COMFY_BASE_URL = comfy_base_url()
 
 # model files (see README > Models)
 F_UNET_KLEIN = "flux-2-klein-9b-fp8.safetensors"

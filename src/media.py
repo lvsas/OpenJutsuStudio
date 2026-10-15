@@ -12,18 +12,26 @@ from scenes import detect_scenes
 
 
 def ffprobe(path: str | Path) -> dict:
-    out = subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "v:0",
-         "-show_entries", "stream=width,height,nb_frames,r_frame_rate,duration",
-         "-of", "json", str(path)],
-        capture_output=True, text=True, check=True).stdout
-    s = json.loads(out)["streams"][0]
-    fr = s.get("r_frame_rate", "24/1")
-    num, _, den = fr.partition("/")
-    fps = float(num) / float(den or 1)
-    return {"width": int(s["width"]), "height": int(s["height"]),
-            "fps": fps, "frames": int(s.get("nb_frames") or 0),
-            "duration": float(s.get("duration") or 0)}
+    """Count decoded frames; WebM/MKV often omit nb_frames and stream duration."""
+    from fractions import Fraction
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-count_frames", "-select_streams", "v:0",
+         "-show_entries", "stream=width,height,nb_read_frames,avg_frame_rate,r_frame_rate,duration:format=duration",
+         "-of", "json", str(path)], capture_output=True, text=True, check=True, timeout=180)
+    data = json.loads(result.stdout)
+    if not data.get("streams"):
+        raise ValueError("No video stream")
+    stream = data["streams"][0]
+    rate = stream.get("avg_frame_rate")
+    if not rate or rate == "0/0":
+        rate = stream.get("r_frame_rate", "0/1")
+    fps = float(Fraction(rate))
+    count = int(stream.get("nb_read_frames") or 0)
+    if fps <= 0 or count <= 0:
+        raise ValueError("Cannot determine video frame count or frame rate")
+    duration = stream.get("duration") or data.get("format", {}).get("duration")
+    return {"width": int(stream["width"]), "height": int(stream["height"]),
+            "fps": fps, "frames": count, "duration": float(duration or count / fps)}
 
 
 def extract_first_frame(video: Path, dest: Path) -> Path:

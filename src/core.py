@@ -4,6 +4,8 @@ Graph construction, media helpers and Comfy transport live in focused modules.
 """
 from __future__ import annotations
 import json
+import re
+import uuid
 import time
 import subprocess
 from dataclasses import dataclass, field, asdict
@@ -49,14 +51,24 @@ class Job:
 
     @property
     def path(self) -> Path:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", self.id):
+            raise ValueError("Invalid job identifier")
         return WORK / "jobs" / f"{self.id}.json"
 
     def save(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(asdict(self), indent=1))
+        path = self.path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(f".{uuid.uuid4().hex}.tmp")
+        try:
+            temporary.write_text(json.dumps(asdict(self), indent=1))
+            temporary.replace(path)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     @staticmethod
     def load(job_id: str) -> "Job":
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", job_id):
+            raise KeyError(job_id)
         p = WORK / "jobs" / f"{job_id}.json"
         if not p.exists():
             raise KeyError(job_id)
@@ -131,6 +143,11 @@ def run_pipeline(job: Job, video_path: Path, opts: dict) -> None:
             job.save()
             result = upscale_video(result, scale=opts.get("upscale_scale", 2.0))
 
+        if result is None:
+            raise RuntimeError("Pipeline produced no output video")
+        if opts.get("preserve_audio", False):
+            from output_media import restore_source_audio
+            result = restore_source_audio(result, str(video_path), WORK / "media" / f"final_{job.id}.mp4")
         job.result, job.status, job.step, job.progress = result, "done", "done", 1.0
     except Exception as e:  # noqa: BLE001 - surface any engine failure to the UI
         job.status, job.error = "error", f"{type(e).__name__}: {e}"

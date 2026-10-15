@@ -454,8 +454,9 @@ def extract_segment_frames(video: str | Path, segments: list[dict],
         start_frame = seg["start"]
         dest = output_dir / f"seg_{i:03d}_f{start_frame:04d}.png"
         # Use ffmpeg to extract specific frame
+        select_filter = f"select=eq(n,{start_frame})".replace(",", "\\,")
         subprocess.run(
-            ["ffmpeg", "-y", "-i", video, "-vf", f"select=eq(n,{start_frame})",
+            ["ffmpeg", "-y", "-i", video, "-vf", select_filter,
              "-vframes", "1", str(dest)],
             capture_output=True, check=True
         )
@@ -615,7 +616,8 @@ class Job:
 
 
 def run_pipeline(job: Job, video_path: Path, opts: dict) -> None:
-    """The 3-step pipeline. Runs in a worker thread."""
+    """Multi-segment pipeline: detect cuts → edit each segment → merge.
+    Runs in a worker thread."""
     engine = ENGINES.get(job.engine)
     if engine is None:
         job.status, job.error = "error", f"unknown engine {job.engine}"
@@ -626,34 +628,48 @@ def run_pipeline(job: Job, video_path: Path, opts: dict) -> None:
     job.save()
 
     try:
+        # 1. detect scene cuts (no client needed)
+        job.step, job.progress = "detect_scenes", 0.02
+        job.save()
+        segments = detect_scenes(video_path)
+        if not segments:
+            job.status, job.error = "error", "no scenes detected"
+            job.save()
+            return
+
+        # 2. create client
         client = make_client()
 
-        # 1. extract first frame
-        job.step, job.progress = "extract_frame", 0.05
-        job.save()
-        f0 = extract_first_frame(video_path, WORK / "media" / f"{job.id}_f0.png")
+        # 3. edit each segment
+        edited_segments = []
+        total = len(segments)
+        for i, seg in enumerate(segments):
+            job.step = f"edit_segment_{i + 1}/{total}"
+            job.progress = 0.05 + (0.9 * i / total)
+            job.save()
+            # Remove 'prompt' from opts to avoid duplicate argument
+            seg_opts = {k: v for k, v in opts.items() if k != "prompt"}
+            result = edit_segment(
+                video_path=video_path,
+                segment=seg,
+                prompt=job.prompt,
+                client=client,
+                engine=engine,
+                **seg_opts
+            )
+            edited_segments.append(result)
 
-        # 2. edit the frame
-        job.step, job.progress = "edit_frame", 0.15
+        # 4. merge segments
+        job.step, job.progress = "merge_segments", 0.95
         job.save()
-        asset = client.assets.from_file(str(f0))
-        edited = engine.edit_frame(client, asset.as_reference(),
-                                   job.prompt, **opts.get("edit", {}))
-
-        # 3. propagate
-        job.step, job.progress = "propagate", 0.35
-        job.save()
-        vasset = client.assets.from_file(str(video_path))
-        # Upload the edited frame so LoadImage gets a core/ASSET reference
-        edited_asset = client.assets.from_file(str(WORK / "media" / edited))
-        result = engine.propagate(client, vasset.file_path,
-                                  edited_asset.as_reference(),
-                                  opts.get("ripple_prompt", RIPPLE_PROMPT),
-                                  **opts.get("propagate", {}))
+        if len(edited_segments) == 1:
+            result = edited_segments[0]
+        else:
+            result = merge_segments(edited_segments)
 
         job.result, job.status, job.step, job.progress = result, "done", "done", 1.0
     except Exception as e:  # noqa: BLE001 - surface any engine failure to the UI
         job.status, job.error = "error", f"{type(e).__name__}: {e}"
-    finally:
-        job.finished = time.time()
         job.save()
+
+

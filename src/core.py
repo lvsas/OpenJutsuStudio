@@ -455,13 +455,55 @@ def extract_segment_frames(video: str | Path, segments: list[dict],
         dest = output_dir / f"seg_{i:03d}_f{start_frame:04d}.png"
         # Use ffmpeg to extract specific frame
         subprocess.run(
-            ["ffmpeg", "-y", "-i", video, "-vf", f"select=eq(n\,{start_frame})",
+            ["ffmpeg", "-y", "-i", video, "-vf", f"select=eq(n,{start_frame})",
              "-vframes", "1", str(dest)],
             capture_output=True, check=True
         )
         frames.append(dest)
 
     return frames
+
+
+
+def merge_segments(segment_paths: list[str | Path], output_path: Path | None = None) -> str | None:
+    """Merge multiple segment videos into one using ffmpeg concat demuxer.
+
+    Args:
+        segment_paths: List of paths to segment video files
+        output_path: Where to save merged video (default: WORK/media/merged_<timestamp>.mp4)
+
+    Returns:
+        Path to merged video file, or None if input list is empty
+    """
+    if not segment_paths:
+        return None
+    if len(segment_paths) == 1:
+        return str(segment_paths[0])
+
+    if output_path is None:
+        output_path = WORK / "media" / f"merged_{int(time.time())}.mp4"
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Create concat list file
+    list_file = output_path.parent / f"concat_{int(time.time())}.txt"
+    with open(list_file, "w") as f:
+        for seg in segment_paths:
+            # Escape single quotes in path for ffmpeg concat
+            escaped = str(seg).replace("'", "'\''")
+            f.write(f"file '{escaped}'\n")
+
+    # Run ffmpeg concat
+    subprocess.run(
+        ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(list_file),
+         "-c", "copy", str(output_path)],
+        capture_output=True, check=True
+    )
+
+    # Clean up list file
+    list_file.unlink(missing_ok=True)
+
+    return str(output_path)
 
 
 def has_ffmpeg() -> bool:

@@ -98,6 +98,15 @@ class AppTests(unittest.TestCase):
         self.assertEqual(app_module._target_size(1280, 704), (768, 416))
         self.assertEqual(app_module._target_size(704, 1280), (416, 768))
 
+    def test_upload_character_sheet(self):
+        response = self.client.post(
+            "/api/upload-character",
+            files={"file": ("ref.png", b"fake-image-data", "image/png")}
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("asset_id", data)
+
 
 if __name__ == "__main__":
     unittest.main()

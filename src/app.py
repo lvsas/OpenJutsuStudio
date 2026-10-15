@@ -61,9 +61,25 @@ def home() -> str:
     return PAGE
 
 
+@app.post("/api/upload-character")
+async def upload_character_sheet(file: UploadFile = File(...)) -> dict[str, Any]:
+    """Upload a character sheet image. Returns asset_id for use in job creation."""
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(415, "Only image uploads are allowed")
+
+    asset_id = uuid.uuid4().hex[:12]
+    suffix = Path(file.filename or "ref.png").suffix or ".png"
+    dest = MEDIA_DIR / f"char_{asset_id}{suffix}"
+
+    content = await file.read()
+    dest.write_bytes(content)
+
+    return {"asset_id": asset_id, "file_path": str(dest), "filename": file.filename}
+
+
 @app.get("/api/jobs")
 def list_jobs() -> list[dict[str, Any]]:
-    return [_public_job(job) for job in core.Job.all()[:30]]
+    return [_public_job(j) for j in core.Job.all()]
 
 
 @app.get("/api/jobs/{job_id}")

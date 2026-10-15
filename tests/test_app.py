@@ -107,6 +107,22 @@ class AppTests(unittest.TestCase):
         data = response.json()
         self.assertIn("asset_id", data)
 
+    def test_compare_endpoint(self):
+        """/api/compare should return source and edited frame paths."""
+        # Create a job first so it exists
+        import core as _core
+        job = _core.Job(id="test-compare-001", prompt="test")
+        job.save()
+
+        response = self.client.get(
+            "/api/compare",
+            params={"job_id": "test-compare-001", "segment": 0}
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("source_frame", data)
+        self.assertIn("edited_frame", data)
+
 
 if __name__ == "__main__":
     unittest.main()

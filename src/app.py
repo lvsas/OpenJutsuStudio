@@ -77,6 +77,36 @@ async def upload_character_sheet(file: UploadFile = File(...)) -> dict[str, Any]
     return {"asset_id": asset_id, "file_path": str(dest), "filename": file.filename}
 
 
+@app.get("/api/compare")
+def compare_frames(job_id: str, segment: int = 0) -> dict[str, Any]:
+    """Return source and edited frame paths for side-by-side comparison."""
+    try:
+        job = core.Job.load(job_id)
+    except KeyError:
+        raise HTTPException(404, f"Job {job_id} not found")
+
+    # Find source frame for this segment
+    source_frame = core.WORK / "media" / f"seg_{segment:03d}_f{job_id}.png"
+    if not source_frame.exists():
+        # Fallback: look for any segment frame
+        candidates = list((core.WORK / "media").glob(f"seg_{segment:03d}_*.png"))
+        source_frame = candidates[0] if candidates else None
+
+    # Find edited frame
+    edited_frame = None
+    if job.result:
+        # The result is the final video; edited frame is intermediate
+        candidates = list((core.WORK / "media").glob(f"*{job.id}*edited*.png"))
+        edited_frame = candidates[0] if candidates else None
+
+    return {
+        "job_id": job_id,
+        "segment": segment,
+        "source_frame": str(source_frame) if source_frame else None,
+        "edited_frame": str(edited_frame) if edited_frame else None,
+    }
+
+
 @app.get("/api/jobs")
 def list_jobs() -> list[dict[str, Any]]:
     return [_public_job(j) for j in core.Job.all()]

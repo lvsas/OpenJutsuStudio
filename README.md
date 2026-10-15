@@ -53,17 +53,14 @@ The frame editor also requires FLUX.2 Klein 9B and its ComfyUI-compatible text e
 ## Install
 
 ```bash
+# Requires uv: https://docs.astral.sh/uv/
 git clone https://github.com/<you>/opengenjutsu
 cd opengenjutsu
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-# Start local ComfyUI or Comfy API proxy first, then point the SDK at it:
-export COMFY_BASE_URL="http://127.0.0.1:8189"
-uvicorn app:app --app-dir src --host 127.0.0.1 --port 8000
+bash scripts/setup.sh
+bash scripts/run_app.sh
 ```
 
-Open `http://127.0.0.1:8000`. The app uploads a video, validates its stream with `ffprobe`, runs the first-frame editor and Ripple propagation as one tracked job, and serves the resulting MP4. GPU inference is delegated to ComfyUI via the Comfy SDK.
+Open `http://127.0.0.1:8000`. The launcher binds to loopback only and clears an inherited `PYTHONPATH` so packages from another Python environment cannot break the app import.
 
 
 ---
@@ -88,10 +85,10 @@ The image-edit stage additionally requires the ComfyUI-compatible FLUX.2 Klein 9
 ## Run the app
 
 ```bash
-COMFY_BASE_URL="http://127.0.0.1:8189" uvicorn app:app --app-dir src --host 127.0.0.1 --port 8000
+bash scripts/run_app.sh
 ```
 
-Then open `http://127.0.0.1:8000`, select a video, describe the first-frame edit, and launch the job. The UI keeps the job ID across reloads, shows its phase, and exposes the MP4 when ComfyUI finishes. The default Ripple strength is 1.2 as a conservative starting point; it is a user-adjustable control, not a universally validated optimum.
+Then open `http://127.0.0.1:8000`, select a video, describe the first-frame edit, and launch the job. The UI keeps the job ID across reloads, shows its phase, and exposes the MP4 when ComfyUI finishes. The default Ripple strength is 1.2 as a starting point only; it is not a universally validated optimum.
 
 The CLI in `src/genjutsu.py` is a legacy LTX 2.3 prototype and is not the current app entry point.
 
@@ -109,14 +106,9 @@ The CLI in `src/genjutsu.py` is a legacy LTX 2.3 prototype and is not the curren
 
 ---
 
-## Character Sheet Support
+## Character Reference Status
 
-Upload a character reference image via `POST /api/upload-character` to inject persona consistency into the frame edit. The reference image is encoded via VAE and injected through `ReferenceLatent` in the FLUX.2 Klein workflow.
-
-**VNCCS LoRAs** (MIT license) are supported for pose/clothes/consistency control:
-- `Klein9b/VNCCS/VNCCS_PoseStudioKlein9b_V2.safetensors`
-- `Klein9b/VNCCS/VNCCS_ClothesCoreKlein9b_V1.safetensors`
-- `flux/Flux2-Klein-9B-consistency-V2.safetensors`
+The API has an image-upload endpoint, and the workflow builder has a `reference_image` input. These pieces have **not** yet been connected and verified end-to-end in the web app. The current UI does not offer a character-reference control; do not treat Character Sheet support as a finished user feature.
 
 ## Upscale
 
@@ -136,14 +128,13 @@ scripts/
 
 **Pipeline**: `detect_scenes()` → `edit_segment()` per shot → `merge_segments()` → `upscale_video()`
 
-**Cloud-ready**: Set `COMFY_BASE_URL` to target any Comfy API deployment or Comfy Cloud. No hardcoded local paths.
+**Cloud support is not yet verified.** The current local workflow targets a Comfy API endpoint; do not assume `COMFY_API_KEY` alone enables Cloud until authentication, asset transfer, model availability, submission, and output download have been tested against the official Cloud API.
 
-## Results
+## Current Evidence
 
-- **Object Swap**: First-frame edit propagated through full video motion
-- **Multi-segment**: Automatic shot detection with per-segment re-editing
-- **Character Sheet**: Reference image injection for persona consistency
-- **Upscale**: 2x spatial upscaling with lanczos quality
+- One local single-shot render was previously produced and inspected; this is not a reproducible test suite or a contest-ready validation result.
+- Multi-shot orchestration, reference-image injection, and upscale have unit coverage, but their end-to-end GPU behavior has not been validated as a complete app workflow.
+- The current app, Cloud path, and Character Reference UX are prototypes and remain under development.
 
 ## Contributing
 

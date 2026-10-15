@@ -109,6 +109,51 @@ The CLI in `src/genjutsu.py` is a legacy LTX 2.3 prototype and is not the curren
 
 ---
 
+## Character Sheet Support
+
+Upload a character reference image via `POST /api/upload-character` to inject persona consistency into the frame edit. The reference image is encoded via VAE and injected through `ReferenceLatent` in the FLUX.2 Klein workflow.
+
+**VNCCS LoRAs** (MIT license) are supported for pose/clothes/consistency control:
+- `Klein9b/VNCCS/VNCCS_PoseStudioKlein9b_V2.safetensors`
+- `Klein9b/VNCCS/VNCCS_ClothesCoreKlein9b_V1.safetensors`
+- `flux/Flux2-Klein-9B-consistency-V2.safetensors`
+
+## Upscale
+
+The pipeline supports optional spatial upscaling (default 2x) via `upscale_video()`. Enable with `upscale: True` in job options. Uses ffmpeg lanczos scaling for quality.
+
+## Architecture
+
+```
+src/
+  app.py          — FastAPI web UI (upload, job tracking, compare, share)
+  core.py         — Comfy SDK pipeline (detect → edit → merge → upscale)
+  genjutsu.py     — Legacy LTX 2.3 CLI prototype (not current entry point)
+tests/            — Unit tests (35 tests, unittest)
+scripts/
+  download_models.py — Idempotent LTX/Ripple weight setup
+```
+
+**Pipeline**: `detect_scenes()` → `edit_segment()` per shot → `merge_segments()` → `upscale_video()`
+
+**Cloud-ready**: Set `COMFY_BASE_URL` to target any Comfy API deployment or Comfy Cloud. No hardcoded local paths.
+
+## Results
+
+- **Object Swap**: First-frame edit propagated through full video motion
+- **Multi-segment**: Automatic shot detection with per-segment re-editing
+- **Character Sheet**: Reference image injection for persona consistency
+- **Upscale**: 2x spatial upscaling with lanczos quality
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Write tests first (TDD)
+4. Run `python -m unittest discover tests -v`
+5. Commit with descriptive messages
+6. Open a PR
+
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE).

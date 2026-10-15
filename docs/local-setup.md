@@ -1,0 +1,192 @@
+# Local setup (Gate A)
+
+The supported local path is **Python 3.12 app → local Comfy SDK v2 proxy →
+self-hosted ComfyUI**. The proxy translates the SDK API; the raw ComfyUI port is
+not a replacement for that API. Cloud execution is not verified by this guide.
+
+## 1. Prerequisites
+
+- Git and a Bash shell (Linux/macOS; Windows users can use WSL).
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) on `PATH`.
+  Setup uses `uv venv .venv --python 3.12`. uv can download Python 3.12 if it is
+  absent; network access to the configured Python/package sources is required.
+- **FFmpeg**, with both `ffmpeg` and `ffprobe` on `PATH`. For example, on
+  Debian/Ubuntu: `sudo apt-get install ffmpeg`; on macOS: `brew install ffmpeg`.
+  Setup detects missing executables and stops before installing Python packages;
+  it does not install system packages or run privileged commands itself.
+- A running, reachable ComfyUI with the required custom nodes and model weights.
+  See the [README requirements and model list](../README.md#requirements).
+  ComfyUI, its Python environment and its GPU dependencies are managed separately.
+  Weights and licenses are not bundled or automatically accepted by app setup.
+
+Check the local tools:
+
+```bash
+uv --version
+ffmpeg -version
+ffprobe -version
+```
+
+## 2. Fresh checkout and environment
+
+```bash
+git clone https://github.com/lvsas/Open-Source-Higgsfield-Competition.git
+cd Open-Source-Higgsfield-Competition
+bash scripts/setup.sh
+```
+
+If repository access requires authentication, use your own authorized GitHub
+account; this guide does not change repository visibility or contain credentials.
+
+Setup creates a real, project-local `.venv` and `work/jobs` / `work/media`; it does
+not depend on an environment at another checkout. It installs `requirements.txt`
+using that interpreter, not the shell's `python` or `pip`. Setup and the app
+launcher clear `PYTHONPATH` to avoid imports from an unrelated Python environment.
+No activation is needed. Subsequent setup runs reuse a Python 3.12 environment.
+
+**Proxy installation is separate and opt-in:**
+
+```bash
+bash scripts/setup.sh --with-proxy
+# Options only; does not install anything:
+bash scripts/setup.sh --help
+```
+
+The flag installs `comfy-api-proxy==0.1.6` into the same `.venv`, in addition to
+app requirements. It never starts a proxy, app, GPU job, or model download.
+Skip the flag if you already manage a compatible SDK v2 endpoint elsewhere.
+Application dependencies use bounded ranges rather than a complete lockfile;
+this bootstrap is not a byte-for-byte reproducible release build.
+
+### Existing or shared environment
+
+An existing environment with the wrong Python version, a broken `.venv` symlink,
+or an unusable `.venv` produces an error instead of being overwritten. Setup
+never removes an environment. Inspect it first:
+
+```bash
+ls -ld .venv
+env -u PYTHONPATH .venv/bin/python --version
+```
+
+If you decide to replace it, move the `.venv` entry to a **new, unused** backup
+name before rerunning setup. Moving a symlink moves only the link; do not delete
+its shared target. Keep the old environment until the new one is validated.
+`.gitignore` excludes `.venv` as either a directory or symlink, but cannot untrack
+an entry already in Git's index; that must be handled separately by maintainers.
+
+## 3. Launch the proxy explicitly
+
+Start ComfyUI with the required nodes and weights first. In terminal A, from this
+checkout:
+
+```bash
+# This URL is the upstream ComfyUI server, not the app or SDK endpoint.
+export COMFYUI_URL=http://127.0.0.1:8188
+env -u PYTHONPATH .venv/bin/comfy-api-proxy run \
+  --comfyui "$COMFYUI_URL" --host 127.0.0.1 --port 8189
+```
+
+For ComfyUI on another machine, replace the upstream **before running the same
+proxy command**, for example:
+
+```bash
+export COMFYUI_URL=http://comfyui-host:8188
+# Now run the proxy command above in this terminal.
+```
+
+`comfyui-host` is an example hostname: substitute your trusted server. Only the
+proxy needs access to that upstream; model files remain installed on the ComfyUI
+host. `COMFYUI_URL` is a shell variable passed explicitly to `--comfyui`; the app
+does not use it and the proxy does not automatically read it. Restart the proxy
+to change the upstream. Do not use a remote machine's filesystem path as a local
+model-download destination.
+
+The proxy stays in the foreground (Ctrl+C stops it). It binds only to loopback;
+do not add an insecure bind or expose an unauthenticated ComfyUI service to the
+Internet. Use a trusted network or an authenticated tunnel for remote upstreams.
+No proxy token is needed for this loopback-only, single-user setup. An authenticated
+or cloud endpoint requires separately configured credentials and validation.
+
+## 4. Launch the app
+
+In terminal B, from the same checkout:
+
+```bash
+# This is the SDK proxy URL, NOT COMFYUI_URL; do not append /api/v2.
+export COMFY_BASE_URL=http://127.0.0.1:8189
+bash scripts/run_app.sh
+```
+
+The local default for an unset or blank `COMFY_BASE_URL` is
+`http://127.0.0.1:8189`; setting it explicitly makes the chosen endpoint visible.
+The app binds to `127.0.0.1:8000`. Override the app port if necessary:
+
+```bash
+OPENGENJUTSU_PORT=8001 bash scripts/run_app.sh
+```
+
+Open <http://127.0.0.1:8000> (or your chosen app port). Stop the app with Ctrl+C.
+The launcher does not start or stop ComfyUI/proxy processes. Environment variables
+must be exported in the terminal starting the relevant process; `.env` files are
+not automatically loaded by these shell scripts. Never commit credentials:
+`.env` and `.env.*` are ignored, and no key is required for the default local path.
+
+| Setting | Meaning | Local default |
+| --- | --- | --- |
+| `COMFYUI_URL` | Upstream passed to proxy `--comfyui` | `http://127.0.0.1:8188` in the example |
+| `COMFY_BASE_URL` | App's SDK v2 endpoint | `http://127.0.0.1:8189` |
+| `OPENGENJUTSU_PORT` | App HTTP listen port | `8000` |
+
+## 5. Verify without submitting a render
+
+With the services running, these are read-only checks (curl is optional tooling):
+
+```bash
+curl --fail --show-error --max-time 10 http://127.0.0.1:8189/api/v2/health
+curl --fail --show-error --max-time 10 http://127.0.0.1:8000/health
+curl --show-error --max-time 30 http://127.0.0.1:8000/api/readiness
+```
+
+`/health` is **process liveness only**. `/api/readiness` checks dependencies and
+returns diagnostic JSON; a non-ready result must be resolved before job submission.
+Proxy health alone does not establish that every graph node and model is available.
+Readiness is not evidence that a full GPU edit completed or that quality is good.
+
+Common failures:
+
+- **`uv` missing:** install uv and ensure the invoking shell has it on `PATH`.
+- **FFmpeg / ffprobe missing:** install the full FFmpeg package; retry setup.
+- **Python version mismatch:** inspect/move the old `.venv` safely, then rerun setup.
+- **`comfy-api-proxy` missing:** opt in using `bash scripts/setup.sh --with-proxy`.
+- **Connection refused at 8189:** start the proxy, or correct `COMFY_BASE_URL`.
+- **Upstream unreachable:** verify the URL supplied via `COMFYUI_URL` and remote
+  connectivity from the proxy host; changing the app URL will not fix this.
+- **Missing nodes or models:** install the named prerequisites on the ComfyUI host,
+  then restart ComfyUI when required and recheck readiness.
+- **Port already in use:** do not stop someone else's service. Choose another
+  proxy `--port` and update `COMFY_BASE_URL`, or change `OPENGENJUTSU_PORT` for the app.
+
+## 6. CPU-only regression checks
+
+```bash
+env -u PYTHONPATH .venv/bin/python -m unittest tests.test_setup -v
+env -u PYTHONPATH .venv/bin/python -m unittest discover -s tests -v
+bash -n scripts/setup.sh scripts/run_app.sh
+git diff --check
+```
+
+The setup tests use isolated temporary trees and stub external tools. Some legacy
+media tests still expect an external `test_input_downloaded.mp4` fixture outside
+the repository; without it, the full suite can skip tests or fail. This is not
+fixed by installing the proxy and must not be mistaken for a clean-checkout test
+pass. The setup tests do not require that fixture.
+
+Real clean installation must also be tested with the actual uv and package
+sources. When exporting a working checkout for that smoke test, explicitly
+**exclude `.venv`**
+(including an absolute symlink), `.git`, local `.env*` files, generated `work/`
+content and caches. Do not copy or dereference a shared environment into the test
+checkout, and do not run setup against the original shared environment just to
+test bootstrap. Passing setup/tests does not validate GPU execution, Cloud,
+character-reference UX, model licensing, or contest readiness.

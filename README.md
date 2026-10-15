@@ -43,7 +43,9 @@ The LTX 2.5 components and Ripple adapter have separate model licenses/terms. Re
 | ComfyUI | ≥ 0.40, with the LTXVideo, VideoHelperSuite and KJNodes packs used by the workflow |
 | Comfy SDK | `comfy-sdk` 0.5.x |
 | GPU | 24 GB VRAM recommended; tested on RTX 3090, but the full edit path still needs a clean end-to-end verification |
-| Python | ≥ 3.10 |
+| Python | 3.12 (setup creates a project-local `.venv` with `uv`) |
+| FFmpeg | `ffmpeg` and `ffprobe` available on `PATH` |
+| Local SDK proxy | `comfy-api-proxy` 0.1.6, installed only with `--with-proxy`; bridges the SDK v2 API to self-hosted ComfyUI |
 
 The frame editor also requires FLUX.2 Klein 9B and its ComfyUI-compatible text encoder/VAE installed locally. Model downloads are user-managed and must follow each model's terms.
 
@@ -53,21 +55,43 @@ The frame editor also requires FLUX.2 Klein 9B and its ComfyUI-compatible text e
 ## Install
 
 ```bash
-# Requires uv: https://docs.astral.sh/uv/
-git clone https://github.com/<you>/opengenjutsu
-cd opengenjutsu
-bash scripts/setup.sh
-bash scripts/run_app.sh
+# Install uv and FFmpeg first: see docs/local-setup.md
+git clone https://github.com/lvsas/Open-Source-Higgsfield-Competition.git
+cd Open-Source-Higgsfield-Competition
+bash scripts/setup.sh --with-proxy
 ```
 
-Open `http://127.0.0.1:8000`. The launcher binds to loopback only and clears an inherited `PYTHONPATH` so packages from another Python environment cannot break the app import.
+`bash scripts/setup.sh` installs only the app dependencies. The separate
+`--with-proxy` flag explicitly opts into installing the local proxy; setup never
+starts services, installs ComfyUI/custom nodes, or downloads model weights.
+
+Start your prepared ComfyUI instance, then run the proxy in one terminal:
+
+```bash
+# Upstream ComfyUI; override this for a trusted remote server.
+export COMFYUI_URL=http://127.0.0.1:8188
+env -u PYTHONPATH .venv/bin/comfy-api-proxy run \
+  --comfyui "$COMFYUI_URL" --host 127.0.0.1 --port 8189
+```
+
+In a second terminal, from the repository root:
+
+```bash
+# SDK target is the proxy, not the raw ComfyUI port.
+COMFY_BASE_URL=http://127.0.0.1:8189 bash scripts/run_app.sh
+```
+
+Open `http://127.0.0.1:8000`. Both services bind to loopback only. The launcher
+requires Python 3.12 and clears inherited `PYTHONPATH`. See the
+[local setup guide](docs/local-setup.md) for remote upstreams, readiness checks,
+safe environment recovery, and the limits of a successful install.
 
 
 ---
 
 ## Models
 
-`python scripts/download_models.py --comfyui /path/to/ComfyUI` downloads the public LTX 2.5 + Ripple components into their ComfyUI folders; use `--dry-run` to inspect the targets first. The script does not bundle weights in this repository.
+`env -u PYTHONPATH .venv/bin/python scripts/download_models.py --comfyui /path/to/ComfyUI` downloads the public LTX 2.5 + Ripple components into their ComfyUI folders; use `--dry-run` to inspect the targets first. Run this where the ComfyUI model directories are accessible; a remote HTTP endpoint alone is not a model installation path. The script does not bundle weights in this repository.
 
 | File | Folder | Role |
 |---|---|---|
@@ -85,10 +109,14 @@ The image-edit stage additionally requires the ComfyUI-compatible FLUX.2 Klein 9
 ## Run the app
 
 ```bash
-bash scripts/run_app.sh
+# Keep the proxy running in its own terminal (see Install).
+COMFY_BASE_URL=http://127.0.0.1:8189 bash scripts/run_app.sh
 ```
 
 Then open `http://127.0.0.1:8000`, select a video, describe the first-frame edit, and launch the job. The UI keeps the job ID across reloads, shows its phase, and exposes the MP4 when ComfyUI finishes. The default Ripple strength is 1.2 as a starting point only; it is not a universally validated optimum.
+
+Check `GET /api/readiness` before submitting a job. `GET /health` proves only that
+the app process is alive; it does not validate the proxy, upstream, nodes or models.
 
 The CLI in `src/genjutsu.py` is a legacy LTX 2.3 prototype and is not the current app entry point.
 
@@ -96,6 +124,7 @@ The CLI in `src/genjutsu.py` is a legacy LTX 2.3 prototype and is not the curren
 
 ## Documentation
 
+- [Local setup and troubleshooting](docs/local-setup.md) — Python 3.12, FFmpeg, opt-in proxy, remote upstream and readiness
 - [`src/app.py`](src/app.py) — local UI, upload endpoint, job tracking and result route
 - [`src/core.py`](src/core.py) — Comfy SDK graph builders and the LTX 2.5 + Ripple pipeline
 - [`scripts/download_models.py`](scripts/download_models.py) — idempotent LTX/Ripple weight setup
@@ -121,7 +150,7 @@ src/
   app.py          — FastAPI web UI (upload, job tracking, compare, share)
   core.py         — Comfy SDK pipeline (detect → edit → merge → upscale)
   genjutsu.py     — Legacy LTX 2.3 CLI prototype (not current entry point)
-tests/            — Unit tests (35 tests, unittest)
+tests/            — Unit and regression tests (unittest)
 scripts/
   download_models.py — Idempotent LTX/Ripple weight setup
 ```
@@ -141,7 +170,7 @@ scripts/
 1. Fork the repository
 2. Create a feature branch
 3. Write tests first (TDD)
-4. Run `python -m unittest discover tests -v`
+4. Run `env -u PYTHONPATH .venv/bin/python -m unittest discover -s tests -v`
 5. Commit with descriptive messages
 6. Open a PR
 

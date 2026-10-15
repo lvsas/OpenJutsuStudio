@@ -1,16 +1,15 @@
 __pycache__/
 *.pyc
-.venv/
+# Match both an environment directory and a local symlink; never version either.
+/.venv
 work/
 *.mp4
 *.png
-!assets/
 assets/
 .pytest_cache/
 node_modules/
 .DS_Store
-.venv/
-.venv/
-.venv/
-.venv/
-.venv/
+# Local credentials/configuration must not enter Git.
+.env
+.env.*
+!.env.example

@@ -1,69 +1,54 @@
-"""Tests for scene detection (shot boundary detection)."""
-import unittest
-import os
+"""CPU scene detection tests using real synthetic FFmpeg media, not inference."""
 import sys
+import tempfile
+import unittest
+from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from core import detect_scenes
+from core import detect_scenes, ffprobe
+from tests.media_fixtures import (
+    CUT_FRAME, FRAME_RATE, FRAME_SIZE, TOTAL_FRAMES, TWO_SHOTS, make_test_video,
+)
 
 
 class TestDetectScenes(unittest.TestCase):
-    """Test scene detection on the known test clip (cut at frame 68)."""
-
-    TEST_VIDEO = os.path.join(
-        os.path.dirname(__file__), "..", "..",
-        "projects", "higgsfield-oss", "prototypes", "test_input_downloaded.mp4"
-    )
+    @classmethod
+    def setUpClass(cls):
+        temporary = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(temporary.cleanup)
+        root = Path(temporary.name)
+        cls.video = make_test_video(root)
+        cls.single_shot = make_test_video(root, two_shots=False)
 
     def test_detects_cut_at_frame_68(self):
-        """The test clip has a known cut at frame 68 (±5)."""
-        if not os.path.exists(self.TEST_VIDEO):
-            self.skipTest(f"Test video not found: {self.TEST_VIDEO}")
-        scenes = detect_scenes(self.TEST_VIDEO)
-        self.assertGreater(len(scenes), 1, "Should detect at least 2 scenes")
-        # First cut should be near frame 68
-        first_cut = scenes[1]["start"] if len(scenes) > 1 else None
-        self.assertIsNotNone(first_cut)
-        self.assertTrue(
-            60 <= first_cut <= 75,
-            f"First cut at frame {first_cut}, expected 60-75"
-        )
+        """The generated 121-frame clip has exactly two shots, cut at 68."""
+        info = ffprobe(self.video)
+        self.assertEqual(info["frames"], TOTAL_FRAMES)
+        self.assertEqual((info["width"], info["height"]), (FRAME_SIZE, FRAME_SIZE))
+        self.assertEqual(info["fps"], FRAME_RATE)
+        scenes = detect_scenes(self.video)
+        self.assertEqual(scenes, TWO_SHOTS)
+        self.assertEqual(scenes[1]["start"], CUT_FRAME)
 
     def test_no_cut_returns_single_segment(self):
-        """A video without cuts returns a single segment."""
-        # Create a tiny test video without cuts
-        import subprocess
-        import tempfile
-        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
-            tmp = f.name
-        try:
-            subprocess.run([
-                "ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=duration=1:size=64x64:rate=10",
-                "-c:v", "libx264", tmp
-            ], capture_output=True, check=True)
-            scenes = detect_scenes(tmp)
-            self.assertEqual(len(scenes), 1, "No cut → single segment")
-            self.assertEqual(scenes[0]["start"], 0)
-        finally:
-            os.unlink(tmp)
+        """A constant shot covers every frame without an invented boundary."""
+        self.assertEqual(
+            detect_scenes(self.single_shot),
+            [{"start": 0, "end": TOTAL_FRAMES - 1}],
+        )
 
     def test_detects_scenes_returns_valid_ranges(self):
-        """All segments have valid start/end ranges."""
-        if not os.path.exists(self.TEST_VIDEO):
-            self.skipTest(f"Test video not found: {self.TEST_VIDEO}")
-        scenes = detect_scenes(self.TEST_VIDEO)
-        for i, seg in enumerate(scenes):
-            self.assertIn("start", seg)
-            self.assertIn("end", seg)
-            self.assertLess(seg["start"], seg["end"], f"Segment {i}: start >= end")
-        # Segments should be contiguous
-        for i in range(len(scenes) - 1):
-            self.assertEqual(
-                scenes[i]["end"] + 1, scenes[i + 1]["start"],
-                f"Gap between segment {i} and {i+1}"
-            )
+        """Inclusive ranges are contiguous and cover all 121 frames."""
+        scenes = detect_scenes(self.video)
+        self.assertEqual(len(scenes), 2)
+        self.assertEqual(scenes[0]["start"], 0)
+        self.assertEqual(scenes[-1]["end"], TOTAL_FRAMES - 1)
+        self.assertEqual(sum(seg["end"] - seg["start"] + 1 for seg in scenes), TOTAL_FRAMES)
+        for seg in scenes:
+            self.assertLess(seg["start"], seg["end"])
+        for previous, current in zip(scenes, scenes[1:]):
+            self.assertEqual(previous["end"] + 1, current["start"])
 
 
 if __name__ == "__main__":

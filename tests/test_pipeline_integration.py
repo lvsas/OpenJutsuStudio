@@ -1,122 +1,149 @@
-"""Integration test: run_pipeline with multi-segment editing."""
-import unittest
-import os
+"""Pipeline orchestration only: mocked media/inference, real temporary Job files.
+
+These are not GPU integration tests. No source clip, FFmpeg or server is used.
+"""
 import sys
-from unittest.mock import MagicMock, patch
+import tempfile
+import unittest
+from contextlib import ExitStack
+from pathlib import Path
+from unittest.mock import MagicMock, call, patch
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from core import run_pipeline, Job
+import core
+from tests.media_fixtures import TOTAL_FRAMES, TWO_SHOTS
 
 
 class TestPipelineWithCuts(unittest.TestCase):
-    """Test that run_pipeline uses detect_scenes + edit_segment + merge_segments."""
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.video = self.root / "deliberately_absent_source.mp4"
+        self.segments = [str(self.root / name) for name in ("seg1.mp4", "seg2.mp4")]
+        self.merged = str(self.root / "merged.mp4")
+        self.upscaled = str(self.root / "upscaled.mp4")
+        self.client = MagicMock()
+        self.engine = MagicMock()
+        stack = ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(patch.object(core, "WORK", self.root))
+        stack.enter_context(patch("media.WORK", self.root))
+        stack.enter_context(patch.object(core, "ENGINES", {"ltx25-ripple": self.engine}))
+        self.make_client = stack.enter_context(
+            patch.object(core, "make_client", return_value=self.client))
+        self.detect = stack.enter_context(
+            patch.object(core, "detect_scenes", return_value=TWO_SHOTS))
+        self.edit = stack.enter_context(
+            patch.object(core, "edit_segment", side_effect=self.segments))
+        self.merge = stack.enter_context(
+            patch.object(core, "merge_segments", return_value=self.merged))
+        self.upscale = stack.enter_context(
+            patch.object(core, "upscale_video", return_value=self.upscaled))
+        # Fail loudly if any supposedly mocked stage starts a media subprocess.
+        stack.enter_context(patch("subprocess.run", side_effect=AssertionError("unexpected media call")))
 
-    TEST_VIDEO = os.path.join(
-        os.path.dirname(__file__), "..", "..",
-        "projects", "higgsfield-oss", "prototypes", "test_input_downloaded.mp4"
-    )
+    def assert_persisted(self, job):
+        self.assertEqual(job.path, self.root / "jobs" / f"{job.id}.json")
+        saved = core.Job.load(job.id)
+        self.assertEqual(saved.status, job.status)
+        self.assertEqual(saved.result, job.result)
+        self.assertEqual(saved.error, job.error)
+        self.assertEqual(saved.progress, job.progress)
+        self.assertEqual(saved.finished, job.finished)
+        self.assertIsNotNone(saved.started)
+        self.assertIsNotNone(saved.finished)
 
     def test_pipeline_detects_cuts_and_edits_per_segment(self):
-        """Pipeline should detect cuts, edit each segment, then merge."""
-        if not os.path.exists(self.TEST_VIDEO):
-            self.skipTest(f"Test video not found: {self.TEST_VIDEO}")
+        job = core.Job(id="two-shots", prompt="Replace riders with knights")
+        core.run_pipeline(job, self.video, {"prompt": job.prompt})
 
-        job = Job(id="test-001", prompt="Replace riders with knights")
-
-        mock_client = MagicMock()
-        mock_engine = MagicMock()
-        mock_engine.edit_frame.return_value = "edited.png"
-        mock_engine.propagate.return_value = "seg_result.mp4"
-
-        with patch("core.make_client", return_value=mock_client), \
-             patch("core.ENGINES", {"ltx25-ripple": mock_engine}), \
-             patch("core.detect_scenes") as mock_detect, \
-             patch("core.edit_segment") as mock_edit, \
-             patch("core.merge_segments") as mock_merge:
-
-            mock_detect.return_value = [
-                {"start": 0, "end": 67},
-                {"start": 68, "end": 120}
-            ]
-            mock_edit.side_effect = ["seg1.mp4", "seg2.mp4"]
-            mock_merge.return_value = "final_merged.mp4"
-
-            run_pipeline(job, self.TEST_VIDEO, {"prompt": "Replace riders with knights"})
-
-            self.assertEqual(mock_detect.call_count, 1, "detect_scenes called once")
-            self.assertEqual(mock_edit.call_count, 2, "edit_segment called per segment")
-            mock_merge.assert_called_once()
-            self.assertEqual(job.status, "done")
-            self.assertEqual(job.result, "final_merged.mp4")
+        self.assertFalse(self.video.exists(), "No source clip is needed for orchestration")
+        self.detect.assert_called_once_with(self.video)
+        self.make_client.assert_called_once_with()
+        self.assertEqual(self.edit.call_args_list, [
+            call(video_path=self.video, segment=segment, prompt=job.prompt,
+                 client=self.client, engine=self.engine)
+            for segment in TWO_SHOTS
+        ])
+        self.merge.assert_called_once_with(self.segments)
+        self.upscale.assert_not_called()
+        self.assertEqual(job.status, "done")
+        self.assertEqual(job.result, self.merged)
+        self.assertEqual(job.progress, 1.0)
+        self.client.close.assert_called_once_with()
+        self.assert_persisted(job)
 
     def test_pipeline_single_segment_no_merge(self):
-        """Single segment → edit once, no merge needed."""
-        if not os.path.exists(self.TEST_VIDEO):
-            self.skipTest(f"Test video not found: {self.TEST_VIDEO}")
+        job = core.Job(id="one-shot", prompt="Replace with dragon")
+        self.detect.return_value = [{"start": 0, "end": TOTAL_FRAMES - 1}]
+        self.edit.side_effect = None
+        self.edit.return_value = self.segments[0]
+        core.run_pipeline(job, self.video, {"prompt": job.prompt})
 
-        job = Job(id="test-002", prompt="Replace with dragon")
-
-        mock_client = MagicMock()
-        mock_engine = MagicMock()
-        mock_engine.edit_frame.return_value = "edited.png"
-        mock_engine.propagate.return_value = "result.mp4"
-
-        with patch("core.make_client", return_value=mock_client), \
-             patch("core.ENGINES", {"ltx25-ripple": mock_engine}), \
-             patch("core.detect_scenes") as mock_detect, \
-             patch("core.edit_segment") as mock_edit, \
-             patch("core.merge_segments") as mock_merge:
-
-            mock_detect.return_value = [{"start": 0, "end": 120}]
-            mock_edit.return_value = "result.mp4"
-
-            run_pipeline(job, self.TEST_VIDEO, {"prompt": "test"})
-
-            self.assertEqual(mock_edit.call_count, 1)
-            # merge_segments should NOT be called for single segment
-            mock_merge.assert_not_called()
-            self.assertEqual(job.status, "done")
+        self.edit.assert_called_once()
+        self.merge.assert_not_called()
+        self.upscale.assert_not_called()
+        self.assertEqual(job.status, "done")
+        self.assertEqual(job.result, self.segments[0])
+        self.client.close.assert_called_once_with()
+        self.assert_persisted(job)
 
     def test_pipeline_upscales_after_merge(self):
-        """Pipeline should upscale after merging segments."""
-        if not os.path.exists(self.TEST_VIDEO):
-            self.skipTest(f"Test video not found: {self.TEST_VIDEO}")
+        job = core.Job(id="upscale", prompt="Replace riders with knights")
+        order = MagicMock()
+        order.attach_mock(self.merge, "merge")
+        order.attach_mock(self.upscale, "upscale")
+        core.run_pipeline(job, self.video, {"upscale": True, "upscale_scale": 3.0})
 
-        job = Job(id="test-004", prompt="Replace riders with knights")
-
-        mock_client = MagicMock()
-        mock_engine = MagicMock()
-        mock_engine.edit_frame.return_value = "edited.png"
-        mock_engine.propagate.return_value = "seg_result.mp4"
-
-        with patch("core.make_client", return_value=mock_client), \
-             patch("core.ENGINES", {"ltx25-ripple": mock_engine}), \
-             patch("core.detect_scenes") as mock_detect, \
-             patch("core.edit_segment") as mock_edit, \
-             patch("core.merge_segments") as mock_merge, \
-             patch("core.upscale_video") as mock_upscale:
-
-            mock_detect.return_value = [{"start": 0, "end": 120}]
-            mock_edit.return_value = "seg.mp4"
-            mock_merge.return_value = "merged.mp4"
-            mock_upscale.return_value = "upscaled.mp4"
-
-            run_pipeline(job, self.TEST_VIDEO, {"prompt": "test", "upscale": True})
-
-            mock_upscale.assert_called_once()
-            self.assertEqual(job.status, "done")
-            self.assertEqual(job.result, "upscaled.mp4")
+        self.assertEqual(order.mock_calls, [
+            call.merge(self.segments), call.upscale(self.merged, scale=3.0),
+        ])
+        self.assertEqual(job.status, "done")
+        self.assertEqual(job.result, self.upscaled)
+        self.client.close.assert_called_once_with()
+        self.assert_persisted(job)
 
     def test_pipeline_handles_empty_video(self):
-        """Empty video → error status."""
-        job = Job(id="test-003")
+        job = core.Job(id="empty")
+        self.detect.return_value = []
+        core.run_pipeline(job, self.video, {})
 
-        with patch("core.detect_scenes") as mock_detect:
-            mock_detect.return_value = []
-            run_pipeline(job, self.TEST_VIDEO, {})
-            self.assertEqual(job.status, "error")
-            self.assertIn("no scenes", job.error.lower())
+        self.assertEqual(job.status, "error")
+        self.assertIn("no scenes", job.error.lower())
+        self.make_client.assert_not_called()
+        self.edit.assert_not_called()
+        self.merge.assert_not_called()
+        self.upscale.assert_not_called()
+        self.client.close.assert_not_called()
+        self.assert_persisted(job)
+
+    def test_stage_failures_persist_error_and_close_owned_client(self):
+        stages = [
+            ("detection", self.detect, False),
+            ("client", self.make_client, False),
+            ("editing", self.edit, True),
+            ("merging", self.merge, True),
+            ("upscaling", self.upscale, True),
+        ]
+        for name, stage, client_created in stages:
+            with self.subTest(stage=name):
+                self.client.reset_mock()
+                for _, mock, _ in stages:
+                    mock.reset_mock(side_effect=True)
+                self.edit.side_effect = list(self.segments)
+                stage.side_effect = RuntimeError(f"{name} failed")
+                job = core.Job(id=f"failed-{name}", prompt="edit")
+                core.run_pipeline(job, self.video, {"upscale": True})
+                self.assertEqual(job.status, "error")
+                self.assertIn(f"{name} failed", job.error)
+                self.assertIsNone(job.result)
+                if client_created:
+                    self.client.close.assert_called_once_with()
+                else:
+                    self.client.close.assert_not_called()
+                self.assert_persisted(job)
 
 
 if __name__ == "__main__":

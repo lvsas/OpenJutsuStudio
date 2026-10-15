@@ -1,50 +1,64 @@
-"""Tests for segment frame extraction."""
-import unittest
-import os
+"""Real CPU/FFmpeg segment frame extraction; no inference or external media."""
+import subprocess
 import sys
+import tempfile
+import unittest
+from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from core import detect_scenes, extract_segment_frames
+from tests.media_fixtures import TOTAL_FRAMES, TWO_SHOTS, make_test_video
 
 
 class TestExtractSegmentFrames(unittest.TestCase):
-    """Test extracting first frame from each detected segment."""
+    @classmethod
+    def setUpClass(cls):
+        temporary = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(temporary.cleanup)
+        cls.video = make_test_video(Path(temporary.name))
 
-    TEST_VIDEO = os.path.join(
-        os.path.dirname(__file__), "..", "..",
-        "projects", "higgsfield-oss", "prototypes", "test_input_downloaded.mp4"
-    )
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.output = Path(temporary.name) / "frames"
+
+    def extract(self, scenes):
+        return extract_segment_frames(self.video, scenes, output_dir=self.output)
 
     def test_extracts_one_frame_per_segment(self):
-        """Each segment should produce exactly one frame."""
-        if not os.path.exists(self.TEST_VIDEO):
-            self.skipTest(f"Test video not found: {self.TEST_VIDEO}")
-        scenes = detect_scenes(self.TEST_VIDEO)
-        frames = extract_segment_frames(self.TEST_VIDEO, scenes)
-        self.assertEqual(len(frames), len(scenes), "One frame per segment")
+        """The known two shots each produce one frame in the temp directory."""
+        scenes = detect_scenes(self.video)
+        self.assertEqual(scenes, TWO_SHOTS)
+        frames = self.extract(scenes)
+        self.assertEqual(len(frames), 2)
+        self.assertEqual([frame.parent for frame in frames], [self.output] * 2)
 
     def test_extracted_frames_exist(self):
-        """All extracted frame files should exist on disk."""
-        if not os.path.exists(self.TEST_VIDEO):
-            self.skipTest(f"Test video not found: {self.TEST_VIDEO}")
-        scenes = detect_scenes(self.TEST_VIDEO)
-        frames = extract_segment_frames(self.TEST_VIDEO, scenes)
-        for f in frames:
-            self.assertTrue(os.path.exists(f), f"Frame file missing: {f}")
+        """Decoded first frames are black then white, proving shot selection."""
+        frames = self.extract(TWO_SHOTS)
+        self.assertEqual(len(frames), 2)
+        for frame, expected in zip(frames, (0, 255)):
+            with self.subTest(frame=frame):
+                self.assertTrue(frame.is_file())
+                self.assertGreater(frame.stat().st_size, 0)
+                pixels = subprocess.run(
+                    ["ffmpeg", "-nostdin", "-v", "error", "-i", str(frame),
+                     "-f", "rawvideo", "-pix_fmt", "gray", "-"],
+                    capture_output=True, check=True, timeout=30,
+                ).stdout
+                self.assertTrue(pixels)
+                self.assertLessEqual(abs(sum(pixels) / len(pixels) - expected), 2)
 
     def test_no_scenes_returns_empty(self):
-        """Empty scene list → empty frame list."""
-        frames = extract_segment_frames(self.TEST_VIDEO, [])
-        self.assertEqual(len(frames), 0)
+        self.assertEqual(self.extract([]), [])
+        self.assertEqual(list(self.output.iterdir()), [])
 
     def test_single_segment_returns_single_frame(self):
-        """Single segment → single frame."""
-        if not os.path.exists(self.TEST_VIDEO):
-            self.skipTest(f"Test video not found: {self.TEST_VIDEO}")
-        scenes = [{"start": 0, "end": 100}]
-        frames = extract_segment_frames(self.TEST_VIDEO, scenes)
+        frames = self.extract([{"start": 0, "end": TOTAL_FRAMES - 1}])
         self.assertEqual(len(frames), 1)
+        self.assertTrue(frames[0].is_file())
+        self.assertEqual(frames[0].parent, self.output)
 
 
 if __name__ == "__main__":

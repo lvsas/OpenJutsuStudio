@@ -12,12 +12,15 @@ from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
 import core
+from api_schema import _public_job, _target_size
 
 app = FastAPI(title="OpenGenjutsu LTX", version="0.1.0")
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 MAX_UPLOAD_BYTES = int(os.getenv("OPENGENJUTSU_MAX_UPLOAD_BYTES", str(500 * 1024 * 1024)))
 ALLOWED_SUFFIXES = {".mp4", ".mov", ".mkv", ".webm"}
 MEDIA_DIR = core.WORK / "media"
@@ -26,29 +29,10 @@ _EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="opengenjutsu")
 PIPELINE_RUNNER = core.run_pipeline
 
 
-def _public_job(job: core.Job) -> dict[str, Any]:
-    return {
-        "id": job.id,
-        "status": job.status,
-        "step": job.step,
-        "progress": job.progress,
-        "engine": job.engine,
-        "prompt": job.prompt,
-        "error": job.error,
-        "created": job.created,
-        "started": job.started,
-        "finished": job.finished,
-        "meta": job.meta,
-        "result_url": f"/api/jobs/{job.id}/result" if job.status == "done" else None,
-    }
 
 
-def _target_size(width: int, height: int, max_edge: int = 768) -> tuple[int, int]:
-    """Fit the source into a 768px long side, rounded to LTX-friendly multiples of 32."""
-    scale = min(max_edge / width, max_edge / height)
-    w = max(64, round(width * scale / 32) * 32)
-    h = max(64, round(height * scale / 32) * 32)
-    return w, h
+
+
 
 
 @app.get("/health")
@@ -221,62 +205,4 @@ def get_result(job_id: str) -> FileResponse:
     return FileResponse(path, media_type="video/mp4", filename=f"opengenjutsu-{job_id}.mp4")
 
 
-PAGE = r'''<!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OpenGenjutsu LTX — Object Swap Vidéo</title>
-<meta name="description" content="Édite la première image, propage l'édition dans le mouvement avec LTX 2.5 + Ripple. Open source, open weights.">
-<style>
-:root{color-scheme:dark;--bg:#0a0d12;--panel:#141922;--line:#2a3242;--text:#edf2f8;--muted:#8b9bb4;--accent:#70d7bd;--accent2:#a78bfa;--bad:#ff8b8b;--radius:16px;--shadow:0 8px 32px rgba(0,0,0,.4)}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,sans-serif;min-height:100vh}
-main{max-width:960px;margin:0 auto;padding:48px 20px}
-h1{margin:0;font-size:2.4rem;font-weight:800;letter-spacing:-.02em;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.subtitle{color:var(--muted);margin:.5rem 0 0;font-size:1.05rem}
-.card{margin-top:28px;padding:28px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);box-shadow:var(--shadow);transition:border-color .3s,box-shadow .3s}
-.card:hover{border-color:var(--accent);box-shadow:0 12px 40px rgba(112,215,189,.08)}
-label{display:block;margin:18px 0 6px;font-weight:650;font-size:.95rem}
-input,textarea,button{font:inherit}
-input[type=file],textarea,input[type=number]{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#0d1117;color:var(--text);transition:border-color .2s,box-shadow .2s}
-input:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(112,215,189,.15)}
-textarea{min-height:96px;resize:vertical}
-button{margin-top:22px;border:0;border-radius:10px;background:linear-gradient(135deg,var(--accent),#5bc4ab);color:#06211b;font-weight:750;font-size:1rem;padding:14px 22px;cursor:pointer;transition:transform .15s,box-shadow .15s;width:100%}
-button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 20px rgba(112,215,189,.3)}
-button:active:not(:disabled){transform:translateY(0)}
-button:disabled{opacity:.5;cursor:wait}
-.small{font-size:.88rem;color:var(--muted);margin-top:8px}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.status{margin-top:18px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:#0d1117}
-.bar{height:6px;background:#1a1f28;border-radius:6px;margin-top:12px;overflow:hidden}
-.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .4s;border-radius:6px}
-.error{color:var(--bad)}
-video{width:100%;margin-top:18px;border-radius:14px;background:#000;box-shadow:var(--shadow)}
-.link{color:var(--accent);text-decoration:none}
-.link:hover{text-decoration:underline}
-.share{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
-.share a{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;background:#1a1f28;color:var(--muted);font-size:.85rem;text-decoration:none;transition:background .2s,color .2s}
-.share a:hover{background:#242b38;color:var(--text)}
-.badge{display:inline-block;padding:4px 10px;border-radius:6px;background:rgba(112,215,189,.12);color:var(--accent);font-size:.78rem;font-weight:600;margin-left:8px;vertical-align:middle}
-@media(max-width:650px){.row{grid-template-columns:1fr}main{padding:28px 14px}h1{font-size:1.8rem}}
-</style></head><body><main>
-<h1>OpenGenjutsu <span>LTX</span><span class="badge">Open Source</span></h1>
-<p class="subtitle">Édite la première image, propage l'édition dans le mouvement avec LTX 2.5 + Ripple. Open weights, open source.</p>
-<section class="card"><form id="form">
-<label for="video">Vidéo source</label><input id="video" name="video" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska" required>
-<label for="edit">Modification à appliquer à l'image de départ</label><textarea id="edit" name="edit_prompt" minlength="3" maxlength="2000" required placeholder="Ex. Remplace uniquement le sac rouge par un sac noir ; conserve la personne, le cadrage et le décor."></textarea>
-<label for="prop">Instruction de propagation</label><textarea id="prop" name="propagation_prompt">Use the reference video for motion, timing, camera movement, composition, and unchanged scene content, while consistently propagating the visual edit established in the first frame throughout the video.</textarea>
-<div class="row"><div><label for="strength">Force Ripple</label><input id="strength" name="ripple_strength" type="number" min="0" max="2" step="0.05" value="1.2"><div class="small">Commence à 1,2 ; réduire si le changement déborde.</div></div><div><label for="seed">Seed</label><input id="seed" name="seed" type="number" min="0" value="125348341465200"></div></div>
-<button id="submit">Lancer l'édition</button><div class="small">Le rendu tourne sur le ComfyUI configuré. Les vidéos de plus de 500 Mio sont refusées.</div>
-</form><div id="status" class="status" hidden></div><video id="result" controls hidden></video>
-<div class="share" id="share" hidden>
-<a href="https://twitter.com/intent/tweet?text=OpenGenjutsu%20LTX%20—%20Object%20Swap%20vidéo%20open%20source" target="_blank" rel="noopener">𝕏 Partager</a>
-<a href="https://www.linkedin.com/sharing/share-offsite/" target="_blank" rel="noopener">LinkedIn</a>
-<a href="https://github.com/lvsas/Open-Source-Higgsfield-Competition" target="_blank" rel="noopener">GitHub</a>
-</div></section>
-<p class="small">Prototype local. LTX 2.5 + Ripple est un pipeline FFAF, pas l'implémentation interne de Genjutsu. Vérifie les licences et conditions des modèles avant tout usage commercial.</p>
-</main><script>
-const form=document.querySelector('#form'),button=document.querySelector('#submit'),statusBox=document.querySelector('#status'),video=document.querySelector('#result'),share=document.querySelector('#share');
-let active=null;
-function renderStatus(j){statusBox.hidden=false;const labels={queued:'En file d’attente',running:'Génération en cours',done:'Rendu terminé',error:'Échec'};const p=j.status==='done'?100:(j.status==='running'?35:(j.status==='queued'?5:0));statusBox.replaceChildren();const title=document.createElement('strong');title.textContent=(labels[j.status]||j.status)+(j.step?' · '+j.step:'');statusBox.append(title);const bar=document.createElement('div');bar.className='bar';const fill=document.createElement('i');fill.style.width=p+'%';bar.append(fill);statusBox.append(bar);if(j.meta?.trimmed_tail_frames){const note=document.createElement('div');note.className='small';note.textContent=`${j.meta.trimmed_tail_frames} image(s) de fin ignorée(s) pour respecter le format latent vidéo.`;statusBox.append(note)}if(j.error){const err=document.createElement('p');err.className='error';err.textContent=j.error;statusBox.append(err)}if(j.status==='done'&&j.result_url){video.src=j.result_url;video.hidden=false;share.hidden=false;button.disabled=false;localStorage.removeItem('opengenjutsu_job')}if(j.status==='error'){button.disabled=false;localStorage.removeItem('opengenjutsu_job')}}
-async function poll(id){active=id;localStorage.setItem('opengenjutsu_job',id);try{const r=await fetch('/api/jobs/'+encodeURIComponent(id));const j=await r.json();if(!r.ok)throw new Error(j.detail||'Job introuvable');renderStatus(j);if(['done','error'].includes(j.status)){active=null;return}setTimeout(()=>poll(id),2500)}catch(e){statusBox.hidden=false;statusBox.textContent='Erreur de suivi : '+e.message;button.disabled=false;active=null}}
-form.addEventListener('submit',async e=>{e.preventDefault();if(active)return;button.disabled=true;video.hidden=true;share.hidden=true;statusBox.hidden=false;statusBox.textContent='Téléversement et préparation…';try{const data=new FormData(form);const r=await fetch('/api/jobs',{method:'POST',body:data});const j=await r.json();if(!r.ok)throw new Error(j.detail||'Échec de lancement');renderStatus(j.job);poll(j.job_id)}catch(err){statusBox.textContent=err.message;statusBox.className='status error';button.disabled=false}});
-const saved=localStorage.getItem('opengenjutsu_job');if(saved)poll(saved);
-</script></body></html>'''
+PAGE = (Path(__file__).parent / "templates" / "index.html").read_text()

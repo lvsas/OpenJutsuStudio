@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenGenjutsu LTX — Object Swap Vidéo</title>
+<meta name="description" content="Édite la première image, propage l'édition dans le mouvement avec LTX 2.5 + Ripple. Open source, open weights.">
+<link rel="stylesheet" href="/static/app.css"></head><body><main>
+<h1>OpenGenjutsu <span>LTX</span><span class="badge">Open Source</span></h1>
+<p class="subtitle">Édite la première image, propage l'édition dans le mouvement avec LTX 2.5 + Ripple. Open weights, open source.</p>
+<section class="card"><form id="form">
+<label for="video">Vidéo source</label><input id="video" name="video" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska" required>
+<label for="edit">Modification à appliquer à l'image de départ</label><textarea id="edit" name="edit_prompt" minlength="3" maxlength="2000" required placeholder="Ex. Remplace uniquement le sac rouge par un sac noir ; conserve la personne, le cadrage et le décor."></textarea>
+<label for="prop">Instruction de propagation</label><textarea id="prop" name="propagation_prompt">Use the reference video for motion, timing, camera movement, composition, and unchanged scene content, while consistently propagating the visual edit established in the first frame throughout the video.</textarea>
+<div class="row"><div><label for="strength">Force Ripple</label><input id="strength" name="ripple_strength" type="number" min="0" max="2" step="0.05" value="1.2"><div class="small">Commence à 1,2 ; réduire si le changement déborde.</div></div><div><label for="seed">Seed</label><input id="seed" name="seed" type="number" min="0" value="125348341465200"></div></div>
+<button id="submit">Lancer l'édition</button><div class="small">Le rendu tourne sur le ComfyUI configuré. Les vidéos de plus de 500 Mio sont refusées.</div>
+</form><div id="status" class="status" hidden></div><video id="result" controls hidden></video>
+<div class="share" id="share" hidden>
+<a href="https://twitter.com/intent/tweet?text=OpenGenjutsu%20LTX%20—%20Object%20Swap%20vidéo%20open%20source" target="_blank" rel="noopener">𝕏 Partager</a>
+<a href="https://www.linkedin.com/sharing/share-offsite/" target="_blank" rel="noopener">LinkedIn</a>
+<a href="https://github.com/lvsas/Open-Source-Higgsfield-Competition" target="_blank" rel="noopener">GitHub</a>
+</div></section>
+<p class="small">Prototype local. LTX 2.5 + Ripple est un pipeline FFAF, pas l'implémentation interne de Genjutsu. Vérifie les licences et conditions des modèles avant tout usage commercial.</p>
+</main><script src="/static/app.js" defer></script></body></html>

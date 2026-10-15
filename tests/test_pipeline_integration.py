@@ -78,6 +78,36 @@ class TestPipelineWithCuts(unittest.TestCase):
             mock_merge.assert_not_called()
             self.assertEqual(job.status, "done")
 
+    def test_pipeline_upscales_after_merge(self):
+        """Pipeline should upscale after merging segments."""
+        if not os.path.exists(self.TEST_VIDEO):
+            self.skipTest(f"Test video not found: {self.TEST_VIDEO}")
+
+        job = Job(id="test-004", prompt="Replace riders with knights")
+
+        mock_client = MagicMock()
+        mock_engine = MagicMock()
+        mock_engine.edit_frame.return_value = "edited.png"
+        mock_engine.propagate.return_value = "seg_result.mp4"
+
+        with patch("core.make_client", return_value=mock_client), \
+             patch("core.ENGINES", {"ltx25-ripple": mock_engine}), \
+             patch("core.detect_scenes") as mock_detect, \
+             patch("core.edit_segment") as mock_edit, \
+             patch("core.merge_segments") as mock_merge, \
+             patch("core.upscale_video") as mock_upscale:
+
+            mock_detect.return_value = [{"start": 0, "end": 120}]
+            mock_edit.return_value = "seg.mp4"
+            mock_merge.return_value = "merged.mp4"
+            mock_upscale.return_value = "upscaled.mp4"
+
+            run_pipeline(job, self.TEST_VIDEO, {"prompt": "test", "upscale": True})
+
+            mock_upscale.assert_called_once()
+            self.assertEqual(job.status, "done")
+            self.assertEqual(job.result, "upscaled.mp4")
+
     def test_pipeline_handles_empty_video(self):
         """Empty video → error status."""
         job = Job(id="test-003")

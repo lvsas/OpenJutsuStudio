@@ -682,6 +682,12 @@ def run_pipeline(job: Job, video_path: Path, opts: dict) -> None:
         else:
             result = merge_segments(edited_segments)
 
+        # 5. upscale (optional)
+        if opts.get("upscale", False):
+            job.step, job.progress = "upscale", 0.98
+            job.save()
+            result = upscale_video(result, scale=opts.get("upscale_scale", 2.0))
+
         job.result, job.status, job.step, job.progress = result, "done", "done", 1.0
     except Exception as e:  # noqa: BLE001 - surface any engine failure to the UI
         job.status, job.error = "error", f"{type(e).__name__}: {e}"

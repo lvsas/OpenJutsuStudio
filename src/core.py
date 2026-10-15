@@ -122,9 +122,11 @@ def run_pipeline(job: Job, video_path: Path, opts: dict) -> None:
     engine = ENGINES.get(job.engine)
     if engine is None:
         job.status, job.error = "error", f"unknown engine {job.engine}"
+        job.finished = time.time()
         job.save()
         return
 
+    client = None
     job.status, job.started, job.step = "running", time.time(), "init"
     job.save()
 
@@ -134,9 +136,7 @@ def run_pipeline(job: Job, video_path: Path, opts: dict) -> None:
         job.save()
         segments = detect_scenes(video_path)
         if not segments:
-            job.status, job.error = "error", "no scenes detected"
-            job.save()
-            return
+            raise ValueError("no scenes detected")
 
         # 2. create client
         client = make_client()
@@ -177,4 +177,8 @@ def run_pipeline(job: Job, video_path: Path, opts: dict) -> None:
         job.result, job.status, job.step, job.progress = result, "done", "done", 1.0
     except Exception as e:  # noqa: BLE001 - surface any engine failure to the UI
         job.status, job.error = "error", f"{type(e).__name__}: {e}"
+    finally:
+        job.finished = time.time()
         job.save()
+        if client is not None:
+            client.close()

@@ -31,10 +31,9 @@ F_LORA_RIPPLE = "LTX25_Ripple_v11.safetensors"
 NEG_VIDEO = ("blurry, low resolution, ugly, garbled mess, compression artifacts, "
              "glitch, stop motion, still image, pixelated, robotic voice, oversaturated")
 
-RIPPLE_PROMPT = ("A cinematic tracking shot follows the action. "
-                 "Use the reference video for motion, timing, camera movement, "
+# Content-neutral model-card default; do not inject a test clip's scene or objects.
+RIPPLE_PROMPT = ("Use the reference video for motion, timing, camera movement, "
                  "composition, and unchanged scene content, while consistently "
                  "propagating the visual edit established in the first frame "
-                 "throughout the video. Maintain sharp detail on armor, fur, "
-                 "and foliage. Preserve natural lighting and depth of field.")
+                 "throughout the video.")
 

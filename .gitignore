@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+work/
+*.mp4
+*.png
+!assets/
+assets/
+.pytest_cache/
+node_modules/
+.DS_Store

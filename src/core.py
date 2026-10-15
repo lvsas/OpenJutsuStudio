@@ -17,61 +17,18 @@ from media import (detect_scenes, ffprobe, extract_first_frame,
                    extract_segment_frames, merge_segments, has_ffmpeg, upscale_video)
 
 def edit_segment(video_path: str | Path, segment: dict, prompt: str,
-                client=None, engine=None, **opts) -> str:
-    """Edit a single video segment: extract first frame → edit → propagate.
-
-    Args:
-        video_path: Path to source video
-        segment: {"start": int, "end": int} frame range
-        prompt: Edit prompt (e.g. "Replace riders with knights")
-        client: ComfySDK client (created if None)
-        engine: Engine instance (default: LTXRippleEngine)
-        **opts: Additional options for edit_frame/propagate
-
-    Returns:
-        Path to edited segment video file
-    """
-    start, end = segment["start"], segment["end"]
-    if start >= end:
-        raise ValueError(f"Invalid segment: start ({start}) >= end ({end})")
-
-    if client is None:
-        client = make_client()
-    if engine is None:
-        engine = ENGINES.get("ltx25-ripple")
-
-    # 1. Extract first frame of this segment
-    tmp_frame = WORK / "media" / f"seg_f{start:04d}.png"
-    select_filter = f"select=eq(n,{start})".replace(",", "\\,")
-    subprocess.run(
-        ["ffmpeg", "-y", "-i", str(video_path),
-         "-vf", select_filter, "-vframes", "1", str(tmp_frame)],
-        capture_output=True, check=True
-    )
-
-    # 2. Edit the frame
-    asset = client.assets.from_file(str(tmp_frame))
-    edited = engine.edit_frame(client, asset.as_reference(), prompt,
-                              **opts.get("edit", {}))
-
-    # 3. Propagate to full segment
-    # Extract segment video first
-    seg_video = WORK / "media" / f"seg_{start:04d}_{end:04d}.mp4"
-    subprocess.run(
-        ["ffmpeg", "-y", "-i", str(video_path),
-         "-vf", f"select='between(n,{start},{end})',setpts=PTS-STARTPTS",
-         "-vsync", "vfr", str(seg_video)],
-        capture_output=True, check=True
-    )
-
-    vasset = client.assets.from_file(str(seg_video))
-    edited_asset = client.assets.from_file(str(WORK / "media" / edited))
-    result = engine.propagate(client, vasset.file_path,
-                              edited_asset.as_reference(),
-                              opts.get("ripple_prompt", RIPPLE_PROMPT),
-                              **opts.get("propagate", {}))
-
-    return result
+                 client=None, engine=None, **opts) -> str:
+    """Run one inclusive shot, keeping asset transfer and frame counts explicit."""
+    from segments import render_segment
+    owned = client is None
+    client = client if client is not None else make_client()
+    try:
+        return render_segment(video_path, segment, prompt, client,
+                              engine if engine is not None else ENGINES["ltx25-ripple"],
+                              WORK, **opts)
+    finally:
+        if owned:
+            client.close()
 
 
 @dataclass

@@ -1,76 +1,95 @@
-"""Test for per-segment editing (extract → edit → propagate)."""
-import unittest
-import os
+"""Per-shot media correctness; fake inference, real FFmpeg and filesystem."""
+import shutil
+import subprocess
 import sys
-from unittest.mock import MagicMock, patch
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+import core
 
-from core import edit_segment, Job, WORK
+
+class Asset:
+    def __init__(self, path):
+        self.path = Path(path)
+        if not self.path.is_file():
+            raise FileNotFoundError(path)
+
+    def as_reference(self):
+        return {"__type": "core/ASSET", "info": {"file_path": str(self.path)}}
+
+
+class FakeClient:
+    def __init__(self):
+        self.assets = self
+        self.closed = False
+
+    def from_file(self, path):
+        return Asset(path)
+
+    def close(self):
+        self.closed = True
+
+
+class CopyEngine:
+    """No model calls: record inputs and copy generated test media."""
+    def __init__(self, root):
+        self.root = root
+        self.calls = []
+
+    def edit_frame(self, client, image, prompt, **opts):
+        self.prompt = prompt
+        return image["info"]["file_path"]
+
+    def propagate(self, client, video, edited, prompt, **opts):
+        self.calls.append((video, opts))
+        path = self.root / f"inference_{len(self.calls)}.mp4"
+        shutil.copyfile(video["info"]["file_path"], path)
+        return str(path)
 
 
 class TestEditSegment(unittest.TestCase):
-    """Test editing a single segment."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        (self.root / "media").mkdir()
+        self.video = self.root / "source.mp4"
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+                        "testsrc2=size=128x96:rate=24", "-frames:v", "25",
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(self.video)], check=True)
+        self.client = FakeClient()
+        self.engine = CopyEngine(self.root)
+        p = patch.object(core, "WORK", self.root)
+        p.start()
+        self.addCleanup(p.stop)
 
-    TEST_VIDEO = os.path.join(
-        os.path.dirname(__file__), "..", "..",
-        "projects", "higgsfield-oss", "prototypes", "test_input_downloaded.mp4"
-    )
+    def render(self, start, end):
+        return core.edit_segment(self.video, {"start": start, "end": end}, "replace object",
+                                 client=self.client, engine=self.engine,
+                                 propagate={"frames": 121, "fps": 24})
 
-    def test_edit_segment_produces_output(self):
-        """edit_segment should return a path to edited segment video."""
-        if not os.path.exists(self.TEST_VIDEO):
-            self.skipTest(f"Test video not found: {self.TEST_VIDEO}")
+    def test_full_video_frame_option_does_not_override_shot_length(self):
+        result = self.render(0, 10)
+        self.assertEqual(self.engine.calls[0][1]["frames"], 17)
+        self.assertEqual(core.ffprobe(result)["frames"], 11)
+        self.assertEqual(self.engine.prompt, "replace object")
+        self.assertTrue(Path(result).is_absolute())
 
-        mock_client = MagicMock()
-        mock_engine = MagicMock()
-        mock_engine.edit_frame.return_value = "edited_frame.png"
-        mock_engine.propagate.return_value = "edited_segment.mp4"
+    def test_one_frame_shot_is_not_dropped(self):
+        result = self.render(10, 10)
+        self.assertEqual(self.engine.calls[0][1]["frames"], 9)
+        self.assertEqual(core.ffprobe(result)["frames"], 1)
 
-        with patch("core.make_client", return_value=mock_client), \
-             patch("core.ENGINES", {"ltx25-ripple": mock_engine}):
-            result = edit_segment(
-                video_path=self.TEST_VIDEO,
-                segment={"start": 0, "end": 67},
-                prompt="Replace riders with knights",
-                client=mock_client,
-                engine=mock_engine
-            )
-            self.assertIsNotNone(result)
-            self.assertTrue(result.endswith(".mp4"))
-            mock_engine.edit_frame.assert_called_once()
-            mock_engine.propagate.assert_called_once()
+    def test_unique_workspaces_and_committed_video_references(self):
+        self.render(0, 8)
+        self.render(0, 8)
+        a, b = [call[0] for call in self.engine.calls]
+        self.assertIsInstance(a, dict)
+        self.assertNotEqual(a["info"]["file_path"], b["info"]["file_path"])
 
-    def test_edit_segment_empty_segment_raises(self):
-        """Empty segment (start >= end) should raise ValueError."""
+    def test_reverse_segment_raises(self):
         with self.assertRaises(ValueError):
-            edit_segment(
-                video_path=self.TEST_VIDEO,
-                segment={"start": 10, "end": 5},
-                prompt="test",
-                client=MagicMock(),
-                engine=MagicMock()
-            )
-
-    def test_edit_segment_calls_edit_with_prompt(self):
-        """edit_frame should receive the prompt."""
-        mock_client = MagicMock()
-        mock_engine = MagicMock()
-        mock_engine.edit_frame.return_value = "edited.png"
-        mock_engine.propagate.return_value = "result.mp4"
-
-        with patch("core.make_client", return_value=mock_client), \
-             patch("core.ENGINES", {"ltx25-ripple": mock_engine}):
-            edit_segment(
-                video_path=self.TEST_VIDEO,
-                segment={"start": 0, "end": 10},
-                prompt="Replace with a dragon",
-                client=mock_client,
-                engine=mock_engine
-            )
-            call_args = mock_engine.edit_frame.call_args
-            self.assertIn("dragon", call_args[0][2])
-
-
-if __name__ == "__main__":
-    unittest.main()
+            self.render(10, 5)

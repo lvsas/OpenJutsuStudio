@@ -37,7 +37,7 @@ class LTXRippleEngine(Engine):
         return _run_graph(client, g, "9")
 
     def propagate(self, client, video, edited_frame, prompt, frames=121, seed=125348341465200,
-                  width=768, height=416, steps=8, strength=1.2, **kw):
+                  width=768, height=416, steps=8, strength=1.2, fps=24, **kw):
         # both video (VHS_LoadVideo) and edited_frame (LoadImage) need core/ASSET refs
         if isinstance(video, dict):
             vid_ref = video
@@ -48,7 +48,7 @@ class LTXRippleEngine(Engine):
         else:
             frame_ref = {"__type": "core/ASSET", "info": {"file_path": edited_frame}}
         g = build_ripple(vid_ref, frame_ref, prompt=prompt, frames=frames, seed=seed,
-                         width=width, height=height, steps=steps, strength=strength)
+                         width=width, height=height, steps=steps, strength=strength, fps=fps)
         return _run_graph(client, g, "425")
 
 

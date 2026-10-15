@@ -430,6 +430,40 @@ def extract_first_frame(video: Path, dest: Path) -> Path:
     return dest
 
 
+
+def extract_segment_frames(video: str | Path, segments: list[dict],
+                          output_dir: Path | None = None) -> list[Path]:
+    """Extract the first frame from each detected segment.
+
+    Args:
+        video: Path to input video
+        segments: List of {"start": int, "end": int} from detect_scenes()
+        output_dir: Where to save frames (default: WORK/media)
+
+    Returns:
+        List of paths to extracted frame images
+    """
+    video = str(video)
+    if output_dir is None:
+        output_dir = WORK / "media"
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    frames = []
+    for i, seg in enumerate(segments):
+        start_frame = seg["start"]
+        dest = output_dir / f"seg_{i:03d}_f{start_frame:04d}.png"
+        # Use ffmpeg to extract specific frame
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", video, "-vf", f"select=eq(n\,{start_frame})",
+             "-vframes", "1", str(dest)],
+            capture_output=True, check=True
+        )
+        frames.append(dest)
+
+    return frames
+
+
 def has_ffmpeg() -> bool:
     return bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 

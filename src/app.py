@@ -13,6 +13,8 @@ from typing import Any
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 
+import sys
+sys.path.insert(0, str(Path(__file__).parent))
 import core
 
 app = FastAPI(title="OpenGenjutsu LTX", version="0.1.0")

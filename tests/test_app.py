@@ -31,6 +31,7 @@ class AppTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         root = Path(self.tmp.name)
         self.patches = [
+            patch.object(app_module, "check_readiness", return_value={"ready": True, "issues": []}),
             patch.object(app_module.core, "WORK", root),
             patch.object(app_module, "MEDIA_DIR", root / "media"),
             patch.object(app_module, "_EXECUTOR", _ImmediateExecutor()),

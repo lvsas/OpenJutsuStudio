@@ -11,13 +11,14 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
 import core
 from api_schema import _public_job, _target_size
+from readiness import check_readiness
 
 app = FastAPI(title="OpenGenjutsu LTX", version="0.1.0")
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
@@ -38,6 +39,12 @@ PIPELINE_RUNNER = core.run_pipeline
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "engine": "ltx25-ripple"}
+
+
+@app.get("/api/readiness")
+def readiness_status():
+    report = check_readiness()
+    return JSONResponse(report, status_code=200 if report["ready"] else 503)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -118,6 +125,9 @@ async def create_job(
     if not edit_prompt.strip():
         raise HTTPException(status_code=422, detail="Décris l'édition à appliquer à la première image.")
 
+    report = await asyncio.to_thread(check_readiness)
+    if not report["ready"]:
+        raise HTTPException(status_code=503, detail=" ".join(report["issues"]))
     MEDIA_DIR.mkdir(parents=True, exist_ok=True)
     job_id = uuid.uuid4().hex
     video_path = MEDIA_DIR / f"{job_id}{suffix}"
@@ -145,9 +155,9 @@ async def create_job(
         video_path.unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail="La vidéo doit contenir au moins 9 images.")
 
-    # LTX latent video lengths use 8n+1 frames. Trim only the tail and expose the exact count.
+    # Each shot is padded for LTX and trimmed back; source frames are retained.
     source_frames = info["frames"]
-    frames = ((source_frames - 1) // 8) * 8 + 1
+    frames = source_frames
     width, height = _target_size(info["width"], info["height"])
     job = core.Job(
         id=job_id,

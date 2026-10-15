@@ -1,6 +1,21 @@
 const form=document.querySelector('#form'),button=document.querySelector('#submit'),statusBox=document.querySelector('#status'),video=document.querySelector('#result'),share=document.querySelector('#share');
 let active=null;
-function renderStatus(j){statusBox.hidden=false;const labels={queued:'En file d’attente',running:'Génération en cours',done:'Rendu terminé',error:'Échec'};const p=j.status==='done'?100:(j.status==='running'?35:(j.status==='queued'?5:0));statusBox.replaceChildren();const title=document.createElement('strong');title.textContent=(labels[j.status]||j.status)+(j.step?' · '+j.step:'');statusBox.append(title);const bar=document.createElement('div');bar.className='bar';const fill=document.createElement('i');fill.style.width=p+'%';bar.append(fill);statusBox.append(bar);if(j.meta?.trimmed_tail_frames){const note=document.createElement('div');note.className='small';note.textContent=`${j.meta.trimmed_tail_frames} image(s) de fin ignorée(s) pour respecter le format latent vidéo.`;statusBox.append(note)}if(j.error){const err=document.createElement('p');err.className='error';err.textContent=j.error;statusBox.append(err)}if(j.status==='done'&&j.result_url){video.src=j.result_url;video.hidden=false;share.hidden=false;button.disabled=false;localStorage.removeItem('opengenjutsu_job')}if(j.status==='error'){button.disabled=false;localStorage.removeItem('opengenjutsu_job')}}
+async function checkConnection(){
+  const info=document.querySelector('#readiness');
+  try{
+    const response=await fetch('/api/readiness');
+    const report=await response.json();
+    info.textContent=report.ready?'ComfyUI ready — local inference, no API key required.':report.issues.join(' ');
+    button.disabled=!report.ready||!!active;
+    return report.ready;
+  }catch(error){
+    info.textContent='Cannot check the backend. Check the app and Comfy API Proxy connection.';
+    button.disabled=true;
+    return false;
+  }
+}
+checkConnection();
+function renderStatus(j){statusBox.hidden=false;const labels={queued:'En file d’attente',running:'Génération en cours',done:'Rendu terminé',error:'Échec'};const p=Math.max(0,Math.min(100,(j.progress||0)*100));statusBox.replaceChildren();const title=document.createElement('strong');title.textContent=(labels[j.status]||j.status)+(j.step?' · '+j.step:'');statusBox.append(title);const bar=document.createElement('div');bar.className='bar';const fill=document.createElement('i');fill.style.width=p+'%';bar.append(fill);statusBox.append(bar);if(j.meta?.trimmed_tail_frames){const note=document.createElement('div');note.className='small';note.textContent=`${j.meta.trimmed_tail_frames} image(s) de fin ignorée(s) pour respecter le format latent vidéo.`;statusBox.append(note)}if(j.error){const err=document.createElement('p');err.className='error';err.textContent=j.error;statusBox.append(err)}if(j.status==='done'&&j.result_url){video.src=j.result_url;video.hidden=false;share.hidden=false;button.disabled=false;localStorage.removeItem('opengenjutsu_job')}if(j.status==='error'){button.disabled=false;localStorage.removeItem('opengenjutsu_job')}}
 async function poll(id){active=id;localStorage.setItem('opengenjutsu_job',id);try{const r=await fetch('/api/jobs/'+encodeURIComponent(id));const j=await r.json();if(!r.ok)throw new Error(j.detail||'Job introuvable');renderStatus(j);if(['done','error'].includes(j.status)){active=null;return}setTimeout(()=>poll(id),2500)}catch(e){statusBox.hidden=false;statusBox.textContent='Erreur de suivi : '+e.message;button.disabled=false;active=null}}
 form.addEventListener('submit',async e=>{e.preventDefault();if(active)return;button.disabled=true;video.hidden=true;share.hidden=true;statusBox.hidden=false;statusBox.textContent='Téléversement et préparation…';try{const data=new FormData(form);const r=await fetch('/api/jobs',{method:'POST',body:data});const j=await r.json();if(!r.ok)throw new Error(j.detail||'Échec de lancement');renderStatus(j.job);poll(j.job_id)}catch(err){statusBox.textContent=err.message;statusBox.className='status error';button.disabled=false}});
 const saved=localStorage.getItem('opengenjutsu_job');if(saved)poll(saved);

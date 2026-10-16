@@ -107,6 +107,22 @@ class TakeCapsuleApiTests(unittest.TestCase):
         self.assertIn("attachment; filename=", response.headers["content-disposition"])
         self.assertEqual(json.loads(response.text)["job_id"], self.parent.id)
 
+    def test_frozen_capsule_keeps_original_hash_and_rejects_mutated_replay(self):
+        from take_capsule_api import freeze_take_capsule
+        freeze_take_capsule(self.parent, self.result)
+        self.parent.save()
+        original = self.client.get(f"/api/jobs/{self.parent.id}/capsule").json()
+        self.source.write_bytes(b"replacement-bytes")
+        after_mutation = self.client.get(f"/api/jobs/{self.parent.id}/capsule").json()
+        self.assertEqual(after_mutation["capsule_id"], original["capsule_id"])
+        self.assertEqual(after_mutation["assets"]["source"]["sha256"], original["assets"]["source"]["sha256"])
+        with patch.object(app_module, "check_readiness", return_value={"ready": True, "issues": []}), \
+             patch.object(app_module, "PIPELINE_RUNNER") as runner:
+            response = self.client.post(f"/api/jobs/{self.parent.id}/replay")
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("changed after this capsule was frozen", response.text)
+        runner.assert_not_called()
+
     def test_replay_creates_child_with_recipe_and_recorded_shots(self):
         captured = {}
 

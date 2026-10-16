@@ -179,6 +179,8 @@ def run_pipeline(job: Job, video_path: Path, opts: dict) -> None:
             from output_media import restore_source_audio
             result = restore_source_audio(result, str(video_path), WORK / "media" / f"final_{job.id}.mp4")
         job.result, job.status, job.step, job.progress = result, "done", "done", 1.0
+        from take_capsule_api import freeze_take_capsule
+        freeze_take_capsule(job, Path(result))
     except Exception as e:  # noqa: BLE001 - surface any engine failure to the UI
         job.status, job.error = "error", f"{type(e).__name__}: {e}"
     finally:

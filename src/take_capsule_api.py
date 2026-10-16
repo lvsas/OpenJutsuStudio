@@ -64,13 +64,23 @@ def build_take_capsule(job: core.Job, result_path: Path) -> dict[str, Any]:
         "shot_boundaries": shots, "assets": assets,
         "replay": {
             "available_on_this_machine": replayable, "missing_local_assets": missing,
-            "contract": "Replays the recorded recipe with available local models; pixel-identical output is not guaranteed.",
+            "contract": "Replays the recorded recipe with verified local source and reference bytes; pixel-identical output is not guaranteed.",
             "model_weights_hashed": False,
         },
     }
     canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     manifest["capsule_id"] = "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     return manifest
+
+
+def freeze_take_capsule(job: core.Job, result_path: Path) -> None:
+    """Persist the completed take's canonical recipe and input byte fingerprints."""
+    job.meta["take_capsule"] = build_take_capsule(job, result_path)
+
+
+def _frozen_capsule(job: core.Job) -> dict[str, Any] | None:
+    capsule = job.meta.get("take_capsule")
+    return copy.deepcopy(capsule) if isinstance(capsule, dict) else None
 
 
 def _replay_options(recipe: dict[str, Any], references: list[dict[str, Any]],
@@ -93,14 +103,22 @@ def _replay_options(recipe: dict[str, Any], references: list[dict[str, Any]],
 
 
 def _replay_inputs(parent: core.Job):
-    recipe = parent.meta.get("take_recipe")
+    capsule = _frozen_capsule(parent)
+    recipe = (capsule or {}).get("recipe", parent.meta.get("take_recipe"))
     if not isinstance(recipe, dict) or recipe.get("schema_version") != 1:
         raise HTTPException(409, "This older take has no replayable recipe.")
-    source, references, shots = Path(parent.video), parent.meta.get("references", []), parent.meta.get("shots", [])
+    source, references = Path(parent.video), parent.meta.get("references", [])
+    shots = (capsule or {}).get("shot_boundaries", parent.meta.get("shots", []))
     if not shots:
         raise HTTPException(409, "This take has no recorded shot boundaries and cannot be faithfully replayed.")
     if not source.is_file() or any(not Path(ref["image"]).is_file() for ref in references):
         raise HTTPException(409, "A local source or reference asset is missing; this take cannot be replayed here.")
+    if capsule:
+        expected = [capsule["assets"]["source"], *capsule["assets"]["references"]]
+        actual = [source, *(Path(ref["image"]) for ref in references)]
+        if len(expected) != len(actual) or any(item.get("sha256") != _digest_file(path)
+                                           for item, path in zip(expected, actual)):
+            raise HTTPException(409, "A local source or reference asset changed after this capsule was frozen.")
     return recipe, source, references, shots
 
 
@@ -138,7 +156,7 @@ class TakeCapsuleAPI:
         result_path = _resolve_result(job.result)
         if result_path is None:
             raise HTTPException(404, "The local result video is unavailable.")
-        manifest = build_take_capsule(job, result_path)
+        manifest = _frozen_capsule(job) or build_take_capsule(job, result_path)
         if download:
             body = json.dumps(manifest, indent=2, ensure_ascii=False)
             return Response(body, media_type="application/json",

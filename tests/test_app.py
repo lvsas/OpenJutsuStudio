@@ -82,8 +82,9 @@ class AppTests(unittest.TestCase):
         self.assertEqual(job.status, "done")
         self.assertTrue(observed["video_path"].is_file())
         self.assertEqual(observed["opts"]["propagate"]["frames"], 121)
-        self.assertEqual(observed["opts"]["propagate"]["width"], 768)
-        self.assertEqual(observed["opts"]["propagate"]["height"], 416)
+        self.assertEqual(observed["opts"]["propagate"]["width"], 1280)
+        self.assertEqual(observed["opts"]["propagate"]["height"], 704)
+        self.assertEqual(observed["opts"]["propagate"]["steps"], 16)
         self.assertEqual(observed["opts"]["propagate"]["strength"], 1.2)
         self.assertEqual(self.client.get(f"/api/jobs/{job_id}").json()["status"], "done")
 
@@ -121,9 +122,9 @@ class AppTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 415)
 
-    def test_target_size_preserves_landscape_and_portrait(self):
-        self.assertEqual(app_module._target_size(1280, 704), (768, 416))
-        self.assertEqual(app_module._target_size(704, 1280), (416, 768))
+    def test_target_size_preserves_hd_landscape_and_portrait(self):
+        self.assertEqual(app_module._target_size(1280, 704), (1280, 704))
+        self.assertEqual(app_module._target_size(704, 1280), (704, 1280))
 
     def test_upload_character_sheet(self):
         response = self.client.post(

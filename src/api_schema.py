@@ -18,8 +18,8 @@ def _public_job(job: core.Job) -> dict[str, Any]:
         "result_url": f"/api/jobs/{job.id}/result" if job.status == "done" else None,
     }
 
-def _target_size(width: int, height: int, max_edge: int = 768) -> tuple[int, int]:
-    """Fit the source into a 768px long side, rounded to LTX-friendly multiples of 32."""
+def _target_size(width: int, height: int, max_edge: int = 1280) -> tuple[int, int]:
+    """Fit the source into a HD 1280px long side, rounded to LTX-friendly multiples of 32."""
     scale = min(max_edge / width, max_edge / height)
     w = max(64, round(width * scale / 32) * 32)
     h = max(64, round(height * scale / 32) * 32)

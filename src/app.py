@@ -180,7 +180,7 @@ async def create_job(
             "fps": round(info["fps"]),
             "width": width,
             "height": height,
-            "steps": 8,
+            "steps": 16,
             "strength": ripple_strength,
         },
     }

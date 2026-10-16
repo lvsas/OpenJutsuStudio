@@ -54,7 +54,14 @@ class AppTests(unittest.TestCase):
         page = self.client.get("/")
         self.assertEqual(page.status_code, 200)
         self.assertIn("OpenGenjutsu", page.text)
-        self.assertIn("LTX 2.5 + Ripple", page.text)
+        self.assertIn("LTX Creative Studio", page.text)
+        self.assertIn('<html lang="en"', page.text)
+        self.assertIn("/static/design-system.css", page.text)
+        self.assertIn('data-engine="ltx"', page.text)
+        self.assertIn('id="recipe-panel"', page.text)
+        self.assertIn('id="studio-stage"', page.text)
+        self.assertIn('name="target_description"', page.text)
+        self.assertNotIn('name="propagation_prompt"', page.text)
 
     def test_video_upload_queues_pipeline_and_persists_job(self):
         observed = {}

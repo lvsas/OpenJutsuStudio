@@ -1,21 +1,135 @@
 <!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OpenGenjutsu LTX — Object Swap Vidéo</title>
-<meta name="description" content="Édite la première image, propage l'édition dans le mouvement avec LTX 2.5 + Ripple. Open source, open weights.">
-<link rel="stylesheet" href="/static/app.css"></head><body><main>
-<h1>OpenGenjutsu <span>LTX</span><span class="badge">Open Source</span></h1>
-<p class="subtitle">Édite la première image, propage l'édition dans le mouvement avec LTX 2.5 + Ripple. Open weights, open source.</p>
-<section class="card"><div id="readiness" role="status" aria-live="polite">Checking ComfyUI prerequisites…</div><form id="form">
-<label for="video">Vidéo source</label><input id="video" name="video" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska" required>
-<label for="reference">Character reference <span class="small">(optional)</span></label><input id="reference" name="reference_image" type="file" accept="image/png,image/jpeg,image/webp"><div class="small">Upload a clear image of the character you want to introduce or preserve. It guides the first-frame edit; it does not replace the video’s pose or motion.</div>
-<label for="edit">Modification à appliquer à l'image de départ</label><textarea id="edit" name="edit_prompt" minlength="3" maxlength="2000" required placeholder="Ex. Remplace uniquement le sac rouge par un sac noir ; conserve la personne, le cadrage et le décor."></textarea>
-<div class="row"><div><label for="strength">Force Ripple</label><input id="strength" name="ripple_strength" type="number" min="0" max="2" step="0.05" value="1.2"><div class="small">Commence à 1,2 ; réduire si le changement déborde.</div></div><div><label for="seed">Seed</label><input id="seed" name="seed" type="number" min="0" value="125348341465200"></div></div>
-<button id="submit" disabled>Lancer l'édition</button><div class="small">Le rendu tourne sur le ComfyUI configuré. Les vidéos de plus de 500 Mio sont refusées.</div>
-</form><div id="status" class="status" role="status" aria-live="polite" hidden></div><video id="result" controls hidden></video>
-<div class="share" id="share" hidden>
-<a href="https://twitter.com/intent/tweet?text=OpenGenjutsu%20LTX%20—%20Object%20Swap%20vidéo%20open%20source" target="_blank" rel="noopener">𝕏 Partager</a>
-<a href="https://www.linkedin.com/sharing/share-offsite/" target="_blank" rel="noopener">LinkedIn</a>
-<a href="https://github.com/lvsas/Open-Source-Higgsfield-Competition" target="_blank" rel="noopener">GitHub</a>
-</div></section>
-<p class="small">Prototype local. LTX 2.5 + Ripple est un pipeline FFAF, pas l'implémentation interne de Genjutsu. Vérifie les licences et conditions des modèles avant tout usage commercial.</p>
-</main><script src="/static/app.js" defer></script></body></html>
+<html lang="en" data-engine="ltx">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101014">
+  <title>OpenGenjutsu — LTX Creative Studio</title>
+  <meta name="description" content="Create a visible character or object swap from one reference image while preserving your video motion.">
+  <link rel="stylesheet" href="/static/design-system.css">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="wordmark" href="/" aria-label="OpenGenjutsu home">OPEN<span>GENJUTSU</span></a>
+    <div class="engine-switch" aria-label="Generation engine">
+      <button class="engine-chip active" type="button" aria-pressed="true">LTX <span>Studio</span></button>
+      <button class="engine-chip" type="button" disabled title="MiniMax H3 is not implemented yet">H3 <span>Coming soon</span></button>
+    </div>
+    <div id="readiness" class="badge" role="status" aria-live="polite">Checking local studio…</div>
+  </header>
+
+  <main class="studio-shell">
+    <section class="studio-intro" aria-labelledby="studio-title">
+      <p class="eyebrow">LTX Creative Studio</p>
+      <h1 id="studio-title">Make the edit.<br><em>Keep the moment.</em></h1>
+      <p>Swap or restyle a visible character or object from one reference image while preserving camera motion, timing, and the rest of the shot.</p>
+    </section>
+
+    <div class="studio-grid">
+      <section id="recipe-panel" class="recipe-panel" aria-labelledby="recipe-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Edit recipe</p>
+            <h2 id="recipe-title">Build your transformation</h2>
+          </div>
+          <span class="badge live">Local inference</span>
+        </div>
+
+        <form id="form" novalidate>
+          <fieldset class="recipe-step">
+            <legend><span>01</span> Source video</legend>
+            <input id="video" name="video" class="visually-hidden" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska" required>
+            <label class="media-picker" for="video" id="video-picker">
+              <span class="picker-icon" aria-hidden="true">↗</span>
+              <span><strong id="video-file-name">Choose a video</strong><small id="video-file-meta">MP4, MOV, MKV, or WebM · up to 500 MB</small></span>
+              <span class="picker-action">Browse</span>
+            </label>
+          </fieldset>
+
+          <fieldset class="recipe-step">
+            <legend><span>02</span> Character reference <small>Optional</small></legend>
+            <input id="reference" name="reference_image" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp">
+            <label class="media-picker reference-picker" for="reference" id="reference-picker">
+              <span class="reference-thumb" id="reference-thumb" aria-hidden="true">＋</span>
+              <span><strong id="reference-file-name">Add a clear reference image</strong><small>PNG, JPG, or WebP · used to guide the first-frame identity</small></span>
+              <span class="picker-action">Browse</span>
+            </label>
+          </fieldset>
+
+          <fieldset class="recipe-step directions-step">
+            <legend><span>03</span> Target and direction</legend>
+            <label class="field-label" for="target">What should change? <span class="muted">Optional but recommended</span></label>
+            <input id="target" name="target_description" class="text-input" maxlength="500" placeholder="e.g. the person in the red jacket on the left">
+            <label class="field-label" for="edit">Describe the transformation</label>
+            <textarea id="edit" name="edit_prompt" class="text-input textarea" minlength="3" maxlength="2000" required placeholder="e.g. Replace them with the reference character. Preserve the pose, framing, and background."></textarea>
+          </fieldset>
+
+          <fieldset class="recipe-step quality-step">
+            <legend><span>04</span> Quality</legend>
+            <div class="quality-card selected" aria-label="Studio HD selected">
+              <div><strong>Studio HD</strong><small>1280px long edge · 16 inference steps</small></div>
+              <span class="quality-state">Selected</span>
+            </div>
+          </fieldset>
+
+          <details class="advanced-settings">
+            <summary>Advanced controls <span>Seed and edit strength</span></summary>
+            <div class="advanced-grid">
+              <label><span class="field-label">Ripple strength</span><input id="strength" name="ripple_strength" class="text-input" type="number" min="0" max="2" step="0.05" value="1.2"></label>
+              <label><span class="field-label">Seed</span><input id="seed" name="seed" class="text-input" type="number" min="0" value="125348341465200"></label>
+            </div>
+          </details>
+
+          <button id="submit" class="btn btn-primary generate-button" type="submit" disabled><span>Generate edit</span><span aria-hidden="true">→</span></button>
+          <p class="privacy-note">Your media stays on this local studio. A reference guides identity; it does not guarantee edits through occlusion.</p>
+        </form>
+      </section>
+
+      <section id="studio-stage" class="studio-stage" aria-labelledby="stage-title">
+        <div class="stage-header">
+          <div><p class="eyebrow">Preview</p><h2 id="stage-title">Your edit, in motion</h2></div>
+          <span id="stage-mode" class="badge">Awaiting media</span>
+        </div>
+
+        <div class="stage-frame">
+          <div id="stage-empty" class="stage-empty">
+            <div class="empty-orb" aria-hidden="true"></div>
+            <h3>Start with a moment worth keeping.</h3>
+            <p>Select a source video to preview it here. Add a character reference only when identity matters.</p>
+          </div>
+          <video id="source-preview" class="stage-video" controls playsinline hidden></video>
+          <video id="result" class="stage-video" controls playsinline hidden></video>
+          <div id="run-overlay" class="run-overlay" hidden>
+            <div class="run-orb" aria-hidden="true"></div>
+            <p class="eyebrow">Generating</p>
+            <strong id="run-title">Preparing your edit</strong>
+            <span id="run-detail">Validating media and local models</span>
+            <div class="progress-track" aria-hidden="true"><i id="progress-fill"></i></div>
+          </div>
+        </div>
+
+        <div id="source-summary" class="source-summary" hidden>
+          <div><span class="eyebrow">Source</span><strong id="source-summary-name"></strong></div>
+          <span id="source-summary-meta" class="muted"></span>
+        </div>
+
+        <div id="result-actions" class="result-actions" hidden>
+          <div class="result-switch" role="group" aria-label="Preview mode">
+            <button id="show-source" class="btn btn-secondary btn-small" type="button">Source</button>
+            <button id="show-result" class="btn btn-primary btn-small" type="button">Result</button>
+          </div>
+          <div class="export-actions">
+            <a id="download-result" class="btn btn-secondary btn-small" href="#" download>Download MP4</a>
+            <button id="copy-caption" class="btn btn-secondary btn-small" type="button">Copy caption</button>
+          </div>
+          <p class="microcopy">Local mode: download or copy a caption now. Public result links activate only when the studio is hosted.</p>
+        </div>
+        <div id="status" class="sr-status" role="status" aria-live="polite"></div>
+      </section>
+    </div>
+  </main>
+  <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

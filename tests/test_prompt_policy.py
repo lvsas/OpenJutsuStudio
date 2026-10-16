@@ -6,6 +6,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import app as app_module
+import job_api
 from config import RIPPLE_PROMPT
 from prompt_profiles import PROMPT_PROFILES, get_prompt_profile
 
@@ -36,5 +37,11 @@ class PromptPolicyTests(unittest.TestCase):
         )
 
     def test_job_submission_uses_the_backend_propagation_policy(self):
-        source = Path(app_module.__file__).read_text()
-        self.assertIn('"ripple_prompt": get_prompt_profile(DEFAULT_ENGINE).propagation_prompt', source)
+        profile = get_prompt_profile("ltx25-ripple")
+        recipe = job_api._build_recipe(
+            "Recast the singer", "", [], profile, "compiled edit", 19, 1.2,
+            {"frames": 9, "fps": 24.0}, 704, 384,
+        )
+        options = job_api._pipeline_options(recipe, [])
+        self.assertEqual(recipe["propagation_prompt"], RIPPLE_PROMPT)
+        self.assertEqual(options["ripple_prompt"], RIPPLE_PROMPT)

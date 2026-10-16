@@ -146,6 +146,15 @@
             <button id="build-reel" class="btn btn-secondary btn-small" type="button" disabled>Build comparison reel</button>
             <button id="copy-caption" class="btn btn-secondary btn-small" type="button">Copy caption</button>
           </div>
+          <div class="export-actions">
+            <button id="download-capsule" class="btn btn-secondary btn-small" type="button" disabled>Download Take Capsule</button>
+            <button id="replay-capsule" class="btn btn-secondary btn-small" type="button" disabled>Re-run this take</button>
+          </div>
+          <p id="capsule-status" class="microcopy" role="status" aria-live="polite">Capsules keep recipe and hashes local. Source/reference files are not bundled; pixel-identical replay is not promised.</p>
+          <details id="capsule-details" class="capsule-inspector" hidden>
+            <summary>Inspect recipe and local fingerprints</summary>
+            <pre id="capsule-manifest" class="capsule-manifest"></pre>
+          </details>
           <p class="microcopy">Create a local 9:16 comparison MP4 to post yourself. No public link is created in local mode.</p>
         </div>
         <div id="status" class="sr-status" role="status" aria-live="polite"></div>
@@ -156,5 +165,6 @@
   <script src="/static/studio-utils.js" defer></script>
   <script src="/static/reference-controls.js" defer></script>
   <script src="/static/app.js" defer></script>
+  <script src="/static/take-capsule.js" defer></script>
 </body>
 </html>

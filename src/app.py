@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import subprocess
 import uuid
@@ -11,8 +10,9 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 
 import sys
@@ -20,21 +20,35 @@ sys.path.insert(0, str(Path(__file__).parent))
 import core
 from api_schema import _public_job, _target_size
 from readiness import check_readiness
-from prompt_profiles import get_prompt_profile
-from uploads import save_video
 from output_media import build_comparison_reel
+from job_api import create_router as create_job_router
+from take_capsule_api import create_router as create_take_capsule_router
 
 DEFAULT_ENGINE = "ltx25-ripple"
 
 app = FastAPI(title="OpenGenjutsu LTX", version="0.1.0")
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 MAX_UPLOAD_BYTES = int(os.getenv("OPENGENJUTSU_MAX_UPLOAD_BYTES", str(500 * 1024 * 1024)))
-ALLOWED_SUFFIXES = {".mp4", ".mov", ".mkv", ".webm"}
-ALLOWED_REFERENCE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 MEDIA_DIR = core.WORK / "media"
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 _EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="opengenjutsu")
 PIPELINE_RUNNER = core.run_pipeline
+
+
+def _dispatch_job(job: core.Job, video_path: Path, opts: dict[str, Any]):
+    return asyncio.get_running_loop().run_in_executor(
+        _EXECUTOR, PIPELINE_RUNNER, job, video_path, opts,
+    )
+
+
+_job_router = create_job_router(
+    lambda: MEDIA_DIR, MAX_UPLOAD_BYTES, lambda: check_readiness(),
+    _dispatch_job, DEFAULT_ENGINE,
+)
+app.include_router(_job_router)
+create_job = next(route.endpoint for route in _job_router.routes
+                  if isinstance(route, APIRoute) and route.path == "/api/jobs")
+app.include_router(create_take_capsule_router(_dispatch_job, lambda: check_readiness()))
 
 
 @app.get("/health")
@@ -110,116 +124,6 @@ def get_job(job_id: str) -> dict[str, Any]:
         return _public_job(core.Job.load(job_id))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Job not found") from exc
-
-
-def _compose_edit_prompt(edit_prompt: str, target_description: str,
-                         reference_targets: list[str] | None = None) -> str:
-    """Compatibility wrapper around the default engine's validated profile."""
-    return get_prompt_profile(DEFAULT_ENGINE).compose_frame_edit(
-        edit_prompt,
-        target_description,
-        reference_targets,
-    )
-
-
-@app.post("/api/jobs", status_code=202)
-async def create_job(
-    video: UploadFile = File(...),
-    edit_prompt: str = Form(..., min_length=3, max_length=2000),
-    target_description: str = Form(default="", max_length=500),
-    seed: int = Form(default=125348341465200, ge=0),
-    ripple_strength: float = Form(default=1.2, ge=0.0, le=2.0),
-    reference_image: UploadFile | None = File(default=None),
-    reference_images: list[UploadFile] = File(default=[]),
-    reference_targets: list[str] = Form(default=[]),
-) -> dict[str, Any]:
-    suffix = Path(video.filename or "").suffix.lower()
-    if suffix not in ALLOWED_SUFFIXES:
-        raise HTTPException(status_code=415, detail="Accepted video formats: MP4, MOV, MKV, WebM")
-    if not edit_prompt.strip():
-        raise HTTPException(status_code=422, detail="Describe the transformation to apply.")
-    uploaded_references = list(reference_images)
-    if reference_image is not None:
-        uploaded_references.insert(0, reference_image)
-    if len(uploaded_references) > 2:
-        raise HTTPException(status_code=422, detail="Use at most two character reference images.")
-    if len(reference_targets) > len(uploaded_references):
-        raise HTTPException(status_code=422, detail="Each character target needs a reference image.")
-    reference_suffixes = [Path(item.filename or "").suffix.lower() for item in uploaded_references]
-    if any(suffix not in ALLOWED_REFERENCE_SUFFIXES for suffix in reference_suffixes):
-        raise HTTPException(status_code=415, detail="Accepted image formats: PNG, JPG, JPEG, WebP")
-
-    report = await asyncio.to_thread(check_readiness)
-    if not report["ready"]:
-        raise HTTPException(status_code=503, detail=" ".join(report["issues"]))
-    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
-    job_id = uuid.uuid4().hex
-    video_path = MEDIA_DIR / f"{job_id}{suffix}"
-    info = await save_video(video, video_path, MAX_UPLOAD_BYTES)
-    reference_paths: list[Path] = []
-    for index, uploaded_reference in enumerate(uploaded_references):
-        reference_path = MEDIA_DIR / f"{job_id}-reference-{index}{reference_suffixes[index]}"
-        reference_bytes = await uploaded_reference.read()
-        if not reference_bytes:
-            video_path.unlink(missing_ok=True)
-            raise HTTPException(status_code=422, detail="The reference image is empty.")
-        reference_path.write_bytes(reference_bytes)
-        reference_paths.append(reference_path)
-
-    if info["frames"] < 9:
-        video_path.unlink(missing_ok=True)
-        for reference_path in reference_paths:
-            reference_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=422, detail="The source video must contain at least 9 frames.")
-
-    # Each shot is padded for LTX and trimmed back; source frames are retained.
-    source_frames = info["frames"]
-    frames = source_frames
-    prompt = _compose_edit_prompt(edit_prompt, target_description, reference_targets)
-    width, height = _target_size(info["width"], info["height"])
-    job = core.Job(
-        id=job_id,
-        engine=DEFAULT_ENGINE,
-        prompt=prompt,
-        video=str(video_path),
-        meta={
-            "source_filename": Path(video.filename or "video").name,
-            "target_description": target_description.strip(),
-            "reference_image": str(reference_paths[0]) if reference_paths else None,
-            "references": [
-                {"target": reference_targets[index].strip() if index < len(reference_targets) else "",
-                 "image": str(path)}
-                for index, path in enumerate(reference_paths)
-            ],
-            "source_frames": source_frames,
-            "processed_frames": frames,
-            "trimmed_tail_frames": source_frames - frames,
-            "fps": info["fps"],
-            "width": width,
-            "height": height,
-            "ripple_strength": ripple_strength,
-        },
-    )
-    job.save()
-    opts = {
-        "preserve_audio": True,
-        "reference_image": reference_paths[0] if reference_paths else None,
-        "reference_images": reference_paths,
-        "edit": {"steps": 4, "seed": seed},
-        "ripple_prompt": get_prompt_profile(DEFAULT_ENGINE).propagation_prompt,
-        "propagate": {
-            "frames": frames,
-            "seed": seed,
-            "fps": round(info["fps"]),
-            "width": width,
-            "height": height,
-            "steps": 16,
-            "strength": ripple_strength,
-        },
-    }
-    loop = asyncio.get_running_loop()
-    loop.run_in_executor(_EXECUTOR, PIPELINE_RUNNER, job, video_path, opts)
-    return {"job_id": job.id, "status": "queued", "job": _public_job(job)}
 
 
 def _result_path(result: str) -> Path | None:

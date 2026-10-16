@@ -34,6 +34,7 @@ class LTXRippleEngine(Engine):
         else:
             img_ref = {"__type": "core/ASSET", "info": {"file_path": image}}
         g = build_frame_edit(img_ref, prompt, seed=seed, steps=steps,
+                             cfg=kw.get("cfg", 1.0), megapixels=kw.get("megapixels", 1.0),
                              reference_image=kw.get("reference_image"),
                              reference_images=kw.get("reference_images"))
         return _run_graph(client, g, "9", on_progress=kw.get("on_progress"))
@@ -50,7 +51,8 @@ class LTXRippleEngine(Engine):
         else:
             frame_ref = {"__type": "core/ASSET", "info": {"file_path": edited_frame}}
         g = build_ripple(vid_ref, frame_ref, prompt=prompt, frames=frames, seed=seed,
-                         width=width, height=height, steps=steps, strength=strength, fps=fps)
+                         width=width, height=height, steps=steps, strength=strength, fps=fps,
+                         cfg=kw.get("cfg", 1.0), guide_strength=kw.get("guide_strength", 1.0))
         return _run_graph(client, g, "425", on_progress=kw.get("on_progress"))
 
 

@@ -125,7 +125,7 @@ def run_pipeline(job: Job, video_path: Path, opts: dict) -> None:
         # 1. detect scene cuts (no client needed)
         job.step, job.progress = "detect_scenes", 0.02
         job.save()
-        segments = detect_scenes(video_path)
+        segments = opts.get("shots") or detect_scenes(video_path)
         if not segments:
             raise ValueError("no scenes detected")
 

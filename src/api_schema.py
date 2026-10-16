@@ -16,6 +16,7 @@ def _public_job(job: core.Job) -> dict[str, Any]:
         "finished": job.finished,
         "meta": job.meta,
         "result_url": f"/api/jobs/{job.id}/result" if job.status == "done" else None,
+        "source_url": f"/api/jobs/{job.id}/source" if job.video else None,
     }
 
 def _target_size(width: int, height: int, target_megapixels: float = 0.9) -> tuple[int, int]:

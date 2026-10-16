@@ -90,6 +90,9 @@ h2 { font-family: var(--font-display); font-size: 1.45rem; letter-spacing: -.035
 .result-actions { border-top: 1px solid var(--line); display: grid; gap: var(--space-3); margin-top: var(--space-4); padding-top: var(--space-4); }
 .result-switch, .export-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .result-actions .microcopy { margin: 0; }
+.capsule-inspector { border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3); }
+.capsule-inspector summary { cursor: pointer; font-size: .8rem; font-weight: 650; }
+.capsule-manifest { color: var(--muted); font-size: .7rem; margin: var(--space-3) 0 0; max-height: 18rem; overflow: auto; white-space: pre-wrap; word-break: break-word; }
 .sr-status { height: 1px; overflow: hidden; width: 1px; }
 
 @keyframes glow { to { box-shadow: 0 0 6rem rgba(216,255,62,.6); transform: scale(1.12); } }

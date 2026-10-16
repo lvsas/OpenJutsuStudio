@@ -36,6 +36,7 @@ if [[ "${1:-}" == -c ]]; then
   exit $?
 fi
 printf 'PYTHONPATH=%s\\n' "${PYTHONPATH-unset}"
+printf 'COMFY_BASE_URL=%s\\n' "${COMFY_BASE_URL-unset}"
 printf 'ARG=%s\\n' "$@"
 """)
         self.tool("uv", """#!/usr/bin/env bash
@@ -155,6 +156,13 @@ fi
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Python 3.12", result.stderr)
         self.assertNotIn("ARG=-m", result.stdout)
+
+    def test_launcher_does_not_inherit_cloud_target(self):
+        self.existing_python()
+        self.env["COMFY_BASE_URL"] = "https://api.comfy.org"
+        result = self.run_script("run_app.sh")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("COMFY_BASE_URL=http://127.0.0.1:8189", result.stdout)
 
     def test_launcher_is_loopback_and_isolated_from_caller(self):
         self.existing_python()

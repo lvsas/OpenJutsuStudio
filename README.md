@@ -77,8 +77,8 @@ env -u PYTHONPATH .venv/bin/comfy-api-proxy run \
 In a second terminal, from the repository root:
 
 ```bash
-# SDK target is the proxy, not the raw ComfyUI port.
-COMFY_BASE_URL=http://127.0.0.1:8189 bash scripts/run_app.sh
+# The launcher pins the SDK to this local proxy by default.
+bash scripts/run_app.sh
 ```
 
 Open `http://127.0.0.1:8000`. Both services bind to loopback only. The launcher
@@ -110,7 +110,7 @@ The image-edit stage additionally requires the ComfyUI-compatible FLUX.2 Klein 9
 
 ```bash
 # Keep the proxy running in its own terminal (see Install).
-COMFY_BASE_URL=http://127.0.0.1:8189 bash scripts/run_app.sh
+bash scripts/run_app.sh
 ```
 
 Then open `http://127.0.0.1:8000`, choose a source video, optionally add a character reference, identify the visible target when useful, describe the transformation, and launch the job. The Creative Studio previews selected local media, keeps the job ID across reloads, translates pipeline progress into user-facing stages, and exposes a result MP4 when ComfyUI finishes. Studio HD is the current public path: a 1280px long edge and 16 Ripple inference steps. Ripple strength remains an advanced control; 1.2 is a starting point, not a universal optimum.

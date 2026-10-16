@@ -104,7 +104,7 @@ def get_job(job_id: str) -> dict[str, Any]:
     try:
         return _public_job(core.Job.load(job_id))
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail="Job introuvable") from exc
+        raise HTTPException(status_code=404, detail="Job not found") from exc
 
 
 def _compose_edit_prompt(edit_prompt: str, target_description: str) -> str:
@@ -125,12 +125,12 @@ async def create_job(
 ) -> dict[str, Any]:
     suffix = Path(video.filename or "").suffix.lower()
     if suffix not in ALLOWED_SUFFIXES:
-        raise HTTPException(status_code=415, detail="Formats vidéo acceptés : MP4, MOV, MKV, WebM")
+        raise HTTPException(status_code=415, detail="Accepted video formats: MP4, MOV, MKV, WebM")
     if not edit_prompt.strip():
-        raise HTTPException(status_code=422, detail="Décris l'édition à appliquer à la première image.")
+        raise HTTPException(status_code=422, detail="Describe the transformation to apply.")
     reference_suffix = Path(reference_image.filename or "").suffix.lower() if reference_image else ""
     if reference_image and reference_suffix not in ALLOWED_REFERENCE_SUFFIXES:
-        raise HTTPException(status_code=415, detail="Formats image acceptés : PNG, JPG, JPEG, WebP")
+        raise HTTPException(status_code=415, detail="Accepted image formats: PNG, JPG, JPEG, WebP")
 
     report = await asyncio.to_thread(check_readiness)
     if not report["ready"]:
@@ -145,14 +145,14 @@ async def create_job(
         reference_bytes = await reference_image.read()
         if not reference_bytes:
             video_path.unlink(missing_ok=True)
-            raise HTTPException(status_code=422, detail="L'image de référence est vide.")
+            raise HTTPException(status_code=422, detail="The reference image is empty.")
         reference_path.write_bytes(reference_bytes)
 
     if info["frames"] < 9:
         video_path.unlink(missing_ok=True)
         if reference_path:
             reference_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=422, detail="La vidéo doit contenir au moins 9 images.")
+        raise HTTPException(status_code=422, detail="The source video must contain at least 9 frames.")
 
     # Each shot is padded for LTX and trimmed back; source frames are retained.
     source_frames = info["frames"]
@@ -210,12 +210,12 @@ def get_result(job_id: str, download: bool = False) -> FileResponse:
     try:
         job = core.Job.load(job_id)
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail="Job introuvable") from exc
+        raise HTTPException(status_code=404, detail="Job not found") from exc
     if job.status != "done" or not job.result:
-        raise HTTPException(status_code=409, detail="Le rendu n'est pas encore prêt.")
+        raise HTTPException(status_code=409, detail="The result is not ready yet.")
     path = _result_path(job.result)
     if path is None:
-        raise HTTPException(status_code=404, detail="Le fichier de rendu n'a pas été retrouvé sur ce poste.")
+        raise HTTPException(status_code=404, detail="The result file is not available on this machine.")
     return FileResponse(path, media_type="video/mp4", filename=f"opengenjutsu-{job_id}.mp4",
                         content_disposition_type="attachment" if download else "inline")
 

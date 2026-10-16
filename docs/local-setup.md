@@ -113,14 +113,15 @@ or cloud endpoint requires separately configured credentials and validation.
 In terminal B, from the same checkout:
 
 ```bash
-# This is the SDK proxy URL, NOT COMFYUI_URL; do not append /api/v2.
-export COMFY_BASE_URL=http://127.0.0.1:8189
+# The launcher pins this local proxy unless an explicit application override is set.
 bash scripts/run_app.sh
 ```
 
-The local default for an unset or blank `COMFY_BASE_URL` is
-`http://127.0.0.1:8189`; setting it explicitly makes the chosen endpoint visible.
-The app binds to `127.0.0.1:8000`. Override the app port if necessary:
+The launcher always uses `http://127.0.0.1:8189` unless
+`OPENGENJUTSU_COMFY_BASE_URL` is set explicitly for another trusted,
+self-hosted Comfy API Proxy. It deliberately ignores inherited `COMFY_BASE_URL`
+values so an interactive shell configured for Comfy Cloud cannot silently send a
+local job to Cloud. The app binds to `127.0.0.1:8000`. Override the app port if necessary:
 
 ```bash
 OPENGENJUTSU_PORT=8001 bash scripts/run_app.sh
@@ -135,7 +136,7 @@ not automatically loaded by these shell scripts. Never commit credentials:
 | Setting | Meaning | Local default |
 | --- | --- | --- |
 | `COMFYUI_URL` | Upstream passed to proxy `--comfyui` | `http://127.0.0.1:8188` in the example |
-| `COMFY_BASE_URL` | App's SDK v2 endpoint | `http://127.0.0.1:8189` |
+| `OPENGENJUTSU_COMFY_BASE_URL` | Explicit app SDK proxy override (self-hosted only) | `http://127.0.0.1:8189` |
 | `OPENGENJUTSU_PORT` | App HTTP listen port | `8000` |
 
 ## 5. Verify without submitting a render
@@ -159,13 +160,15 @@ Common failures:
 - **FFmpeg / ffprobe missing:** install the full FFmpeg package; retry setup.
 - **Python version mismatch:** inspect/move the old `.venv` safely, then rerun setup.
 - **`comfy-api-proxy` missing:** opt in using `bash scripts/setup.sh --with-proxy`.
-- **Connection refused at 8189:** start the proxy, or correct `COMFY_BASE_URL`.
+- **Connection refused at 8189:** start the proxy, or set
+  `OPENGENJUTSU_COMFY_BASE_URL` to the trusted self-hosted proxy URL.
 - **Upstream unreachable:** verify the URL supplied via `COMFYUI_URL` and remote
   connectivity from the proxy host; changing the app URL will not fix this.
 - **Missing nodes or models:** install the named prerequisites on the ComfyUI host,
   then restart ComfyUI when required and recheck readiness.
 - **Port already in use:** do not stop someone else's service. Choose another
-  proxy `--port` and update `COMFY_BASE_URL`, or change `OPENGENJUTSU_PORT` for the app.
+  proxy `--port` and set `OPENGENJUTSU_COMFY_BASE_URL`, or change
+  `OPENGENJUTSU_PORT` for the app.
 
 ## 6. CPU-only regression checks
 

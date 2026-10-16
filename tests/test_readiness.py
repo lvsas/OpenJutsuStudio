@@ -35,10 +35,18 @@ class ReadinessTests(unittest.TestCase):
         self.assertTrue(report["ready"], report)
         self.assertEqual(report["missing_nodes"], [])
 
+    def test_busy_comfy_queue_is_not_ready_for_another_render(self):
+        with patch.object(readiness, "_json_get", side_effect=[
+            self.responses("health"), {"queue_running": [[1]], "queue_pending": []}
+        ]), patch.object(readiness.shutil, "which", return_value="/bin/tool"):
+            report = readiness.check_readiness()
+        self.assertFalse(report["ready"])
+        self.assertIn("busy", report["issues"][0].lower())
+
     def test_missing_model_is_not_ready(self):
         info = node_info()
         info["UNETLoader"]["input"]["required"]["unet_name"][0] = []
-        with patch.object(readiness, "_json_get", side_effect=[self.responses("health"), info]), \
+        with patch.object(readiness, "_json_get", side_effect=[self.responses("health"), {}, info]), \
              patch.object(readiness.shutil, "which", return_value="/bin/tool"):
             report = readiness.check_readiness()
         self.assertFalse(report["ready"])

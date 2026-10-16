@@ -11,12 +11,13 @@ body::before { background: radial-gradient(circle at 76% 10%, var(--accent-soft)
 .engine-chip:disabled { cursor: not-allowed; opacity: .55; }
 .site-header #readiness { justify-self: end; }
 
-.studio-shell { margin: 0 auto; max-width: 1440px; padding: clamp(1.75rem, 3.5vw, 3.25rem) clamp(1rem, 4vw, 4rem) 4rem; position: relative; z-index: 1; }
-.studio-intro { max-width: 48rem; }
-.studio-intro h1 { font-family: var(--font-display); font-size: clamp(3rem, 5.4vw, 5rem); letter-spacing: -.075em; line-height: .9; margin: .6rem 0 1rem; }
+.studio-shell { margin: 0 auto; max-width: 1440px; padding: clamp(1.1rem, 2.25vw, 2rem) clamp(1rem, 4vw, 4rem) 4rem; position: relative; z-index: 1; }
+.studio-intro { align-items: end; display: flex; gap: clamp(1rem, 4vw, 4rem); max-width: none; padding-top: 1.15rem; position: relative; }
+.studio-intro > .eyebrow { left: 0; position: absolute; top: 0; }
+.studio-intro h1 { flex: 1 1 60%; font-family: var(--font-display); font-size: clamp(2.6rem, 4.25vw, 4rem); letter-spacing: -.075em; line-height: .9; margin: 0; }
 .studio-intro h1 em { color: var(--accent); font-style: normal; }
-.studio-intro > p:last-child { color: var(--muted); font-size: 1.05rem; max-width: 42rem; }
-.studio-grid { align-items: start; display: grid; gap: clamp(1rem, 3vw, 3rem); grid-template-columns: minmax(20rem, .8fr) minmax(28rem, 1.2fr); margin-top: clamp(1.8rem, 3vw, 2.75rem); }
+.studio-intro > p:last-child { border-left: 1px solid var(--line); color: var(--muted); flex: 1 1 40%; font-size: .95rem; line-height: 1.45; margin: 0 0 .2rem; max-width: 31rem; padding-left: var(--space-4); }
+.studio-grid { align-items: start; display: grid; gap: clamp(1rem, 3vw, 3rem); grid-template-columns: minmax(20rem, .8fr) minmax(28rem, 1.2fr); margin-top: clamp(1.1rem, 2vw, 1.75rem); }
 
 .recipe-panel, .studio-stage { background: rgba(24,24,31,.87); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow); }
 .recipe-panel { padding: clamp(1.1rem, 2.8vw, 1.8rem); }
@@ -75,4 +76,4 @@ h2 { font-family: var(--font-display); font-size: 1.45rem; letter-spacing: -.035
 
 @keyframes glow { to { box-shadow: 0 0 6rem rgba(216,255,62,.6); transform: scale(1.12); } }
 @media (max-width: 900px) { .studio-grid { grid-template-columns: 1fr; } .studio-stage { min-height: 0; position: static; } }
-@media (max-width: 640px) { .site-header { grid-template-columns: 1fr auto; padding: 0 var(--space-3); } .engine-switch { justify-self: end; } .site-header #readiness { display: none; } .studio-shell { padding: var(--space-6) var(--space-3) var(--space-8); } .studio-intro h1 { font-size: clamp(3.1rem, 16vw, 4.6rem); } .advanced-grid { grid-template-columns: 1fr; } .panel-heading .badge { display: none; } .source-summary { align-items: flex-start; flex-direction: column; gap: var(--space-2); } .source-summary > span { text-align: left; } }
+@media (max-width: 640px) { .site-header { grid-template-columns: 1fr auto; padding: 0 var(--space-3); } .engine-switch { justify-self: end; } .site-header #readiness { display: none; } .studio-shell { padding: 1.25rem var(--space-3) var(--space-8); } .studio-intro { display: block; padding-top: 0; } .studio-intro > .eyebrow { position: static; } .studio-intro h1 { font-size: clamp(2.4rem, 11vw, 3.25rem); line-height: .92; margin-top: .45rem; } .studio-intro > p:last-child { border-left: 0; font-size: .9rem; margin-top: var(--space-3); padding-left: 0; } .advanced-grid { grid-template-columns: 1fr; } .panel-heading .badge { display: none; } .source-summary { align-items: flex-start; flex-direction: column; gap: var(--space-2); } .source-summary > span { text-align: left; } }

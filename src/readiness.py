@@ -55,12 +55,16 @@ def check_readiness():
             issues.append("This gate requires a self-hosted Comfy API Proxy. Cloud is not validated.")
         else:
             upstream = _valid_url(health["upstream"])
-            nodes, models = _inventory(_json_get(upstream + "/object_info"))
-            report.update(missing_nodes=nodes, missing_models=models)
-            if nodes:
-                issues.append("Install missing ComfyUI nodes: " + ", ".join(nodes))
-            if models:
-                issues.append("Install the required models under their license terms: " + ", ".join(models))
+            queue = _json_get(upstream + "/queue")
+            if queue.get("queue_running") or queue.get("queue_pending"):
+                issues.append("ComfyUI is busy with another render. Wait for its queue to clear before starting an OpenGenjutsu edit.")
+            else:
+                nodes, models = _inventory(_json_get(upstream + "/object_info"))
+                report.update(missing_nodes=nodes, missing_models=models)
+                if nodes:
+                    issues.append("Install missing ComfyUI nodes: " + ", ".join(nodes))
+                if models:
+                    issues.append("Install the required models under their license terms: " + ", ".join(models))
     except Exception:
         issues.append("Cannot verify ComfyUI. Check COMFY_BASE_URL, start Comfy API Proxy, and check its upstream ComfyUI connection.")
     report["ready"] = not issues

@@ -1,10 +1,9 @@
 const $ = (selector) => document.querySelector(selector);
+const { formatDuration, replaceObjectUrl, showToast: appendToast } = window.OpenGenjutsuStudio;
 
 const form = $('#form');
 const button = $('#submit');
 const videoInput = $('#video');
-const referenceInput = $('#reference');
-const referenceInput2 = $('#reference-2');
 const editInput = $('#edit');
 const sourcePreview = $('#source-preview');
 const resultVideo = $('#result');
@@ -15,6 +14,7 @@ const sourceSummary = $('#source-summary');
 const resultActions = $('#result-actions');
 const downloadResult = $('#download-result');
 const toastRegion = $('#toast-region');
+const showToast = (message, type) => appendToast(toastRegion, message, type);
 const statusBox = $('#status');
 
 let activeJob = null;
@@ -22,28 +22,6 @@ let pollTimer = null;
 let readinessTimer = null;
 let ready = false;
 let sourceUrl = null;
-let referenceUrl = null;
-let referenceUrl2 = null;
-
-function showToast(message, type = 'success') {
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  toast.textContent = message;
-  toastRegion.append(toast);
-  window.setTimeout(() => toast.remove(), 4200);
-}
-
-function replaceObjectUrl(current, file) {
-  if (current) URL.revokeObjectURL(current);
-  return URL.createObjectURL(file);
-}
-
-function formatDuration(seconds) {
-  if (!Number.isFinite(seconds)) return '';
-  const minutes = Math.floor(seconds / 60);
-  const remainder = Math.round(seconds % 60).toString().padStart(2, '0');
-  return `${minutes}:${remainder}`;
-}
 
 function setStage(mode) {
   stageEmpty.hidden = mode !== 'empty';
@@ -78,17 +56,6 @@ function previewSource() {
   resultActions.hidden = true;
   setStage('source');
   updateGenerateEnabled();
-}
-
-function previewReference(input, slot) {
-  const file = input.files[0];
-  if (!file) return;
-  const url = slot === 2
-    ? (referenceUrl2 = replaceObjectUrl(referenceUrl2, file))
-    : (referenceUrl = replaceObjectUrl(referenceUrl, file));
-  const thumbnail = $(`#reference-thumb${slot === 2 ? '-2' : ''}`);
-  thumbnail.replaceChildren(Object.assign(document.createElement('img'), { src: url, alt: '' }));
-  $(`#reference-file-name${slot === 2 ? '-2' : ''}`).textContent = file.name;
 }
 
 function humanStage(job) {
@@ -212,8 +179,6 @@ form.addEventListener('submit', async (event) => {
 });
 
 videoInput.addEventListener('change', previewSource);
-referenceInput.addEventListener('change', () => previewReference(referenceInput, 1));
-referenceInput2.addEventListener('change', () => previewReference(referenceInput2, 2));
 editInput.addEventListener('input', updateGenerateEnabled);
 $('#show-source').addEventListener('click', () => setStage('source'));
 $('#show-result').addEventListener('click', () => setStage('result'));
@@ -222,8 +187,6 @@ window.addEventListener('beforeunload', () => {
   if (pollTimer) window.clearTimeout(pollTimer);
   if (readinessTimer) window.clearTimeout(readinessTimer);
   if (sourceUrl) URL.revokeObjectURL(sourceUrl);
-  if (referenceUrl) URL.revokeObjectURL(referenceUrl);
-  if (referenceUrl2) URL.revokeObjectURL(referenceUrl2);
 });
 
 checkConnection();

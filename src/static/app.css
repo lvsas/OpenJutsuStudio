@@ -37,6 +37,14 @@ h2 { font-family: var(--font-display); font-size: 1.45rem; letter-spacing: -.035
 .picker-icon, .reference-thumb { align-items: center; background: var(--accent-soft); border-radius: .7rem; color: var(--accent); display: flex; font-size: 1.2rem; height: 2.5rem; justify-content: center; overflow: hidden; width: 2.5rem; }
 .reference-thumb img { height: 100%; object-fit: cover; width: 100%; }
 .picker-action { color: var(--accent); font-size: .75rem; font-weight: 800; }
+.reference-hint { color: var(--muted); margin-top: var(--space-2); }
+.reference-hint summary { cursor: pointer; font-size: .76rem; list-style-position: inside; }
+.reference-hint summary span { color: var(--subtle); margin-left: .25rem; }
+.reference-hint .text-input { font-size: .82rem; margin-top: var(--space-2); min-height: 2.5rem; }
+.add-second-reference { margin-top: var(--space-3); }
+.secondary-reference { border-left: 1px solid var(--line); margin-top: var(--space-3); padding-left: var(--space-3); }
+.secondary-reference .media-picker { margin-top: 0; }
+.reference-limits { max-width: 34rem; }
 .directions-step .field-label:first-of-type { margin-top: var(--space-3); }
 .directions-step .field-label { margin-top: var(--space-3); }
 .field-help { color: var(--subtle); font-size: .76rem; line-height: 1.4; margin: .4rem 0 0; }

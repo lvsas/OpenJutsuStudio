@@ -48,22 +48,33 @@
           </fieldset>
 
           <fieldset class="recipe-step">
-            <legend><span>02</span> Character references <small>Up to two · experimental</small></legend>
+            <legend><span>02</span> Character reference <small>Optional · experimental</small></legend>
             <input id="reference" name="reference_images" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp">
             <label class="media-picker reference-picker" for="reference" id="reference-picker">
               <span class="reference-thumb" id="reference-thumb" aria-hidden="true">＋</span>
-              <span><strong id="reference-file-name">Reference 1 · add a clear character image</strong><small>PNG, JPG, or WebP · guides the first-frame edit only</small></span>
+              <span><strong id="reference-file-name">Add a clear character image</strong><small>PNG, JPG, or WebP · guides the first-frame edit</small></span>
               <span class="picker-action">Browse</span>
             </label>
-            <input class="text-input reference-target" name="reference_targets" maxlength="500" placeholder="Reference 1 applies to… optional">
-            <input id="reference-2" name="reference_images" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp">
-            <label class="media-picker reference-picker secondary-reference" for="reference-2" id="reference-picker-2">
-              <span class="reference-thumb" id="reference-thumb-2" aria-hidden="true">＋</span>
-              <span><strong id="reference-file-name-2">Reference 2 · optional</strong><small>Add only for a second visible character</small></span>
-              <span class="picker-action">Browse</span>
-            </label>
-            <input class="text-input reference-target" name="reference_targets" maxlength="500" placeholder="Reference 2 applies to… optional">
-            <p class="field-help">Target hints help FLUX distinguish visible people. They are not masks or tracking.</p>
+            <details class="reference-hint">
+              <summary>Specify who this character should replace <span>Optional</span></summary>
+              <label class="visually-hidden" for="reference-target-1">Who should the first reference replace?</label>
+              <input id="reference-target-1" class="text-input" name="reference_targets" maxlength="500" placeholder="e.g. the performer on the left">
+            </details>
+            <button id="add-second-reference" class="btn btn-secondary btn-small add-second-reference" type="button" aria-controls="second-reference" aria-expanded="false"><span aria-hidden="true">＋</span><span>Add a second character</span></button>
+            <div id="second-reference" class="secondary-reference" hidden>
+              <input id="reference-2" name="reference_images" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" disabled>
+              <label class="media-picker reference-picker" for="reference-2" id="reference-picker-2">
+                <span class="reference-thumb" id="reference-thumb-2" aria-hidden="true">＋</span>
+                <span><strong id="reference-file-name-2">Add the second character</strong><small>Use only when two visible people need recasting</small></span>
+                <span class="picker-action">Browse</span>
+              </label>
+              <details class="reference-hint">
+                <summary>Specify who this character should replace <span>Optional</span></summary>
+                <label class="visually-hidden" for="reference-target-2">Who should the second reference replace?</label>
+                <input id="reference-target-2" class="text-input" name="reference_targets" maxlength="500" placeholder="e.g. the performer on the right" disabled>
+              </details>
+            </div>
+            <p class="field-help reference-limits">Character references guide first-frame identity. They are not masks, tracking, or guaranteed assignment.</p>
           </fieldset>
 
           <fieldset class="recipe-step directions-step">
@@ -140,6 +151,8 @@
     </div>
   </main>
   <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <script src="/static/studio-utils.js" defer></script>
+  <script src="/static/reference-controls.js" defer></script>
   <script src="/static/app.js" defer></script>
 </body>
 </html>

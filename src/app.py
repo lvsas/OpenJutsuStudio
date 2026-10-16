@@ -107,11 +107,19 @@ def get_job(job_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="Job not found") from exc
 
 
-def _compose_edit_prompt(edit_prompt: str, target_description: str) -> str:
+def _compose_edit_prompt(edit_prompt: str, target_description: str,
+                         reference_targets: list[str] | None = None) -> str:
     """Give the frame editor a target when the user can identify one."""
     instruction = edit_prompt.strip()
     target = target_description.strip()
-    return f"Target to change: {target}. Requested edit: {instruction}" if target else instruction
+    has_context = bool(target or any(hint.strip() for hint in reference_targets or ()))
+    parts = [f"Target to change: {target}." if target else ""]
+    parts.extend(
+        f"Reference {index + 1} applies to: {hint.strip()}."
+        for index, hint in enumerate(reference_targets or ()) if hint.strip()
+    )
+    parts.append(f"Requested edit: {instruction}" if has_context else instruction)
+    return " ".join(part for part in parts if part)
 
 
 @app.post("/api/jobs", status_code=202)
@@ -122,14 +130,23 @@ async def create_job(
     seed: int = Form(default=125348341465200, ge=0),
     ripple_strength: float = Form(default=1.2, ge=0.0, le=2.0),
     reference_image: UploadFile | None = File(default=None),
+    reference_images: list[UploadFile] = File(default=[]),
+    reference_targets: list[str] = Form(default=[]),
 ) -> dict[str, Any]:
     suffix = Path(video.filename or "").suffix.lower()
     if suffix not in ALLOWED_SUFFIXES:
         raise HTTPException(status_code=415, detail="Accepted video formats: MP4, MOV, MKV, WebM")
     if not edit_prompt.strip():
         raise HTTPException(status_code=422, detail="Describe the transformation to apply.")
-    reference_suffix = Path(reference_image.filename or "").suffix.lower() if reference_image else ""
-    if reference_image and reference_suffix not in ALLOWED_REFERENCE_SUFFIXES:
+    uploaded_references = list(reference_images)
+    if reference_image is not None:
+        uploaded_references.insert(0, reference_image)
+    if len(uploaded_references) > 2:
+        raise HTTPException(status_code=422, detail="Use at most two character reference images.")
+    if len(reference_targets) > len(uploaded_references):
+        raise HTTPException(status_code=422, detail="Each character target needs a reference image.")
+    reference_suffixes = [Path(item.filename or "").suffix.lower() for item in uploaded_references]
+    if any(suffix not in ALLOWED_REFERENCE_SUFFIXES for suffix in reference_suffixes):
         raise HTTPException(status_code=415, detail="Accepted image formats: PNG, JPG, JPEG, WebP")
 
     report = await asyncio.to_thread(check_readiness)
@@ -139,25 +156,26 @@ async def create_job(
     job_id = uuid.uuid4().hex
     video_path = MEDIA_DIR / f"{job_id}{suffix}"
     info = await save_video(video, video_path, MAX_UPLOAD_BYTES)
-    reference_path: Path | None = None
-    if reference_image:
-        reference_path = MEDIA_DIR / f"{job_id}-reference{reference_suffix}"
-        reference_bytes = await reference_image.read()
+    reference_paths: list[Path] = []
+    for index, uploaded_reference in enumerate(uploaded_references):
+        reference_path = MEDIA_DIR / f"{job_id}-reference-{index}{reference_suffixes[index]}"
+        reference_bytes = await uploaded_reference.read()
         if not reference_bytes:
             video_path.unlink(missing_ok=True)
             raise HTTPException(status_code=422, detail="The reference image is empty.")
         reference_path.write_bytes(reference_bytes)
+        reference_paths.append(reference_path)
 
     if info["frames"] < 9:
         video_path.unlink(missing_ok=True)
-        if reference_path:
+        for reference_path in reference_paths:
             reference_path.unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail="The source video must contain at least 9 frames.")
 
     # Each shot is padded for LTX and trimmed back; source frames are retained.
     source_frames = info["frames"]
     frames = source_frames
-    prompt = _compose_edit_prompt(edit_prompt, target_description)
+    prompt = _compose_edit_prompt(edit_prompt, target_description, reference_targets)
     width, height = _target_size(info["width"], info["height"])
     job = core.Job(
         id=job_id,
@@ -167,7 +185,12 @@ async def create_job(
         meta={
             "source_filename": Path(video.filename or "video").name,
             "target_description": target_description.strip(),
-            "reference_image": str(reference_path) if reference_path else None,
+            "reference_image": str(reference_paths[0]) if reference_paths else None,
+            "references": [
+                {"target": reference_targets[index].strip() if index < len(reference_targets) else "",
+                 "image": str(path)}
+                for index, path in enumerate(reference_paths)
+            ],
             "source_frames": source_frames,
             "processed_frames": frames,
             "trimmed_tail_frames": source_frames - frames,
@@ -180,7 +203,8 @@ async def create_job(
     job.save()
     opts = {
         "preserve_audio": True,
-        "reference_image": reference_path,
+        "reference_image": reference_paths[0] if reference_paths else None,
+        "reference_images": reference_paths,
         "edit": {"steps": 4, "seed": seed},
         "ripple_prompt": core.RIPPLE_PROMPT,
         "propagate": {

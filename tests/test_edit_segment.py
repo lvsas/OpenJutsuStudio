@@ -114,8 +114,22 @@ class TestEditSegment(unittest.TestCase):
             reference_image=reference,
             propagate={"frames": 121, "fps": 24},
         )
-        reference_ref = self.engine.edit_options["reference_image"]
+        reference_ref = self.engine.edit_options["reference_images"][0]
         self.assertEqual(reference_ref["info"]["file_path"], str(reference))
+
+    def test_character_references_keep_their_upload_order(self):
+        first = self.root / "first.png"
+        second = self.root / "second.png"
+        first.write_bytes(b"first")
+        second.write_bytes(b"second")
+        core.edit_segment(
+            self.video, {"start": 0, "end": 8}, "recast performers",
+            client=self.client, engine=self.engine,
+            reference_images=[first, second],
+            propagate={"frames": 121, "fps": 24},
+        )
+        refs = self.engine.edit_options["reference_images"]
+        self.assertEqual([ref["info"]["file_path"] for ref in refs], [str(first), str(second)])
 
     def test_reverse_segment_raises(self):
         with self.assertRaises(ValueError):

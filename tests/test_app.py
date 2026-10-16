@@ -142,6 +142,36 @@ class AppTests(unittest.TestCase):
         self.assertEqual(reference_path.suffix, ".png")
         self.assertEqual(observed["job"].meta["reference_image"], str(reference_path))
 
+    def test_two_character_references_are_persisted_in_order(self):
+        observed = {}
+
+        def fake_runner(job, video_path, opts):
+            observed.update(job=job, opts=opts)
+            job.status = "done"
+            job.result = "test.mp4"
+            job.save()
+
+        with patch.object(app_module, "PIPELINE_RUNNER", fake_runner):
+            response = self.client.post(
+                "/api/jobs",
+                files=[
+                    ("video", ("sample.mp4", b"test clip", "video/mp4")),
+                    ("reference_images", ("left.png", b"left", "image/png")),
+                    ("reference_images", ("right.png", b"right", "image/png")),
+                ],
+                data={
+                    "edit_prompt": "Recast both performers",
+                    "reference_targets": ["the performer on the left", "the performer on the right"],
+                },
+            )
+        self.assertEqual(response.status_code, 202, response.text)
+        self.assertEqual(len(observed["opts"]["reference_images"]), 2)
+        self.assertEqual([item["target"] for item in observed["job"].meta["references"]], [
+            "the performer on the left", "the performer on the right",
+        ])
+        self.assertIn("Reference 1 applies to: the performer on the left.", observed["job"].prompt)
+        self.assertIn("Reference 2 applies to: the performer on the right.", observed["job"].prompt)
+
     def test_rejects_unsupported_extension(self):
         response = self.client.post(
             "/api/jobs",

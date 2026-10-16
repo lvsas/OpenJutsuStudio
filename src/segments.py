@@ -44,10 +44,11 @@ def render_segment(video_path, segment, prompt, client, engine, work, **opts):
     folder.mkdir(parents=True)
     frame, clip = _prepare(video_path, start, end, folder, fps, padded)
     frame_ref = client.assets.from_file(frame).as_reference()
-    reference_path = opts.get("reference_image")
-    reference_ref = (client.assets.from_file(reference_path).as_reference()
-                     if reference_path else None)
-    edit_opts = {**opts.get("edit", {}), "reference_image": reference_ref}
+    reference_paths = list(opts.get("reference_images", ()))
+    if not reference_paths and opts.get("reference_image"):
+        reference_paths = [opts["reference_image"]]
+    reference_refs = [client.assets.from_file(path).as_reference() for path in reference_paths]
+    edit_opts = {**opts.get("edit", {}), "reference_images": reference_refs}
     edited = engine.edit_frame(client, frame_ref, prompt, **edit_opts)
     video_ref = client.assets.from_file(clip).as_reference()
     edited_ref = client.assets.from_file(_media_path(edited, work)).as_reference()

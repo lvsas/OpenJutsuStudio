@@ -6,7 +6,8 @@ from config import (F_UNET_KLEIN, F_CLIP_KLEIN, F_VAE_KLEIN, F_UNET_LTX,
 def build_frame_edit(image: str | dict, prompt: str, seed: int = 26416064315367,
                      steps: int = 4, cfg: float = 1.0,
                      megapixels: float = 1.0, prefix: str = "og_frame",
-                     reference_image: str | dict | None = None) -> dict:
+                     reference_image: str | dict | None = None,
+                     reference_images: list[str | dict] | None = None) -> dict:
     """FLUX.2 Klein 9B image edit (distilled, 4 steps).
 
     If reference_image is provided, injects it as a second reference via
@@ -49,14 +50,21 @@ def build_frame_edit(image: str | dict, prompt: str, seed: int = 26416064315367,
                 "inputs": {"images": ["65", 0], "filename_prefix": prefix}},
     }
 
-    # Inject reference image as second LoadImage + VAEEncode + ReferenceLatent
+    references = list(reference_images or ())
     if reference_image is not None:
-        graph["200"] = {"class_type": "LoadImage", "inputs": {"image": reference_image}}
-        graph["201"] = {"class_type": "VAEEncode",
-                        "inputs": {"pixels": ["200", 0], "vae": ["72", 0]}}
-        graph["202"] = {"class_type": "ReferenceLatent",
-                        "inputs": {"conditioning": ["125", 0], "latent": ["201", 0]}}
-        graph["63"]["inputs"]["positive"] = ["202", 0]
+        references.insert(0, reference_image)
+    conditioning = ["125", 0]
+    for index, reference in enumerate(references):
+        node_id = 200 + index * 3
+        load_id, encode_id, conditioning_id = str(node_id), str(node_id + 1), str(node_id + 2)
+        graph[load_id] = {"class_type": "LoadImage", "inputs": {"image": reference}}
+        graph[encode_id] = {"class_type": "VAEEncode",
+                            "inputs": {"pixels": [load_id, 0], "vae": ["72", 0]}}
+        graph[conditioning_id] = {"class_type": "ReferenceLatent",
+                                  "inputs": {"conditioning": conditioning,
+                                             "latent": [encode_id, 0]}}
+        conditioning = [conditioning_id, 0]
+    graph["63"]["inputs"]["positive"] = conditioning
 
     return graph
 

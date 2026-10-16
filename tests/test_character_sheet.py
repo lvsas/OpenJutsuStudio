@@ -43,6 +43,18 @@ class TestCharacterSheet(unittest.TestCase):
         self.assertEqual(graph["202"]["inputs"]["conditioning"], ["125", 0])
         self.assertEqual(graph["63"]["inputs"]["positive"], ["202", 0])
 
+    def test_two_references_chain_in_submission_order(self):
+        graph = build_frame_edit(
+            image="frame0.png",
+            prompt="Recast two performers",
+            reference_images=["first.png", "second.png"],
+        )
+        self.assertEqual(graph["200"]["inputs"]["image"], "first.png")
+        self.assertEqual(graph["202"]["inputs"]["conditioning"], ["125", 0])
+        self.assertEqual(graph["203"]["inputs"]["image"], "second.png")
+        self.assertEqual(graph["205"]["inputs"]["conditioning"], ["202", 0])
+        self.assertEqual(graph["63"]["inputs"]["positive"], ["205", 0])
+
     def test_no_reference_image_no_extra_nodes(self):
         """Without reference, no ReferenceLatent or extra nodes."""
         graph = build_frame_edit(

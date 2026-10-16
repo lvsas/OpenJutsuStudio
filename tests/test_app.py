@@ -61,6 +61,11 @@ class AppTests(unittest.TestCase):
         self.assertIn('id="recipe-panel"', page.text)
         self.assertIn('id="studio-stage"', page.text)
         self.assertIn('name="target_description"', page.text)
+        self.assertIn("Studio HD", page.text)
+        self.assertIn("Download MP4", page.text)
+        self.assertIn("Copy caption", page.text)
+        self.assertIn("Public result links activate only when the studio is hosted.", page.text)
+        self.assertNotIn("twitter.com/intent", page.text)
         self.assertNotIn('name="propagation_prompt"', page.text)
 
     def test_video_upload_queues_pipeline_and_persists_job(self):

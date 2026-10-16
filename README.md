@@ -113,7 +113,7 @@ The image-edit stage additionally requires the ComfyUI-compatible FLUX.2 Klein 9
 COMFY_BASE_URL=http://127.0.0.1:8189 bash scripts/run_app.sh
 ```
 
-Then open `http://127.0.0.1:8000`, select a video, describe the first-frame edit, and launch the job. The UI keeps the job ID across reloads, shows its phase, and exposes the MP4 when ComfyUI finishes. The default Ripple strength is 1.2 as a starting point only; it is not a universally validated optimum.
+Then open `http://127.0.0.1:8000`, choose a source video, optionally add a character reference, identify the visible target when useful, describe the transformation, and launch the job. The Creative Studio previews selected local media, keeps the job ID across reloads, translates pipeline progress into user-facing stages, and exposes a result MP4 when ComfyUI finishes. Studio HD is the current public path: a 1280px long edge and 16 Ripple inference steps. Ripple strength remains an advanced control; 1.2 is a starting point, not a universal optimum.
 
 Check `GET /api/readiness` before submitting a job. `GET /health` proves only that
 the app process is alive; it does not validate the proxy, upstream, nodes or models.
@@ -125,6 +125,8 @@ The CLI in `src/genjutsu.py` is a legacy LTX 2.3 prototype and is not the curren
 ## Documentation
 
 - [Local setup and troubleshooting](docs/local-setup.md) — Python 3.12, FFmpeg, opt-in proxy, remote upstream and readiness
+- [Creative Studio UI architecture](docs/ui-architecture.md) — product workflow, engine visual identity and honest local-sharing boundary
+- [Competition UX/viral-readiness audit](docs/audits/2026-10-16-competition-ux-gap.md) — verified gap analysis and follow-up gates
 - [`src/app.py`](src/app.py) — local UI, upload endpoint, job tracking and result route
 - [`src/core.py`](src/core.py) — job persistence and pipeline orchestration
 - [`src/graphs.py`](src/graphs.py) — FLUX.2 Klein and LTX/Ripple API-format graphs
@@ -140,7 +142,9 @@ The CLI in `src/genjutsu.py` is a legacy LTX 2.3 prototype and is not the curren
 
 ## Character Reference Status
 
-The API has an image-upload endpoint, and the workflow builder has a `reference_image` input. These pieces have **not** yet been connected and verified end-to-end in the web app. The current UI does not offer a character-reference control; do not treat Character Sheet support as a finished user feature.
+The Creative Studio accepts an optional PNG/JPEG/WebP character reference in the main job form. It is stored with the job, transferred as a Comfy asset for each shot, and injected into the FLUX frame-edit conditioning path. Unit and HTTP-contract tests cover this route.
+
+This is not proof of visual identity consistency across every real video. In particular, a reference image does not solve an absent or occluded target; that requires a separately validated anchoring/tracking strategy.
 
 ## Upscale
 
@@ -150,8 +154,13 @@ The pipeline supports optional spatial upscaling (default 2x) via `upscale_video
 
 ```
 src/
-  app.py          — FastAPI web UI (upload, job tracking, compare, share)
-  core.py         — Comfy SDK pipeline (detect → edit → merge → upscale)
+  app.py              — FastAPI upload, job and result routes
+  core.py             — Comfy SDK pipeline (detect → edit → merge → upscale)
+  static/
+    design-system.css — engine-scoped visual tokens and reusable UI primitives
+    app.css            — responsive Creative Studio layout
+    app.js             — previews, job states, local export actions
+  templates/index.html — English-first Creative Studio UI
   genjutsu.py     — Legacy LTX 2.3 CLI prototype (not current entry point)
 tests/            — Unit and regression tests (unittest)
 scripts/
@@ -166,8 +175,9 @@ scripts/
 
 - A real two-shot run was submitted through the web form, processed by FLUX.2 Klein and LTX/Ripple, downloaded, and played through to the end in Chromium: 121 frames, 24 fps, 768×416. Shot padding is removed before assembly; the app restores source audio when present.
 - **Visual quality is not validated:** the corrected run preserves the scene cut, but recolors/armors the tiger despite instructions to preserve it. Successful execution is not a successful selective edit or a contest-ready result.
-- CPU tests are self-contained; they do not require the private development clip. They do not prove GPU quality, reference-image behavior, Cloud compatibility or licensing eligibility.
-- Character Reference, Cloud and upscale-in-the-app remain unverified end to end. The UI is still a prototype, not the planned international/social-first experience.
+- CPU tests are self-contained; they do not require the private development clip. They do not prove GPU quality, reference-image behavior on real footage, Cloud compatibility or licensing eligibility.
+- The Creative Studio UI is implemented and browser-checked for desktop/mobile layout, source preview and HTTP/API integration. Local Download and Copy caption are real actions; **public social sharing is not implemented** because no hosted, recipient-accessible result URL exists.
+- MiniMax H3 appears only as a disabled visual extension point. Its generation backend, Cloud and a real-GPU character-reference run remain unverified end to end.
 
 ## Contributing
 

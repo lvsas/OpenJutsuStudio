@@ -25,6 +25,7 @@ app = FastAPI(title="OpenGenjutsu LTX", version="0.1.0")
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 MAX_UPLOAD_BYTES = int(os.getenv("OPENGENJUTSU_MAX_UPLOAD_BYTES", str(500 * 1024 * 1024)))
 ALLOWED_SUFFIXES = {".mp4", ".mov", ".mkv", ".webm"}
+ALLOWED_REFERENCE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 MEDIA_DIR = core.WORK / "media"
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 _EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="opengenjutsu")
@@ -113,12 +114,16 @@ async def create_job(
     propagation_prompt: str = Form(default=core.RIPPLE_PROMPT, max_length=2000),
     seed: int = Form(default=125348341465200, ge=0),
     ripple_strength: float = Form(default=1.2, ge=0.0, le=2.0),
+    reference_image: UploadFile | None = File(default=None),
 ) -> dict[str, Any]:
     suffix = Path(video.filename or "").suffix.lower()
     if suffix not in ALLOWED_SUFFIXES:
         raise HTTPException(status_code=415, detail="Formats vidéo acceptés : MP4, MOV, MKV, WebM")
     if not edit_prompt.strip():
         raise HTTPException(status_code=422, detail="Décris l'édition à appliquer à la première image.")
+    reference_suffix = Path(reference_image.filename or "").suffix.lower() if reference_image else ""
+    if reference_image and reference_suffix not in ALLOWED_REFERENCE_SUFFIXES:
+        raise HTTPException(status_code=415, detail="Formats image acceptés : PNG, JPG, JPEG, WebP")
 
     report = await asyncio.to_thread(check_readiness)
     if not report["ready"]:
@@ -127,9 +132,19 @@ async def create_job(
     job_id = uuid.uuid4().hex
     video_path = MEDIA_DIR / f"{job_id}{suffix}"
     info = await save_video(video, video_path, MAX_UPLOAD_BYTES)
+    reference_path: Path | None = None
+    if reference_image:
+        reference_path = MEDIA_DIR / f"{job_id}-reference{reference_suffix}"
+        reference_bytes = await reference_image.read()
+        if not reference_bytes:
+            video_path.unlink(missing_ok=True)
+            raise HTTPException(status_code=422, detail="L'image de référence est vide.")
+        reference_path.write_bytes(reference_bytes)
 
     if info["frames"] < 9:
         video_path.unlink(missing_ok=True)
+        if reference_path:
+            reference_path.unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail="La vidéo doit contenir au moins 9 images.")
 
     # Each shot is padded for LTX and trimmed back; source frames are retained.
@@ -143,6 +158,7 @@ async def create_job(
         video=str(video_path),
         meta={
             "source_filename": Path(video.filename or "video").name,
+            "reference_image": str(reference_path) if reference_path else None,
             "source_frames": source_frames,
             "processed_frames": frames,
             "trimmed_tail_frames": source_frames - frames,
@@ -155,6 +171,7 @@ async def create_job(
     job.save()
     opts = {
         "preserve_audio": True,
+        "reference_image": reference_path,
         "edit": {"steps": 4, "seed": seed},
         "ripple_prompt": propagation_prompt.strip() or core.RIPPLE_PROMPT,
         "propagate": {

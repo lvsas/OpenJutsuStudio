@@ -33,7 +33,8 @@ class LTXRippleEngine(Engine):
             img_ref = image
         else:
             img_ref = {"__type": "core/ASSET", "info": {"file_path": image}}
-        g = build_frame_edit(img_ref, prompt, seed=seed, steps=steps)
+        g = build_frame_edit(img_ref, prompt, seed=seed, steps=steps,
+                             reference_image=kw.get("reference_image"))
         return _run_graph(client, g, "9")
 
     def propagate(self, client, video, edited_frame, prompt, frames=121, seed=125348341465200,

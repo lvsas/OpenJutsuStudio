@@ -41,6 +41,7 @@ class CopyEngine:
 
     def edit_frame(self, client, image, prompt, **opts):
         self.prompt = prompt
+        self.edit_options = opts
         return image["info"]["file_path"]
 
     def propagate(self, client, video, edited, prompt, **opts):
@@ -100,6 +101,21 @@ class TestEditSegment(unittest.TestCase):
         self.assertEqual(info["frames"], 17)
         self.assertEqual((info["width"], info["height"]), (130, 98))
         self.assertEqual(len(self.engine.calls), 1)
+
+    def test_character_reference_is_uploaded_and_forwarded_to_frame_edit(self):
+        reference = self.root / "character.png"
+        reference.write_bytes(b"reference")
+        core.edit_segment(
+            self.video,
+            {"start": 0, "end": 8},
+            "replace object",
+            client=self.client,
+            engine=self.engine,
+            reference_image=reference,
+            propagate={"frames": 121, "fps": 24},
+        )
+        reference_ref = self.engine.edit_options["reference_image"]
+        self.assertEqual(reference_ref["info"]["file_path"], str(reference))
 
     def test_reverse_segment_raises(self):
         with self.assertRaises(ValueError):

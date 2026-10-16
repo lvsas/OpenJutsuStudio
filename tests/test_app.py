@@ -87,6 +87,32 @@ class AppTests(unittest.TestCase):
         self.assertEqual(observed["opts"]["propagate"]["strength"], 1.2)
         self.assertEqual(self.client.get(f"/api/jobs/{job_id}").json()["status"], "done")
 
+    def test_video_and_character_reference_are_queued(self):
+        observed = {}
+
+        def fake_runner(job, video_path, opts):
+            observed.update(job=job, video_path=video_path, opts=opts)
+            job.status = "done"
+            job.step = "done"
+            job.progress = 1.0
+            job.result = "test.mp4"
+            job.save()
+
+        with patch.object(app_module, "PIPELINE_RUNNER", fake_runner):
+            response = self.client.post(
+                "/api/jobs",
+                files={
+                    "video": ("sample.mp4", b"test clip", "video/mp4"),
+                    "reference_image": ("character.png", b"fake image", "image/png"),
+                },
+                data={"edit_prompt": "Replace the performer with this character"},
+            )
+        self.assertEqual(response.status_code, 202, response.text)
+        reference_path = observed["opts"]["reference_image"]
+        self.assertTrue(reference_path.is_file())
+        self.assertEqual(reference_path.suffix, ".png")
+        self.assertEqual(observed["job"].meta["reference_image"], str(reference_path))
+
     def test_rejects_unsupported_extension(self):
         response = self.client.post(
             "/api/jobs",

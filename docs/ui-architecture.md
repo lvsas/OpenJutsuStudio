@@ -5,12 +5,12 @@ OpenGenjutsu's web UI is a local-first Creative Studio, not a raw ComfyUI parame
 ## User-facing workflow
 
 1. Select a source video.
-2. Optionally provide a character reference image.
+2. Optionally provide one character reference. Reveal a second ordered reference only when two visible people need recasting; its optional target hint stays separate from the global target description.
 3. Identify the visible target when useful and describe the transformation.
 4. Generate at the current truthful Studio HD quality: approximately 0.9 megapixels at the source aspect ratio, with 16 Ripple inference steps.
 5. Review the result, download the MP4, or copy a caption for a post.
 
-The UI intentionally focuses on a **visible character target**. A text target description guides the first-frame editor; it is not a segmentation mask, object tracker, or guarantee that an occluded subject will be found.
+The UI intentionally focuses on a **visible character target**. A text target description and ordered reference hints guide the first-frame editor; neither is a segmentation mask, object tracker, or guarantee that an occluded subject will be found. The second reference is progressive disclosure, not a requirement: hidden secondary inputs are disabled so a one-reference request remains a one-reference multipart payload.
 
 ## Public vs internal controls
 
@@ -21,7 +21,9 @@ The user controls the source media, reference, target description, edit instruct
 - `templates/index.html`: semantic studio structure, including recipe panel and preview stage.
 - `static/design-system.css`: engine-scoped tokens and reusable primitives.
 - `static/app.css`: responsive two-pane layout and stage-specific presentation.
-- `static/app.js`: local preview state, readiness, job polling, human-readable stages, download and caption copy.
+- `static/app.js`: source preview, readiness, job polling, human-readable stages, download and caption copy.
+- `static/reference-controls.js`: progressive second-reference disclosure, independent thumbnails and object-URL cleanup.
+- `static/studio-utils.js`: shared toast, source-preview URL and duration helpers.
 
 The root carries `data-engine="ltx"`. LTX is the only public engine identity. The disabled `More Soon` chip is deliberately engine-neutral: it signals future studio modes without advertising, comparing with, or implying support for an unimplemented model.
 
@@ -48,5 +50,7 @@ Then check desktop and mobile in a browser:
 - LTX active / neutral `More Soon` teaser disabled and not falsely selectable.
 - Source preview shows filename, duration and resolution after a real file selection.
 - Generate unlocks only when readiness, source video and edit direction are present.
+- One reference is compact by default; target hints stay collapsed; the second reference appears only after explicit disclosure.
+- With two fixture files selected, submitted `reference_images` and `reference_targets` preserve browser order; removing the second leaves only the primary binding.
 - Result actions remain hidden until the job is `done`.
 - The two panes collapse cleanly to one column on mobile.

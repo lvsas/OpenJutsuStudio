@@ -16,7 +16,7 @@ Built for the **Open Source Higgsfield Competition** (ComfyUI · NVIDIA · Runpo
 The first working product path is a local-first **visible-character recast**:
 
 ```
-source video + edit instruction
+source video + edit instruction + up to two optional character references
         → edit frame 0 with FLUX.2 Klein image editing
         → propagate with LTX 2.5 + Ripple FFAF IC-LoRA
         → previewable edited video
@@ -113,7 +113,7 @@ The image-edit stage additionally requires the ComfyUI-compatible FLUX.2 Klein 9
 bash scripts/run_app.sh
 ```
 
-Then open `http://127.0.0.1:8000`, choose a source video, optionally add a character reference, identify the visible target when useful, describe the transformation, and launch the job. The Creative Studio previews selected local media, keeps the job ID across reloads, translates pipeline progress into user-facing stages, and exposes a result MP4 when ComfyUI finishes. Studio HD targets approximately 0.9 megapixels at the source aspect ratio, rounded to LTX-friendly multiples of 32, with 16 Ripple inference steps. Ripple strength remains an advanced control; 1.2 is a starting point, not a universal optimum.
+Then open `http://127.0.0.1:8000`, choose a source video, optionally add one character reference, and reveal a second only when two visible people need recasting. Target hints are collapsed optional guidance, not masks or tracking. Identify the visible target when useful, describe the transformation, and launch the job. The Creative Studio previews selected local media, keeps the job ID across reloads, translates pipeline progress into user-facing stages, and exposes a result MP4 when ComfyUI finishes. Studio HD targets approximately 0.9 megapixels at the source aspect ratio, rounded to LTX-friendly multiples of 32, with 16 Ripple inference steps. Ripple strength remains an advanced control; 1.2 is a starting point, not a universal optimum.
 
 Check `GET /api/readiness` before submitting a job. `GET /health` proves only that
 the app process is alive; it does not validate the proxy, upstream, nodes or models.
@@ -143,9 +143,9 @@ The CLI in `src/genjutsu.py` is a legacy LTX 2.3 prototype and is not the curren
 
 ## Character Reference Status
 
-The Creative Studio accepts an optional PNG/JPEG/WebP character reference in the main job form. It is stored with the job, transferred as a Comfy asset for each shot, and injected into the FLUX frame-edit conditioning path. Unit and HTTP-contract tests cover this route.
+The Creative Studio accepts up to two optional PNG/JPEG/WebP character references in the main job form. It shows one calm primary control by default and discloses the second only when the user explicitly adds another visible character. Each reference can have an optional target hint; reference order is preserved through the job metadata and FLUX conditioning chain. Assets are stored with the job and transferred as Comfy assets for each shot. Unit and HTTP-contract tests cover this route.
 
-This is not proof of visual identity consistency across every real video. In particular, a reference image does not solve an absent or occluded target; that requires a separately validated anchoring/tracking strategy.
+This is visual conditioning, not a guaranteed reference-to-person assignment. In particular, a reference image does not solve an absent or occluded target; that requires a separately validated anchoring/tracking strategy.
 
 ## Upscale
 
@@ -160,7 +160,9 @@ src/
   static/
     design-system.css — engine-scoped visual tokens and reusable UI primitives
     app.css            — responsive Creative Studio layout
-    app.js             — previews, job states, local export actions
+    app.js             — source preview, job states and local export actions
+    reference-controls.js — progressive optional second-reference controls
+    studio-utils.js    — shared browser helpers
   templates/index.html — English-first Creative Studio UI
   genjutsu.py     — Legacy LTX 2.3 CLI prototype (not current entry point)
 tests/            — Unit and regression tests (unittest)

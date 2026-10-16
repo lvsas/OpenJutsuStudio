@@ -55,7 +55,8 @@ def build_frame_edit(image: str | dict, prompt: str, seed: int = 26416064315367,
         graph["201"] = {"class_type": "VAEEncode",
                         "inputs": {"pixels": ["200", 0], "vae": ["72", 0]}}
         graph["202"] = {"class_type": "ReferenceLatent",
-                        "inputs": {"conditioning": ["74", 0], "latent": ["201", 0]}}
+                        "inputs": {"conditioning": ["125", 0], "latent": ["201", 0]}}
+        graph["63"]["inputs"]["positive"] = ["202", 0]
 
     return graph
 

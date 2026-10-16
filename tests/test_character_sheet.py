@@ -32,16 +32,16 @@ class TestCharacterSheet(unittest.TestCase):
         load_image_nodes = [n for n in node_ids if graph[n]["class_type"] == "LoadImage"]
         self.assertGreaterEqual(len(load_image_nodes), 2, "Frame + reference image")
 
-    def test_reference_image_in_graph_inputs(self):
-        """The reference image should appear in graph node inputs."""
+    def test_reference_image_conditions_the_sampler(self):
+        """The second reference must be on the positive conditioning path."""
         graph = build_frame_edit(
             image="frame0.png",
             prompt="Replace with the reference character",
-            reference_image="character_sheet.png"
+            reference_image="character_sheet.png",
         )
-        # Check that character_sheet.png appears somewhere in the graph
-        graph_str = str(graph)
-        self.assertIn("character_sheet.png", graph_str)
+        self.assertEqual(graph["200"]["inputs"]["image"], "character_sheet.png")
+        self.assertEqual(graph["202"]["inputs"]["conditioning"], ["125", 0])
+        self.assertEqual(graph["63"]["inputs"]["positive"], ["202", 0])
 
     def test_no_reference_image_no_extra_nodes(self):
         """Without reference, no ReferenceLatent or extra nodes."""

@@ -22,7 +22,7 @@ source video + edit instruction + up to two optional character references
         → previewable edited video
 ```
 
-The target is a transparent local character-recast workflow, not a claim to reproduce any closed implementation. The current app conditions a first-frame edit from an optional reference image and propagates it; it does not yet claim reliable object swap, wardrobe editing, or motion transfer.
+The target is an open, local-first video transformation studio. **Character Recast is its first active mode**, not the whole product category: it uses optional reference images to guide the first-frame edit, then propagates it. We do not claim reliable object swap, wardrobe editing, motion transfer, or generic replacement until each has its own validated video path.
 
 
 ---
@@ -113,7 +113,7 @@ The image-edit stage additionally requires the ComfyUI-compatible FLUX.2 Klein 9
 bash scripts/run_app.sh
 ```
 
-Then open `http://127.0.0.1:8000`, choose a source video, optionally add one character reference, and reveal a second only when two visible people need recasting. Target hints are collapsed optional guidance, not masks or tracking. Identify the visible target when useful, describe the transformation, and launch the job. The Creative Studio previews selected local media, keeps the job ID across reloads, translates pipeline progress into user-facing stages, and exposes a result MP4 when ComfyUI finishes. Studio HD targets approximately 0.9 megapixels at the source aspect ratio, rounded to LTX-friendly multiples of 32, with 16 Ripple inference steps. Ripple strength remains an advanced control; 1.2 is a starting point, not a universal optimum.
+Then open `http://127.0.0.1:8000`, choose a source video, and write one Edit brief that names the person and desired change. Optionally add one character reference; reveal a second only when two visible people need recasting, then use the optional mapping hints to distinguish them. The Creative Studio previews selected local media, keeps the job ID across reloads, translates pipeline progress into user-facing stages, and exposes a result MP4 when ComfyUI finishes. Studio HD targets approximately 0.9 megapixels at the source aspect ratio, rounded to LTX-friendly multiples of 32, with 16 Ripple inference steps. Ripple strength remains an advanced control; 1.2 is a starting point, not a universal optimum.
 
 Check `GET /api/readiness` before submitting a job. `GET /health` proves only that
 the app process is alive; it does not validate the proxy, upstream, nodes or models.

@@ -1,7 +1,9 @@
 (() => {
   const primaryInput = document.querySelector('#reference');
   const secondaryInput = document.querySelector('#reference-2');
+  const primaryTarget = document.querySelector('#reference-target-1');
   const secondaryTarget = document.querySelector('#reference-target-2');
+  const mapping = document.querySelector('#reference-mapping');
   const secondary = document.querySelector('#second-reference');
   const toggle = document.querySelector('#add-second-reference');
   const urls = { primary: null, secondary: null };
@@ -33,13 +35,16 @@
 
   function setSecondReference(visible) {
     secondary.hidden = !visible;
+    mapping.hidden = !visible;
     secondaryInput.disabled = !visible;
+    primaryTarget.disabled = !visible;
     secondaryTarget.disabled = !visible;
     toggle.setAttribute('aria-expanded', String(visible));
     toggle.lastElementChild.textContent = visible ? 'Remove second character' : 'Add a second character';
     toggle.firstElementChild.textContent = visible ? '−' : '＋';
     if (visible) return;
     secondaryInput.value = '';
+    primaryTarget.value = '';
     secondaryTarget.value = '';
     release('secondary');
     reset('secondary');

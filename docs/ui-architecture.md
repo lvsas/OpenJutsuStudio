@@ -5,16 +5,16 @@ OpenGenjutsu's web UI is a local-first Creative Studio, not a raw ComfyUI parame
 ## User-facing workflow
 
 1. Select a source video.
-2. Optionally provide one character reference. Reveal a second ordered reference only when two visible people need recasting; its optional target hint stays separate from the global target description.
-3. Identify the visible target when useful and describe the transformation.
+2. Write one **Edit brief**: name the person and the desired change in the same sentence.
+3. Optionally provide one character reference. Reveal a second ordered reference only when two visible people need recasting; only then can optional mapping hints distinguish Reference 1 from Reference 2.
 4. Generate at the current truthful Studio HD quality: approximately 0.9 megapixels at the source aspect ratio, with 16 Ripple inference steps.
 5. Review the result, download the MP4, or copy a caption for a post.
 
-The UI intentionally focuses on a **visible character target**. A text target description and ordered reference hints guide the first-frame editor; neither is a segmentation mask, object tracker, or guarantee that an occluded subject will be found. The second reference is progressive disclosure, not a requirement: hidden secondary inputs are disabled so a one-reference request remains a one-reference multipart payload.
+The UI intentionally focuses on a **visible character target** in its first active mode. The Edit brief carries the complete human request in natural language. Ordered mapping hints exist only when the second reference is disclosed; they help the first-frame editor distinguish two people, but are neither a segmentation mask, object tracker, nor a guarantee that an occluded subject will be found. Hidden mapping inputs are disabled so a one-reference request stays simple.
 
 ## Public vs internal controls
 
-The user controls the source media, reference, target description, edit instruction, seed and Ripple strength. The propagation prompt is a model-policy constant (`RIPPLE_PROMPT`) and remains server-owned. This prevents accidental prompt corruption and keeps the primary workflow understandable.
+The user controls the source media, one Edit brief, optional references, optional two-person mapping hints, seed and Ripple strength. The propagation prompt is a model-policy constant (`RIPPLE_PROMPT`) and remains server-owned. This keeps the main request human-readable while preserving the technical context required for a two-reference attempt.
 
 ## Visual architecture
 

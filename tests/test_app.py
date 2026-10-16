@@ -61,6 +61,13 @@ class AppTests(unittest.TestCase):
         self.assertIn('id="recipe-panel"', page.text)
         self.assertIn('id="studio-stage"', page.text)
         self.assertIn('name="target_description"', page.text)
+        self.assertIn("Target to edit", page.text)
+        self.assertIn("Requested change", page.text)
+        self.assertIn("several subjects", page.text)
+        self.assertIn("Character reference", page.text)
+        self.assertIn("experimental", page.text)
+        self.assertIn('title="MiniMax H3 is not implemented yet">H3</button>', page.text)
+        self.assertNotIn("H3 <span>Soon</span>", page.text)
         self.assertIn("Studio HD", page.text)
         self.assertIn("Download MP4", page.text)
         self.assertIn("Copy caption", page.text)
@@ -140,9 +147,11 @@ class AppTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 415)
 
-    def test_target_size_preserves_hd_landscape_and_portrait(self):
-        self.assertEqual(app_module._target_size(1280, 704), (1280, 704))
-        self.assertEqual(app_module._target_size(704, 1280), (704, 1280))
+    def test_target_size_uses_consistent_hd_megapixels_for_every_aspect(self):
+        self.assertEqual(app_module._target_size(1920, 1080), (1280, 704))
+        self.assertEqual(app_module._target_size(1080, 1920), (704, 1280))
+        self.assertEqual(app_module._target_size(1440, 1080), (1088, 832))
+        self.assertEqual(app_module._target_size(1080, 1080), (960, 960))
 
     def test_upload_character_sheet(self):
         response = self.client.post(

@@ -14,7 +14,7 @@
     <a class="wordmark" href="/" aria-label="OpenGenjutsu home">OPEN<span>GENJUTSU</span></a>
     <div class="engine-switch" aria-label="Generation engine">
       <button class="engine-chip active" type="button" aria-pressed="true">LTX <span>Studio</span></button>
-      <button class="engine-chip" type="button" disabled title="MiniMax H3 is not implemented yet">H3 <span>Soon</span></button>
+      <button class="engine-chip" type="button" disabled title="MiniMax H3 is not implemented yet">H3</button>
     </div>
     <div id="readiness" class="badge" role="status" aria-live="polite">Checking local studio…</div>
   </header>
@@ -48,27 +48,28 @@
           </fieldset>
 
           <fieldset class="recipe-step">
-            <legend><span>02</span> Character reference <small>Optional</small></legend>
+            <legend><span>02</span> Character reference <small>Optional · experimental</small></legend>
             <input id="reference" name="reference_image" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp">
             <label class="media-picker reference-picker" for="reference" id="reference-picker">
               <span class="reference-thumb" id="reference-thumb" aria-hidden="true">＋</span>
-              <span><strong id="reference-file-name">Add a clear reference image</strong><small>PNG, JPG, or WebP · used to guide the first-frame identity</small></span>
+              <span><strong id="reference-file-name">Add one clear reference image</strong><small>PNG, JPG, or WebP · guides the first-frame edit only</small></span>
               <span class="picker-action">Browse</span>
             </label>
           </fieldset>
 
           <fieldset class="recipe-step directions-step">
             <legend><span>03</span> Target and direction</legend>
-            <label class="field-label" for="target">What should change? <span class="muted">Optional but recommended</span></label>
+            <label class="field-label" for="target">Target to edit <span class="muted">Only for several subjects</span></label>
             <input id="target" name="target_description" class="text-input" maxlength="500" placeholder="e.g. the person in the red jacket on the left">
-            <label class="field-label" for="edit">Describe the transformation</label>
-            <textarea id="edit" name="edit_prompt" class="text-input textarea" minlength="3" maxlength="2000" required placeholder="e.g. Replace them with the reference character. Preserve the pose, framing, and background."></textarea>
+            <p class="field-help">Name the exact person or object only when the video contains more than one possible target.</p>
+            <label class="field-label" for="edit">Requested change</label>
+            <textarea id="edit" name="edit_prompt" class="text-input textarea" minlength="3" maxlength="2000" required placeholder="e.g. Replace the target with the reference character. Keep their pose, framing, and background."></textarea>
           </fieldset>
 
           <fieldset class="recipe-step quality-step">
             <legend><span>04</span> Quality</legend>
             <div class="quality-card selected" aria-label="Studio HD selected">
-              <div><strong>Studio HD</strong><small>1280px long edge · 16 inference steps</small></div>
+              <div><strong>Studio HD</strong><small>≈0.9 MP, aspect-aware · 16 inference steps</small></div>
               <span class="quality-state">Selected</span>
             </div>
           </fieldset>
@@ -82,7 +83,7 @@
           </details>
 
           <button id="submit" class="btn btn-primary generate-button" type="submit" disabled><span>Generate edit</span><span aria-hidden="true">→</span></button>
-          <p class="privacy-note">Your media stays on this local studio. A reference guides identity; it does not guarantee edits through occlusion.</p>
+          <p class="privacy-note">Your media stays on this local studio. Character reference is experimental: it guides first-frame identity, not likeness, tracking, or occlusion.</p>
         </form>
       </section>
 

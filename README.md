@@ -113,7 +113,7 @@ The image-edit stage additionally requires the ComfyUI-compatible FLUX.2 Klein 9
 bash scripts/run_app.sh
 ```
 
-Then open `http://127.0.0.1:8000`, choose a source video, optionally add a character reference, identify the visible target when useful, describe the transformation, and launch the job. The Creative Studio previews selected local media, keeps the job ID across reloads, translates pipeline progress into user-facing stages, and exposes a result MP4 when ComfyUI finishes. Studio HD is the current public path: a 1280px long edge and 16 Ripple inference steps. Ripple strength remains an advanced control; 1.2 is a starting point, not a universal optimum.
+Then open `http://127.0.0.1:8000`, choose a source video, optionally add a character reference, identify the visible target when useful, describe the transformation, and launch the job. The Creative Studio previews selected local media, keeps the job ID across reloads, translates pipeline progress into user-facing stages, and exposes a result MP4 when ComfyUI finishes. Studio HD targets approximately 0.9 megapixels at the source aspect ratio, rounded to LTX-friendly multiples of 32, with 16 Ripple inference steps. Ripple strength remains an advanced control; 1.2 is a starting point, not a universal optimum.
 
 Check `GET /api/readiness` before submitting a job. `GET /health` proves only that
 the app process is alive; it does not validate the proxy, upstream, nodes or models.

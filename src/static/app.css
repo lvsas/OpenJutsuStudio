@@ -12,7 +12,7 @@ body::before { background: radial-gradient(circle at 76% 10%, var(--accent-soft)
 .site-header #readiness { justify-self: end; }
 
 .studio-shell { margin: 0 auto; max-width: 1440px; padding: clamp(1.1rem, 2.25vw, 2rem) clamp(1rem, 4vw, 4rem) 4rem; position: relative; z-index: 1; }
-.studio-intro { align-items: end; display: flex; gap: clamp(1rem, 4vw, 4rem); max-width: none; padding-top: 1.15rem; position: relative; }
+.studio-intro { align-items: end; display: flex; gap: clamp(1rem, 4vw, 4rem); max-width: none; padding-top: 2rem; position: relative; }
 .studio-intro > .eyebrow { left: 0; position: absolute; top: 0; }
 .studio-intro h1 { flex: 1 1 60%; font-family: var(--font-display); font-size: clamp(2.6rem, 4.25vw, 4rem); letter-spacing: -.075em; line-height: .9; margin: 0; }
 .studio-intro h1 em { color: var(--accent); font-style: normal; }
@@ -39,6 +39,7 @@ h2 { font-family: var(--font-display); font-size: 1.45rem; letter-spacing: -.035
 .picker-action { color: var(--accent); font-size: .75rem; font-weight: 800; }
 .directions-step .field-label:first-of-type { margin-top: var(--space-3); }
 .directions-step .field-label { margin-top: var(--space-3); }
+.field-help { color: var(--subtle); font-size: .76rem; line-height: 1.4; margin: .4rem 0 0; }
 .quality-card { align-items: center; background: var(--accent-soft); border: 1px solid rgba(216,255,62,.35); border-radius: var(--radius-md); display: flex; justify-content: space-between; margin-top: var(--space-3); padding: .85rem .95rem; }
 .quality-card strong, .quality-card small { display: block; }
 .quality-card small { color: var(--muted); font-size: .72rem; margin-top: .12rem; }

@@ -18,9 +18,12 @@ def _public_job(job: core.Job) -> dict[str, Any]:
         "result_url": f"/api/jobs/{job.id}/result" if job.status == "done" else None,
     }
 
-def _target_size(width: int, height: int, max_edge: int = 1280) -> tuple[int, int]:
-    """Fit the source into a HD 1280px long side, rounded to LTX-friendly multiples of 32."""
-    scale = min(max_edge / width, max_edge / height)
+def _target_size(width: int, height: int, target_megapixels: float = 0.9) -> tuple[int, int]:
+    """Preserve aspect ratio at roughly 0.9 MP, aligned to LTX multiples of 32."""
+    if width <= 0 or height <= 0:
+        raise ValueError("Source dimensions must be positive")
+    target_pixels = target_megapixels * 1_000_000
+    scale = (target_pixels / (width * height)) ** 0.5
     w = max(64, round(width * scale / 32) * 32)
     h = max(64, round(height * scale / 32) * 32)
     return w, h

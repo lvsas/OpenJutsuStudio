@@ -7,6 +7,9 @@ const videoInput = $('#video');
 const editInput = $('#edit');
 const sourcePreview = $('#source-preview');
 const resultVideo = $('#result');
+const compareStage = $('#compare-stage');
+const compareSource = $('#compare-source');
+const compareResult = $('#compare-result');
 const stageEmpty = $('#stage-empty');
 const runOverlay = $('#run-overlay');
 const stageMode = $('#stage-mode');
@@ -27,7 +30,9 @@ function setStage(mode) {
   stageEmpty.hidden = mode !== 'empty';
   sourcePreview.hidden = mode !== 'source';
   resultVideo.hidden = mode !== 'result';
-  stageMode.textContent = mode === 'result' ? 'Result ready' : mode === 'source' ? 'Source preview' : 'Awaiting media';
+  compareStage.hidden = mode !== 'compare';
+  const labels = { empty: 'Awaiting media', source: 'Source preview', result: 'Result ready', compare: 'Before / after' };
+  stageMode.textContent = labels[mode] || labels.empty;
 }
 
 function updateGenerateEnabled() {
@@ -94,6 +99,25 @@ function showResult(job) {
   runOverlay.hidden = true;
   resultActions.hidden = false;
   setStage('result');
+}
+
+function syncComparison(source, target) {
+  if (Math.abs(source.currentTime - target.currentTime) > .15) target.currentTime = source.currentTime;
+}
+
+function showComparison() {
+  if (!sourcePreview.src || !resultVideo.src) return;
+  compareSource.src = sourcePreview.src;
+  compareResult.src = resultVideo.src;
+  compareSource.muted = true;
+  setStage('compare');
+}
+
+for (const [source, target] of [[compareSource, compareResult], [compareResult, compareSource]]) {
+  source.addEventListener('play', () => { if (target.paused) target.play().catch(() => {}); });
+  source.addEventListener('pause', () => { if (!target.paused) target.pause(); });
+  source.addEventListener('seeking', () => syncComparison(source, target));
+  source.addEventListener('timeupdate', () => syncComparison(source, target));
 }
 
 function renderJob(job) {
@@ -193,6 +217,7 @@ videoInput.addEventListener('change', previewSource);
 editInput.addEventListener('input', updateGenerateEnabled);
 $('#show-source').addEventListener('click', () => setStage('source'));
 $('#show-result').addEventListener('click', () => setStage('result'));
+$('#show-compare').addEventListener('click', showComparison);
 $('#copy-caption').addEventListener('click', copyCaption);
 window.addEventListener('beforeunload', () => {
   if (pollTimer) window.clearTimeout(pollTimer);

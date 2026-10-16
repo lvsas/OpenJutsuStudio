@@ -116,6 +116,10 @@
           </div>
           <video id="source-preview" class="stage-video" controls playsinline hidden></video>
           <video id="result" class="stage-video" controls playsinline hidden></video>
+          <div id="compare-stage" class="compare-stage" hidden>
+            <div class="compare-pane"><span>Source</span><video id="compare-source" class="compare-video" controls playsinline></video></div>
+            <div class="compare-pane"><span>Result</span><video id="compare-result" class="compare-video" controls playsinline></video></div>
+          </div>
           <div id="run-overlay" class="run-overlay" hidden>
             <div class="run-orb" aria-hidden="true"></div>
             <p class="eyebrow">Generating</p>
@@ -135,6 +139,7 @@
           <div class="result-switch" role="group" aria-label="Preview mode">
             <button id="show-source" class="btn btn-secondary btn-small" type="button">Source</button>
             <button id="show-result" class="btn btn-primary btn-small" type="button">Result</button>
+            <button id="show-compare" class="btn btn-secondary btn-small" type="button">Compare</button>
           </div>
           <div class="export-actions">
             <a id="download-result" class="btn btn-secondary btn-small" href="#" download>Download MP4</a>

@@ -8,7 +8,7 @@ OpenGenjutsu's web UI is a local-first Creative Studio, not a raw ComfyUI parame
 2. Write one **Edit brief**: name the person and the desired change in the same sentence.
 3. Optionally provide one character reference. Reveal a second ordered reference only when two visible people need recasting; only then can optional mapping hints distinguish Reference 1 from Reference 2.
 4. Generate at the current truthful Studio HD quality: approximately 0.9 megapixels at the source aspect ratio, with 16 Ripple inference steps.
-5. Review the result, download the MP4, or copy a caption for a post.
+5. Review the result in a source/result switch or linked local side-by-side comparison, download the MP4, or copy a caption for a post.
 
 The UI intentionally focuses on a **visible character target** in its first active mode. The Edit brief carries the complete human request in natural language. Ordered mapping hints exist only when the second reference is disclosed; they help the first-frame editor distinguish two people, but are neither a segmentation mask, object tracker, nor a guarantee that an occluded subject will be found. Hidden mapping inputs are disabled so a one-reference request stays simple.
 

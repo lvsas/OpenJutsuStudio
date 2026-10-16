@@ -60,6 +60,8 @@ class AppTests(unittest.TestCase):
         self.assertIn('data-engine="ltx"', page.text)
         self.assertIn('id="recipe-panel"', page.text)
         self.assertIn('id="studio-stage"', page.text)
+        self.assertIn('id="compare-stage"', page.text)
+        self.assertIn('id="show-compare"', page.text)
         self.assertIn('id="progress-label"', page.text)
         self.assertIn('role="progressbar"', page.text)
         self.assertNotIn('name="target_description"', page.text)

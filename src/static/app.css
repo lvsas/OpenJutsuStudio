@@ -65,6 +65,10 @@ h2 { font-family: var(--font-display); font-size: 1.45rem; letter-spacing: -.035
 .studio-stage { min-height: 39rem; overflow: hidden; padding: clamp(1.1rem, 2.8vw, 1.8rem); position: sticky; top: 1rem; }
 .stage-frame { align-items: center; aspect-ratio: 16 / 10; background: #08080b; border: 1px solid var(--line); border-radius: var(--radius-md); display: flex; justify-content: center; margin-top: var(--space-5); overflow: hidden; position: relative; }
 .stage-video { background: #000; height: 100%; object-fit: contain; width: 100%; }
+.compare-stage { display: grid; gap: 1px; grid-template-columns: 1fr 1fr; height: 100%; width: 100%; }
+.compare-pane { background: #000; min-width: 0; position: relative; }
+.compare-pane > span { background: rgba(8, 8, 11, .78); border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-size: .7rem; font-weight: 720; left: var(--space-3); letter-spacing: .07em; padding: .3rem .55rem; position: absolute; text-transform: uppercase; top: var(--space-3); z-index: 1; }
+.compare-video { height: 100%; object-fit: contain; width: 100%; }
 .stage-empty { max-width: 21rem; padding: var(--space-5); text-align: center; }
 .stage-empty h3 { font-family: var(--font-display); font-size: 1.35rem; letter-spacing: -.035em; margin: var(--space-4) 0 var(--space-2); }
 .stage-empty p { color: var(--muted); font-size: .86rem; margin: 0; }

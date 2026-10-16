@@ -66,6 +66,8 @@ class AppTests(unittest.TestCase):
         self.assertIn("several subjects", page.text)
         self.assertIn("Character reference", page.text)
         self.assertIn("experimental", page.text)
+        self.assertIn("visible character recast", page.text)
+        self.assertNotIn("character or object", page.text)
         self.assertIn('title="Additional studio modes are in development">More <span>Soon</span></button>', page.text)
         self.assertNotIn("H" + "3", page.text)
         self.assertNotIn("Mini" + "Max", page.text)

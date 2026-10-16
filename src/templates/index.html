@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#101014">
   <title>OpenGenjutsu — LTX Creative Studio</title>
-  <meta name="description" content="Create a visible character or object swap from one reference image while preserving your video motion.">
+  <meta name="description" content="Create an experimental visible character recast from one reference image while preserving video motion.">
   <link rel="stylesheet" href="/static/design-system.css">
   <link rel="stylesheet" href="/static/app.css">
 </head>
@@ -23,7 +23,7 @@
     <section class="studio-intro" aria-labelledby="studio-title">
       <p class="eyebrow">LTX Creative Studio</p>
       <h1 id="studio-title">Make the edit.<br><em>Keep the moment.</em></h1>
-      <p>Swap or restyle a visible character or object from one reference image while preserving camera motion, timing, and the rest of the shot.</p>
+      <p>Create an experimental visible character recast from one reference image while preserving camera motion and timing.</p>
     </section>
 
     <div class="studio-grid">
@@ -61,7 +61,7 @@
             <legend><span>03</span> Target and direction</legend>
             <label class="field-label" for="target">Target to edit <span class="muted">Only for several subjects</span></label>
             <input id="target" name="target_description" class="text-input" maxlength="500" placeholder="e.g. the person in the red jacket on the left">
-            <p class="field-help">Name the exact person or object only when the video contains more than one possible target.</p>
+            <p class="field-help">Name the exact person only when the video contains more than one possible target.</p>
             <label class="field-label" for="edit">Requested change</label>
             <textarea id="edit" name="edit_prompt" class="text-input textarea" minlength="3" maxlength="2000" required placeholder="e.g. Replace the target with the reference character. Keep their pose, framing, and background."></textarea>
           </fieldset>

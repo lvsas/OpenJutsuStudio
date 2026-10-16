@@ -10,7 +10,7 @@ OpenGenjutsu's web UI is a local-first Creative Studio, not a raw ComfyUI parame
 4. Generate at the current truthful Studio HD quality: approximately 0.9 megapixels at the source aspect ratio, with 16 Ripple inference steps.
 5. Review the result, download the MP4, or copy a caption for a post.
 
-The UI intentionally says **visible target**. A text target description guides the first-frame editor; it is not a segmentation mask, object tracker, or guarantee that an occluded subject will be found.
+The UI intentionally focuses on a **visible character target**. A text target description guides the first-frame editor; it is not a segmentation mask, object tracker, or guarantee that an occluded subject will be found.
 
 ## Public vs internal controls
 

@@ -11,9 +11,9 @@ Built for the **Open Source Higgsfield Competition** (ComfyUI · NVIDIA · Runpo
 
 ## What it does
 
-## Current MVP: Object Swap with LTX 2.5 + Ripple
+## Current MVP: Character Recast with LTX 2.5 + Ripple
 
-The first working product path is a local-first **video object/attribute edit**:
+The first working product path is a local-first **visible-character recast**:
 
 ```
 source video + edit instruction
@@ -22,7 +22,7 @@ source video + edit instruction
         → previewable edited video
 ```
 
-The target is the observable Genjutsu workflow, not a claim to reproduce Higgsfield's undisclosed internals. The current app implements this Object Swap path; **Motion Transfer is not implemented yet** and is not advertised as a working feature. A later milestone can add reference-driven Motion Transfer after this pipeline is reliable.
+The target is a transparent local character-recast workflow, not a claim to reproduce any closed implementation. The current app conditions a first-frame edit from an optional reference image and propagates it; it does not yet claim reliable object swap, wardrobe editing, or motion transfer.
 
 
 ---

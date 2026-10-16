@@ -23,6 +23,7 @@ from readiness import check_readiness
 from output_media import build_comparison_reel
 from job_api import create_router as create_job_router
 from take_capsule_api import create_router as create_take_capsule_router
+from runtime_inventory import declared_runtime_inventory
 
 DEFAULT_ENGINE = "ltx25-ripple"
 
@@ -60,6 +61,12 @@ def health() -> dict[str, str]:
 def readiness_status():
     report = check_readiness()
     return JSONResponse(report, status_code=200 if report["ready"] else 503)
+
+
+@app.get("/api/runtime-inventory")
+def runtime_inventory() -> dict[str, Any]:
+    """Declared local runtime evidence; use readiness for the live machine gate."""
+    return declared_runtime_inventory()
 
 
 @app.get("/", response_class=HTMLResponse)

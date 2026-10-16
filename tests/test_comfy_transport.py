@@ -18,23 +18,18 @@ class ComfyTargetTests(unittest.TestCase):
             self.assertEqual(client._low.safe_base_url, "http://127.0.0.1:8189")
             self.assertFalse(client._low.authenticated)
 
-    def test_blank_target_is_local(self):
-        with patch.dict(os.environ, {"COMFY_BASE_URL": "  "}, clear=True):
+    def test_inherited_sdk_target_is_ignored(self):
+        with patch.dict(os.environ, {"COMFY_BASE_URL": "https://cloud.comfy.org"}, clear=True):
             client = transport.make_client()
             self.addCleanup(client.close)
             self.assertEqual(client._low.safe_base_url, "http://127.0.0.1:8189")
+            self.assertFalse(client._low.authenticated)
 
-    def test_explicit_target_preserved(self):
-        with patch.dict(os.environ, {"COMFY_BASE_URL": "http://127.0.0.1:9876"}, clear=True):
+    def test_explicit_app_override_is_preserved(self):
+        with patch.dict(os.environ, {"OPENGENJUTSU_COMFY_BASE_URL": "http://127.0.0.1:9876"}, clear=True):
             client = transport.make_client()
             self.addCleanup(client.close)
             self.assertEqual(client._low.safe_base_url, "http://127.0.0.1:9876")
-
-    def test_cloud_requires_key_without_leaking_it(self):
-        with patch.dict(os.environ, {"COMFY_BASE_URL": "https://cloud.comfy.org"}, clear=True):
-            from comfy_sdk import MissingApiKey
-            with self.assertRaises(MissingApiKey):
-                transport.make_client()
 
 
 class SDKTransportTests(unittest.TestCase):

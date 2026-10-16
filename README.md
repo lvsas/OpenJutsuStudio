@@ -81,10 +81,9 @@ In a second terminal, from the repository root:
 bash scripts/run_app.sh
 ```
 
-Open `http://127.0.0.1:8000`. Both services bind to loopback only. The launcher
-requires Python 3.12 and clears inherited `PYTHONPATH`. See the
-[local setup guide](docs/local-setup.md) for remote upstreams, readiness checks,
-safe environment recovery, and the limits of a successful install.
+Open `http://127.0.0.1:8000`. Both services bind to loopback only. The launcher requires Python 3.12 and clears inherited `PYTHONPATH`.
+
+`OPENGENJUTSU_COMFY_BASE_URL` is the **only** application override for the self-hosted SDK proxy. An inherited `COMFY_BASE_URL` is deliberately overwritten, including if it points at a hosted service. The product never requires a `COMFY_API_KEY`. See the [local setup guide](docs/local-setup.md) for remote upstreams, readiness checks, safe environment recovery, and the limits of a successful install.
 
 
 ---
@@ -113,7 +112,7 @@ The image-edit stage additionally requires the ComfyUI-compatible FLUX.2 Klein 9
 bash scripts/run_app.sh
 ```
 
-Then open `http://127.0.0.1:8000`, choose a source video, and write one Edit brief that names the person and desired change. Optionally add one character reference; reveal a second only when two visible people need recasting, then use the optional mapping hints to distinguish them. The Creative Studio previews selected local media, keeps the job ID across reloads, translates pipeline progress into user-facing stages, and exposes a result MP4 when ComfyUI finishes. Studio HD targets approximately 0.9 megapixels at the source aspect ratio, rounded to LTX-friendly multiples of 32, with 16 Ripple inference steps. Ripple strength remains an advanced control; 1.2 is a starting point, not a universal optimum.
+Then open `http://127.0.0.1:8000`, choose a source video, and write one Edit brief that names the person and desired change. Optionally add one character reference; reveal a second only when two visible people need recasting, then use the optional mapping hints to distinguish them. The Creative Studio previews selected local media, keeps the job ID across reloads, translates pipeline progress into user-facing stages, and exposes a result MP4 when ComfyUI finishes. After a completed take, **Take Capsule** is an opt-in result control: it exposes/downloads the effective local recipe, recorded cuts and SHA-256 fingerprints of the source, references and result, then can create a linked local replay. It never bundles private media or promises pixel-identical output. Studio HD targets approximately 0.9 megapixels at the source aspect ratio, rounded to LTX-friendly multiples of 32, with 16 Ripple inference steps. Ripple strength remains an advanced control; 1.2 is a starting point, not a universal optimum.
 
 Check `GET /api/readiness` before submitting a job. `GET /health` proves only that
 the app process is alive; it does not validate the proxy, upstream, nodes or models.
@@ -129,7 +128,8 @@ The CLI in `src/genjutsu.py` is a legacy LTX 2.3 prototype and is not the curren
 - [Reference intelligence plan](docs/plans/2026-10-16-reference-intelligence.md) — opt-in Qwen-VL preflight, review gate and target-visibility scope
 - [Competition UX/viral-readiness audit](docs/audits/2026-10-16-competition-ux-gap.md) — verified gap analysis and follow-up gates
 - [`src/app.py`](src/app.py) — local UI, upload endpoint, job tracking and result route
-- [`src/core.py`](src/core.py) — job persistence and pipeline orchestration
+- [`src/core.py`](src/core.py) — job persistence and per-shot pipeline orchestration
+- [`src/take_capsule_api.py`](src/take_capsule_api.py) — path-free local recipe/provenance manifest and linked replay
 - [`src/graphs.py`](src/graphs.py) — FLUX.2 Klein and LTX/Ripple API-format graphs
 - [`src/comfy_transport.py`](src/comfy_transport.py) — official SDK target, execution and downloads
 - [`src/segments.py`](src/segments.py) — per-shot asset transfer, padding and exact frame restoration
@@ -172,7 +172,9 @@ scripts/
 
 **Pipeline**: `detect_scenes()` → `edit_segment()` per shot → `merge_segments()` → `upscale_video()`
 
-**Cloud support is not yet verified.** The current local workflow targets a Comfy API endpoint; do not assume `COMFY_API_KEY` alone enables Cloud until authentication, asset transfer, model availability, submission, and output download have been tested against the official Cloud API.
+The launcher always ignores inherited `COMFY_BASE_URL`; the SDK target is local by default and may be changed only with the explicit `OPENGENJUTSU_COMFY_BASE_URL` setting for a trusted self-hosted proxy. This prevents an accidental ambient Cloud target from becoming an inference dependency.
+
+The current app does **not** support Comfy Cloud as a product mode. The proxy may point at a ComfyUI instance you operate yourself, including a trusted LAN machine; verify model licenses, node inventory, and network access before calling that configuration eligible for a competition category.
 
 ## Current Evidence
 

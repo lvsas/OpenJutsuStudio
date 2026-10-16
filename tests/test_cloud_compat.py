@@ -25,16 +25,10 @@ class TestCloudCompat(unittest.TestCase):
         self.assertNotIn("/home/user", content,
                          "app.py should not reference /home/user")
 
-    def test_comfy_base_url_respected(self):
-        """COMFY_BASE_URL should be used from environment."""
+    def test_core_uses_the_local_proxy_default(self):
+        """The product does not accept inherited SDK Cloud targets."""
         import core
-        self.assertTrue(hasattr(core, "COMFY_BASE_URL"),
-                        "core should have COMFY_BASE_URL")
-        # Should be read from env or default
-        self.assertIn(core.COMFY_BASE_URL, [
-            "http://127.0.0.1:8189",  # local default
-            "https://cloud.comfy.org",  # cloud
-        ] + [os.environ.get("COMFY_BASE_URL", "")])
+        self.assertEqual(core.COMFY_BASE_URL, "http://127.0.0.1:8189")
 
     def test_work_dir_uses_env_override(self):
         """WORK directory should be overridable via env."""

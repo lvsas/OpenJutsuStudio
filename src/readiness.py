@@ -66,6 +66,6 @@ def check_readiness():
                 if models:
                     issues.append("Install the required models under their license terms: " + ", ".join(models))
     except Exception:
-        issues.append("Cannot verify ComfyUI. Check COMFY_BASE_URL, start Comfy API Proxy, and check its upstream ComfyUI connection.")
+        issues.append("Cannot verify the self-hosted ComfyUI proxy. Start Comfy API Proxy, check its upstream, or set OPENGENJUTSU_COMFY_BASE_URL explicitly.")
     report["ready"] = not issues
     return report

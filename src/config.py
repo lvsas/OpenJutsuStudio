@@ -8,9 +8,17 @@ WORK.mkdir(parents=True, exist_ok=True)
 ( WORK / "jobs").mkdir(exist_ok=True)
 (WORK / "media").mkdir(exist_ok=True)
 
+LOCAL_COMFY_PROXY_URL = "http://127.0.0.1:8189"
+
+
 def comfy_base_url() -> str:
-    """Apply the local-first default to the SDK's documented environment setting."""
-    value = os.environ.get("COMFY_BASE_URL", "").strip() or "http://127.0.0.1:8189"
+    """Set the SDK target from an explicit self-hosted app override only.
+
+    `COMFY_BASE_URL` is the SDK's variable and may be inherited from another
+    application. OpenGenjutsu deliberately ignores it as an input so an app
+    launched directly cannot silently switch to a hosted inference service.
+    """
+    value = os.environ.get("OPENGENJUTSU_COMFY_BASE_URL", "").strip() or LOCAL_COMFY_PROXY_URL
     os.environ["COMFY_BASE_URL"] = value
     return value
 

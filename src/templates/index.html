@@ -48,13 +48,22 @@
           </fieldset>
 
           <fieldset class="recipe-step">
-            <legend><span>02</span> Character reference <small>Optional · experimental</small></legend>
-            <input id="reference" name="reference_image" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp">
+            <legend><span>02</span> Character references <small>Up to two · experimental</small></legend>
+            <input id="reference" name="reference_images" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp">
             <label class="media-picker reference-picker" for="reference" id="reference-picker">
               <span class="reference-thumb" id="reference-thumb" aria-hidden="true">＋</span>
-              <span><strong id="reference-file-name">Add one clear reference image</strong><small>PNG, JPG, or WebP · guides the first-frame edit only</small></span>
+              <span><strong id="reference-file-name">Reference 1 · add a clear character image</strong><small>PNG, JPG, or WebP · guides the first-frame edit only</small></span>
               <span class="picker-action">Browse</span>
             </label>
+            <input class="text-input reference-target" name="reference_targets" maxlength="500" placeholder="Reference 1 applies to… optional">
+            <input id="reference-2" name="reference_images" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp">
+            <label class="media-picker reference-picker secondary-reference" for="reference-2" id="reference-picker-2">
+              <span class="reference-thumb" id="reference-thumb-2" aria-hidden="true">＋</span>
+              <span><strong id="reference-file-name-2">Reference 2 · optional</strong><small>Add only for a second visible character</small></span>
+              <span class="picker-action">Browse</span>
+            </label>
+            <input class="text-input reference-target" name="reference_targets" maxlength="500" placeholder="Reference 2 applies to… optional">
+            <p class="field-help">Target hints help FLUX distinguish visible people. They are not masks or tracking.</p>
           </fieldset>
 
           <fieldset class="recipe-step directions-step">

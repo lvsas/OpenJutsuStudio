@@ -4,6 +4,7 @@ const form = $('#form');
 const button = $('#submit');
 const videoInput = $('#video');
 const referenceInput = $('#reference');
+const referenceInput2 = $('#reference-2');
 const editInput = $('#edit');
 const sourcePreview = $('#source-preview');
 const resultVideo = $('#result');
@@ -22,6 +23,7 @@ let readinessTimer = null;
 let ready = false;
 let sourceUrl = null;
 let referenceUrl = null;
+let referenceUrl2 = null;
 
 function showToast(message, type = 'success') {
   const toast = document.createElement('div');
@@ -78,13 +80,15 @@ function previewSource() {
   updateGenerateEnabled();
 }
 
-function previewReference() {
-  const file = referenceInput.files[0];
+function previewReference(input, slot) {
+  const file = input.files[0];
   if (!file) return;
-  referenceUrl = replaceObjectUrl(referenceUrl, file);
-  const thumbnail = $('#reference-thumb');
-  thumbnail.replaceChildren(Object.assign(document.createElement('img'), { src: referenceUrl, alt: '' }));
-  $('#reference-file-name').textContent = file.name;
+  const url = slot === 2
+    ? (referenceUrl2 = replaceObjectUrl(referenceUrl2, file))
+    : (referenceUrl = replaceObjectUrl(referenceUrl, file));
+  const thumbnail = $(`#reference-thumb${slot === 2 ? '-2' : ''}`);
+  thumbnail.replaceChildren(Object.assign(document.createElement('img'), { src: url, alt: '' }));
+  $(`#reference-file-name${slot === 2 ? '-2' : ''}`).textContent = file.name;
 }
 
 function humanStage(job) {
@@ -208,7 +212,8 @@ form.addEventListener('submit', async (event) => {
 });
 
 videoInput.addEventListener('change', previewSource);
-referenceInput.addEventListener('change', previewReference);
+referenceInput.addEventListener('change', () => previewReference(referenceInput, 1));
+referenceInput2.addEventListener('change', () => previewReference(referenceInput2, 2));
 editInput.addEventListener('input', updateGenerateEnabled);
 $('#show-source').addEventListener('click', () => setStage('source'));
 $('#show-result').addEventListener('click', () => setStage('result'));
@@ -218,6 +223,7 @@ window.addEventListener('beforeunload', () => {
   if (readinessTimer) window.clearTimeout(readinessTimer);
   if (sourceUrl) URL.revokeObjectURL(sourceUrl);
   if (referenceUrl) URL.revokeObjectURL(referenceUrl);
+  if (referenceUrl2) URL.revokeObjectURL(referenceUrl2);
 });
 
 checkConnection();

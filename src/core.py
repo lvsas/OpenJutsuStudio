@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 from config import WORK, COMFY_BASE_URL, RIPPLE_PROMPT
 from graphs import build_frame_edit, build_ripple
-from engines import ENGINES, Engine, LTXRippleEngine, MiniMaxH3Engine
+from engines import ENGINES, Engine, LTXRippleEngine
 from comfy_transport import make_client, _run_graph, _graph_to_workflow
 from media import (detect_scenes, ffprobe, extract_first_frame,
                    extract_segment_frames, merge_segments, has_ffmpeg, upscale_video)

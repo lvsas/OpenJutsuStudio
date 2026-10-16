@@ -30,11 +30,6 @@
   --transition: 180ms ease;
 }
 
-[data-engine="h3"] {
-  --accent: #8db7ff;
-  --accent-ink: #07172f;
-  --accent-soft: rgba(141, 183, 255, .13);
-}
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 400 16px/1.5 var(--font-body); }

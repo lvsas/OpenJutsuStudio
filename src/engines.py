@@ -53,22 +53,4 @@ class LTXRippleEngine(Engine):
         return _run_graph(client, g, "425")
 
 
-class MiniMaxH3Engine(Engine):
-    """Alternative engine — reuses the same pipeline shape with the H3 model
-    stack (ref2va / fl2va + motion adapters)."""
-    name = "minimax-h3"
-    label = "MiniMax H3"
-    requires = []
-
-    def edit_frame(self, client, image, prompt, **kw):
-        raise NotImplementedError(
-            "MiniMax H3 engine: frame editing reuses FLUX.2 Klein "
-            "(engine-agnostic step). Call LTXRippleEngine.edit_frame.")
-
-    def propagate(self, client, video, edited_frame, prompt, **kw):
-        raise NotImplementedError(
-            "MiniMax H3 propagation is not wired yet. The H3 motion-transfer "
-            "path (ref2va + motion adapter) is the next engine to implement.")
-
-
-ENGINES = {e.name: e for e in (LTXRippleEngine(), MiniMaxH3Engine())}
+ENGINES = {e.name: e for e in (LTXRippleEngine(),)}

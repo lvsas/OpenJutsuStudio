@@ -16,6 +16,7 @@ const stageMode = $('#stage-mode');
 const sourceSummary = $('#source-summary');
 const resultActions = $('#result-actions');
 const downloadResult = $('#download-result');
+const buildReelButton = $('#build-reel');
 const toastRegion = $('#toast-region');
 const showToast = (message, type) => appendToast(toastRegion, message, type);
 bindFileDropTargets((message) => showToast(message, 'error'));
@@ -26,6 +27,7 @@ let pollTimer = null;
 let readinessTimer = null;
 let ready = false;
 let sourceUrl = null;
+let completedJobId = null;
 
 function setStage(mode) {
   stageEmpty.hidden = mode !== 'empty';
@@ -95,8 +97,10 @@ function updateProgress(job) {
 }
 
 function showResult(job) {
+  completedJobId = job.id;
   resultVideo.src = job.result_url;
   downloadResult.href = `${job.result_url}?download=true`;
+  buildReelButton.disabled = false;
   runOverlay.hidden = true;
   resultActions.hidden = false;
   setStage('result');
@@ -190,6 +194,29 @@ async function copyCaption() {
   }
 }
 
+async function buildComparisonReel() {
+  if (!completedJobId) return;
+  buildReelButton.disabled = true;
+  buildReelButton.textContent = 'Building reel…';
+  try {
+    const response = await fetch(`/api/jobs/${encodeURIComponent(completedJobId)}/reveal`, { method: 'POST' });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.detail || 'Unable to build the comparison reel.');
+    const download = document.createElement('a');
+    download.href = `${payload.reveal_url}?download=true`;
+    download.download = '';
+    document.body.append(download);
+    download.click();
+    download.remove();
+    showToast('Your local 9:16 comparison reel is downloading.');
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    buildReelButton.disabled = !completedJobId;
+    buildReelButton.textContent = 'Build comparison reel';
+  }
+}
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (!videoInput.files[0] || editInput.value.trim().length < 3) {
@@ -219,6 +246,7 @@ editInput.addEventListener('input', updateGenerateEnabled);
 $('#show-source').addEventListener('click', () => setStage('source'));
 $('#show-result').addEventListener('click', () => setStage('result'));
 $('#show-compare').addEventListener('click', showComparison);
+$('#build-reel').addEventListener('click', buildComparisonReel);
 $('#copy-caption').addEventListener('click', copyCaption);
 window.addEventListener('beforeunload', () => {
   if (pollTimer) window.clearTimeout(pollTimer);

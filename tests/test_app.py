@@ -85,8 +85,11 @@ class AppTests(unittest.TestCase):
         self.assertNotIn("Mini" + "Max", page.text)
         self.assertIn("Studio HD", page.text)
         self.assertIn("Download MP4", page.text)
+        self.assertIn("Build comparison reel", page.text)
+        self.assertIn('id="build-reel"', page.text)
+        self.assertIn("local 9:16 comparison MP4", page.text)
         self.assertIn("Copy caption", page.text)
-        self.assertIn("Public result links activate only when the studio is hosted.", page.text)
+        self.assertIn("No public link is created in local mode.", page.text)
         self.assertNotIn("twitter.com/intent", page.text)
         self.assertNotIn('name="propagation_prompt"', page.text)
 

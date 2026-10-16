@@ -8,7 +8,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from media import ffprobe
-from output_media import restore_source_audio
+from output_media import build_comparison_reel, restore_source_audio
 from scenes import detect_scenes
 
 
@@ -47,3 +47,18 @@ class MediaProbeTests(unittest.TestCase):
                         "color=size=64x64:rate=24:duration=1", "-c:v", "libx264", str(path)], check=True)
         restore_source_audio(str(path), str(path), result)
         self.assertEqual(ffprobe(result)["frames"], 24)
+
+    def test_comparison_reel_is_portrait_h264_with_result_duration(self):
+        source, result, reel = [self.root / name for name in ("source.mp4", "result.mp4", "reel.mp4")]
+        for path, color in ((source, "navy"), (result, "teal")):
+            subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+                            f"color=c={color}:size=64x64:rate=24:duration=1", "-c:v", "libx264", str(path)],
+                           check=True)
+        build_comparison_reel(source, result, reel)
+        info = ffprobe(reel)
+        self.assertEqual((info["width"], info["height"]), (1080, 1920))
+        self.assertEqual(info["fps"], ffprobe(result)["fps"])
+        self.assertLessEqual(abs(info["frames"] - ffprobe(result)["frames"]), 1)
+        streams = json.loads(subprocess.run(["ffprobe", "-v", "error", "-show_streams", "-of", "json", str(reel)],
+                                             text=True, capture_output=True, check=True).stdout)["streams"]
+        self.assertEqual(next(stream["codec_name"] for stream in streams if stream["codec_type"] == "video"), "h264")

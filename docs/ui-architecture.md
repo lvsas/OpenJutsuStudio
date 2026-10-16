@@ -8,7 +8,7 @@ OpenGenjutsu's web UI is a local-first Creative Studio, not a raw ComfyUI parame
 2. Write one **Edit brief**: name the person and the desired change in the same sentence.
 3. Optionally provide one character reference. Reveal a second ordered reference only when two visible people need recasting; only then can optional mapping hints distinguish Reference 1 from Reference 2.
 4. Generate at the current truthful Studio HD quality: approximately 0.9 megapixels at the source aspect ratio, with 16 Ripple inference steps.
-5. Review the result in a source/result switch or linked local side-by-side comparison, download the MP4, or copy a caption for a post.
+5. Review the result in a source/result switch or linked local side-by-side comparison, download the MP4, copy a caption, or build a local 9:16 comparison reel.
 
 The UI intentionally focuses on a **visible character target** in its first active mode. The Edit brief carries the complete human request in natural language. Ordered mapping hints exist only when the second reference is disclosed; they help the first-frame editor distinguish two people, but are neither a segmentation mask, object tracker, nor a guarantee that an occluded subject will be found. Hidden mapping inputs are disabled so a one-reference request stays simple.
 
@@ -29,7 +29,7 @@ The root carries `data-engine="ltx"`. LTX is the only public engine identity. Th
 
 ## Export and sharing
 
-The local studio can download a completed MP4 and copy a caption. It does **not** claim public social sharing: a local result URL cannot be opened by an external recipient.
+The local studio can download a completed MP4, copy a caption, and build a labeled 1080×1920 source/result comparison MP4. The reel is a local download; it does **not** claim public social sharing or create a public URL.
 
 A future hosted artifact API may add `public_result_url`. The acceptance test is end-to-end: a recipient without access to the creator's LAN opens the exact shared result. Until then, no X/LinkedIn share button may imply that the result is externally available.
 

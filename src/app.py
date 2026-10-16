@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import subprocess
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -21,6 +22,7 @@ from api_schema import _public_job, _target_size
 from readiness import check_readiness
 from prompt_profiles import get_prompt_profile
 from uploads import save_video
+from output_media import build_comparison_reel
 
 DEFAULT_ENGINE = "ltx25-ripple"
 
@@ -239,6 +241,45 @@ def get_result(job_id: str, download: bool = False) -> FileResponse:
     if path is None:
         raise HTTPException(status_code=404, detail="The result file is not available on this machine.")
     return FileResponse(path, media_type="video/mp4", filename=f"opengenjutsu-{job_id}.mp4",
+                        content_disposition_type="attachment" if download else "inline")
+
+
+def _reveal_path(job_id: str) -> Path:
+    return MEDIA_DIR / f"reveal_{job_id}.mp4"
+
+
+def _completed_job_media(job_id: str) -> tuple[core.Job, Path, Path]:
+    try:
+        job = core.Job.load(job_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Job not found") from exc
+    if job.status != "done" or not job.result:
+        raise HTTPException(status_code=409, detail="The result is not ready yet.")
+    source, result = Path(job.video), _result_path(job.result)
+    if not source.is_file() or result is None:
+        raise HTTPException(status_code=404, detail="The source or result file is not available on this machine.")
+    return job, source.resolve(), result
+
+
+@app.post("/api/jobs/{job_id}/reveal")
+def create_reveal(job_id: str) -> dict[str, str]:
+    """Create a local 9:16 source/result comparison reel for one completed job."""
+    _, source, result = _completed_job_media(job_id)
+    output = _reveal_path(job_id)
+    try:
+        build_comparison_reel(source, result, output)
+    except (OSError, ValueError, subprocess.CalledProcessError) as exc:
+        raise HTTPException(status_code=500, detail=f"Could not build comparison reel: {exc}") from exc
+    return {"reveal_url": f"/api/jobs/{job_id}/reveal"}
+
+
+@app.get("/api/jobs/{job_id}/reveal")
+def get_reveal(job_id: str, download: bool = False) -> FileResponse:
+    _completed_job_media(job_id)
+    path = _reveal_path(job_id)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Build the comparison reel first.")
+    return FileResponse(path, media_type="video/mp4", filename=f"opengenjutsu-{job_id}-comparison.mp4",
                         content_disposition_type="attachment" if download else "inline")
 
 

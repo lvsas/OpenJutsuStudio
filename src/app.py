@@ -19,7 +19,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 import core
 from api_schema import _public_job, _target_size
 from readiness import check_readiness
+from prompt_profiles import get_prompt_profile
 from uploads import save_video
+
+DEFAULT_ENGINE = "ltx25-ripple"
 
 app = FastAPI(title="OpenGenjutsu LTX", version="0.1.0")
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
@@ -34,7 +37,7 @@ PIPELINE_RUNNER = core.run_pipeline
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "engine": "ltx25-ripple"}
+    return {"status": "ok", "engine": DEFAULT_ENGINE}
 
 
 @app.get("/api/readiness")
@@ -109,17 +112,12 @@ def get_job(job_id: str) -> dict[str, Any]:
 
 def _compose_edit_prompt(edit_prompt: str, target_description: str,
                          reference_targets: list[str] | None = None) -> str:
-    """Give the frame editor a target when the user can identify one."""
-    instruction = edit_prompt.strip()
-    target = target_description.strip()
-    has_context = bool(target or any(hint.strip() for hint in reference_targets or ()))
-    parts = [f"Target to change: {target}." if target else ""]
-    parts.extend(
-        f"Reference {index + 1} applies to: {hint.strip()}."
-        for index, hint in enumerate(reference_targets or ()) if hint.strip()
+    """Compatibility wrapper around the default engine's validated profile."""
+    return get_prompt_profile(DEFAULT_ENGINE).compose_frame_edit(
+        edit_prompt,
+        target_description,
+        reference_targets,
     )
-    parts.append(f"Requested edit: {instruction}" if has_context else instruction)
-    return " ".join(part for part in parts if part)
 
 
 @app.post("/api/jobs", status_code=202)
@@ -179,7 +177,7 @@ async def create_job(
     width, height = _target_size(info["width"], info["height"])
     job = core.Job(
         id=job_id,
-        engine="ltx25-ripple",
+        engine=DEFAULT_ENGINE,
         prompt=prompt,
         video=str(video_path),
         meta={
@@ -206,7 +204,7 @@ async def create_job(
         "reference_image": reference_paths[0] if reference_paths else None,
         "reference_images": reference_paths,
         "edit": {"steps": 4, "seed": seed},
-        "ripple_prompt": core.RIPPLE_PROMPT,
+        "ripple_prompt": get_prompt_profile(DEFAULT_ENGINE).propagation_prompt,
         "propagate": {
             "frames": frames,
             "seed": seed,

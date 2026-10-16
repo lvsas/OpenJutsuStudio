@@ -13,7 +13,7 @@ Built for the **Open Source Higgsfield Competition** (ComfyUI · NVIDIA · Runpo
 
 ## Current MVP: Character Recast with LTX 2.5 + Ripple
 
-The first working product path is a local-first **visible-character recast**:
+The first working product path is a local-first **visible-character recast**. Its first-frame editor is FLUX.2 Klein from **Black Forest Labs**; LTX 2.5 + Ripple carries that approved image edit through motion.
 
 ```
 source video + edit instruction + up to two optional character references

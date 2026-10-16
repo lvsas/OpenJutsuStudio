@@ -1,5 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
-const { formatDuration, replaceObjectUrl, showToast: appendToast } = window.OpenGenjutsuStudio;
+const { bindFileDropTargets, formatDuration, replaceObjectUrl, showToast: appendToast } = window.OpenGenjutsuStudio;
 
 const form = $('#form');
 const button = $('#submit');
@@ -18,6 +18,7 @@ const resultActions = $('#result-actions');
 const downloadResult = $('#download-result');
 const toastRegion = $('#toast-region');
 const showToast = (message, type) => appendToast(toastRegion, message, type);
+bindFileDropTargets((message) => showToast(message, 'error'));
 const statusBox = $('#status');
 
 let activeJob = null;

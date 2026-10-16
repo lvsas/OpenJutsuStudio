@@ -40,10 +40,10 @@
           <fieldset class="recipe-step">
             <legend><span>01</span> Source video</legend>
             <input id="video" name="video" class="visually-hidden" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska" required>
-            <label class="media-picker" for="video" id="video-picker">
+            <label class="media-picker" for="video" id="video-picker" data-drop-kind="video">
               <span class="picker-icon" aria-hidden="true">↗</span>
               <span><strong id="video-file-name">Choose a video</strong><small id="video-file-meta">MP4, MOV, MKV, or WebM · up to 500 MB</small></span>
-              <span class="picker-action">Browse</span>
+              <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
             </label>
           </fieldset>
 
@@ -57,18 +57,18 @@
           <fieldset class="recipe-step">
             <legend><span>03</span> Character reference <small>Optional · experimental</small></legend>
             <input id="reference" name="reference_images" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp">
-            <label class="media-picker reference-picker" for="reference" id="reference-picker">
+            <label class="media-picker reference-picker" for="reference" id="reference-picker" data-drop-kind="image">
               <span class="reference-thumb" id="reference-thumb" aria-hidden="true">＋</span>
               <span><strong id="reference-file-name">Add a clear character image</strong><small>PNG, JPG, or WebP · guides the first-frame edit</small></span>
-              <span class="picker-action">Browse</span>
+              <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
             </label>
             <button id="add-second-reference" class="btn btn-secondary btn-small add-second-reference" type="button" aria-controls="second-reference" aria-expanded="false"><span aria-hidden="true">＋</span><span>Add a second character</span></button>
             <div id="second-reference" class="secondary-reference" hidden>
               <input id="reference-2" name="reference_images" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" disabled>
-              <label class="media-picker reference-picker" for="reference-2" id="reference-picker-2">
+              <label class="media-picker reference-picker" for="reference-2" id="reference-picker-2" data-drop-kind="image">
                 <span class="reference-thumb" id="reference-thumb-2" aria-hidden="true">＋</span>
                 <span><strong id="reference-file-name-2">Add the second character</strong><small>Use only when two visible people need recasting</small></span>
-                <span class="picker-action">Browse</span>
+                <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
               </label>
             </div>
             <div id="reference-mapping" class="reference-mapping" hidden>

@@ -40,7 +40,7 @@ class LTXRippleEngine(Engine):
         return _run_graph(client, g, "9", on_progress=kw.get("on_progress"))
 
     def propagate(self, client, video, edited_frame, prompt, frames=121, seed=125348341465200,
-                  width=1280, height=704, steps=16, strength=1.2, fps=24, **kw):
+                  width=1280, height=704, steps=16, strength=1.35, fps=24, **kw):
         # both video (VHS_LoadVideo) and edited_frame (LoadImage) need core/ASSET refs
         if isinstance(video, dict):
             vid_ref = video

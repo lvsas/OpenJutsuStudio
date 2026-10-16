@@ -72,7 +72,7 @@ def build_frame_edit(image: str | dict, prompt: str, seed: int = 26416064315367,
 def build_ripple(video: str | dict, edited_frame: str | dict, prompt: str = RIPPLE_PROMPT,
                  frames: int = 121, seed: int = 125348341465200, fps: int = 24,
                  width: int = 1280, height: int = 704, steps: int = 16,
-                 cfg: float = 1.0, strength: float = 1.2,
+                 cfg: float = 1.0, strength: float = 1.35,
                  guide_strength: float = 1.0, prefix: str = "og_ripple") -> dict:
     """LTX 2.5 + Ripple FFAF IC-LoRA.
 

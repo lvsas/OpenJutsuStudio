@@ -154,7 +154,7 @@ class JobAPI:
         edit_prompt: str = Form(..., min_length=3, max_length=2000),
         target_description: str = Form(default="", max_length=500),
         seed: int = Form(default=125348341465200, ge=0),
-        ripple_strength: float = Form(default=1.2, ge=0.0, le=2.0),
+        ripple_strength: float = Form(default=1.35, ge=0.0, le=2.0),
         reference_image: UploadFile | None = File(default=None),
         reference_images: list[UploadFile] = File(default=[]),
         reference_targets: list[str] = Form(default=[]),

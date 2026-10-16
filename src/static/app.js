@@ -18,6 +18,7 @@ const statusBox = $('#status');
 
 let activeJob = null;
 let pollTimer = null;
+let readinessTimer = null;
 let ready = false;
 let sourceUrl = null;
 let referenceUrl = null;
@@ -164,6 +165,12 @@ async function checkConnection() {
     indicator.textContent = 'Local studio unavailable';
   }
   updateGenerateEnabled();
+  if (!ready && !readinessTimer) {
+    readinessTimer = window.setTimeout(() => {
+      readinessTimer = null;
+      checkConnection();
+    }, 5000);
+  }
 }
 
 async function copyCaption() {
@@ -208,6 +215,7 @@ $('#show-result').addEventListener('click', () => setStage('result'));
 $('#copy-caption').addEventListener('click', copyCaption);
 window.addEventListener('beforeunload', () => {
   if (pollTimer) window.clearTimeout(pollTimer);
+  if (readinessTimer) window.clearTimeout(readinessTimer);
   if (sourceUrl) URL.revokeObjectURL(sourceUrl);
   if (referenceUrl) URL.revokeObjectURL(referenceUrl);
 });

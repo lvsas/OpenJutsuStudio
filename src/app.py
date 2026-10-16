@@ -107,11 +107,18 @@ def get_job(job_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="Job introuvable") from exc
 
 
+def _compose_edit_prompt(edit_prompt: str, target_description: str) -> str:
+    """Give the frame editor a target when the user can identify one."""
+    instruction = edit_prompt.strip()
+    target = target_description.strip()
+    return f"Target to change: {target}. Requested edit: {instruction}" if target else instruction
+
+
 @app.post("/api/jobs", status_code=202)
 async def create_job(
     video: UploadFile = File(...),
     edit_prompt: str = Form(..., min_length=3, max_length=2000),
-    propagation_prompt: str = Form(default=core.RIPPLE_PROMPT, max_length=2000),
+    target_description: str = Form(default="", max_length=500),
     seed: int = Form(default=125348341465200, ge=0),
     ripple_strength: float = Form(default=1.2, ge=0.0, le=2.0),
     reference_image: UploadFile | None = File(default=None),
@@ -150,14 +157,16 @@ async def create_job(
     # Each shot is padded for LTX and trimmed back; source frames are retained.
     source_frames = info["frames"]
     frames = source_frames
+    prompt = _compose_edit_prompt(edit_prompt, target_description)
     width, height = _target_size(info["width"], info["height"])
     job = core.Job(
         id=job_id,
         engine="ltx25-ripple",
-        prompt=edit_prompt.strip(),
+        prompt=prompt,
         video=str(video_path),
         meta={
             "source_filename": Path(video.filename or "video").name,
+            "target_description": target_description.strip(),
             "reference_image": str(reference_path) if reference_path else None,
             "source_frames": source_frames,
             "processed_frames": frames,
@@ -173,7 +182,7 @@ async def create_job(
         "preserve_audio": True,
         "reference_image": reference_path,
         "edit": {"steps": 4, "seed": seed},
-        "ripple_prompt": propagation_prompt.strip() or core.RIPPLE_PROMPT,
+        "ripple_prompt": core.RIPPLE_PROMPT,
         "propagate": {
             "frames": frames,
             "seed": seed,

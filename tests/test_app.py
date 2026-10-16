@@ -73,6 +73,7 @@ class AppTests(unittest.TestCase):
                 files={"video": ("sample.mp4", b"test clip", "video/mp4")},
                 data={
                     "edit_prompt": "Replace the red bag with a blue one",
+                    "target_description": "the bag held by the person on the left",
                     "ripple_strength": "1.2",
                 },
             )
@@ -86,6 +87,11 @@ class AppTests(unittest.TestCase):
         self.assertEqual(observed["opts"]["propagate"]["height"], 704)
         self.assertEqual(observed["opts"]["propagate"]["steps"], 16)
         self.assertEqual(observed["opts"]["propagate"]["strength"], 1.2)
+        self.assertEqual(job.meta["target_description"], "the bag held by the person on the left")
+        self.assertEqual(
+            job.prompt,
+            "Target to change: the bag held by the person on the left. Requested edit: Replace the red bag with a blue one",
+        )
         self.assertEqual(self.client.get(f"/api/jobs/{job_id}").json()["status"], "done")
 
     def test_video_and_character_reference_are_queued(self):

@@ -58,6 +58,36 @@ class PipelineStateTests(unittest.TestCase):
         self.assertEqual([s["inference_frames"] for s in shots], [73, 57])
         self.assertEqual([s["padding_frames"] for s in shots], [5, 4])
 
+    def test_segment_progress_is_saved_at_real_pipeline_boundaries(self):
+        snapshots = []
+
+        def render_with_boundaries(*args, **kwargs):
+            report = kwargs["on_progress"]
+            for stage in ("prepare_segment", "edit_frame_submitting", "edit_frame_downloaded",
+                          "propagate_submitting", "propagate_downloaded", "trim_segment"):
+                report(stage)
+                snapshots.append(core.Job.load("progress"))
+            return "result.mp4"
+
+        with (
+            patch.object(core, "WORK", Path(self.tmp.name)),
+            patch.object(core, "make_client", return_value=MagicMock()),
+            patch.object(core, "detect_scenes", return_value=[{"start": 0, "end": 8}]),
+            patch.object(core, "edit_segment", side_effect=render_with_boundaries),
+        ):
+            job = core.Job(id="progress", prompt="edit")
+            core.run_pipeline(job, Path("source.mp4"), {})
+
+        self.assertEqual(
+            [snapshot.step for snapshot in snapshots],
+            ["prepare_segment_1/1", "edit_frame_submitting_1/1", "edit_frame_downloaded_1/1",
+             "propagate_submitting_1/1", "propagate_downloaded_1/1", "trim_segment_1/1"],
+        )
+        progress = [snapshot.progress for snapshot in snapshots]
+        self.assertEqual(progress, sorted(progress))
+        self.assertGreater(progress[-1], progress[0])
+        self.assertLess(progress[-1], 0.95)
+
     def test_no_scenes_finishes_without_constructing_client(self):
         job, client = self.run_case(empty=True)
         self.assertEqual(job.status, "error")

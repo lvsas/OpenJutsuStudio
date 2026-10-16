@@ -36,7 +36,7 @@ class LTXRippleEngine(Engine):
         g = build_frame_edit(img_ref, prompt, seed=seed, steps=steps,
                              reference_image=kw.get("reference_image"),
                              reference_images=kw.get("reference_images"))
-        return _run_graph(client, g, "9")
+        return _run_graph(client, g, "9", on_progress=kw.get("on_progress"))
 
     def propagate(self, client, video, edited_frame, prompt, frames=121, seed=125348341465200,
                   width=1280, height=704, steps=16, strength=1.2, fps=24, **kw):
@@ -51,7 +51,7 @@ class LTXRippleEngine(Engine):
             frame_ref = {"__type": "core/ASSET", "info": {"file_path": edited_frame}}
         g = build_ripple(vid_ref, frame_ref, prompt=prompt, frames=frames, seed=seed,
                          width=width, height=height, steps=steps, strength=strength, fps=fps)
-        return _run_graph(client, g, "425")
+        return _run_graph(client, g, "425", on_progress=kw.get("on_progress"))
 
 
 ENGINES = {e.name: e for e in (LTXRippleEngine(),)}

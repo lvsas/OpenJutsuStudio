@@ -63,7 +63,12 @@ function humanStage(job) {
   if (job.status === 'done') return ['Your edit is ready', 'Review the result, download it, or copy a caption.'];
   if (job.status === 'error') return ['This edit could not finish', job.error || 'The local pipeline returned an unknown error.'];
   if (job.step === 'detect_scenes') return ['Reading your video', 'Finding clean editing boundaries.'];
-  if (job.step?.startsWith('edit_segment')) return ['Creating and propagating the edit', 'Keeping your timing and camera movement.'];
+  if (job.step?.startsWith('prepare_segment')) return ['Preparing this moment', 'Extracting the source frames for this edit.'];
+  if (job.step?.startsWith('edit_frame_submitting')) return ['Designing the first frame', 'Submitting your character edit to FLUX.'];
+  if (job.step?.startsWith('edit_frame_downloaded')) return ['First frame ready', 'Loading it into the motion workflow.'];
+  if (job.step?.startsWith('propagate_submitting')) return ['Creating and propagating the edit', 'LTX is carrying the edit through the clip.'];
+  if (job.step?.startsWith('propagate_downloaded')) return ['Motion edit ready', 'Preparing the exact source timing.'];
+  if (job.step?.startsWith('trim_segment')) return ['Finishing this moment', 'Restoring the exact clip length.'];
   if (job.step === 'merge_segments') return ['Finishing your video', 'Joining the edited moments.'];
   if (job.step === 'upscale') return ['Finishing in Studio HD', 'Preparing the final image detail.'];
   return ['Preparing your edit', 'Validating media and local models.'];
@@ -73,7 +78,13 @@ function updateProgress(job) {
   const [title, detail] = humanStage(job);
   $('#run-title').textContent = title;
   $('#run-detail').textContent = detail;
-  $('#progress-fill').style.width = `${Math.max(4, Math.min(100, (job.progress || 0) * 100))}%`;
+  const progress = Math.max(4, Math.min(100, Math.round((job.progress || 0) * 100)));
+  $('#progress-fill').style.width = `${progress}%`;
+  $('.progress-track').setAttribute('aria-valuenow', String(progress));
+  const segment = job.step?.match(/_(\d+)\/(\d+)$/);
+  $('#progress-label').textContent = segment
+    ? `${progress}% · moment ${segment[1]} of ${segment[2]}`
+    : `${progress}%`;
   statusBox.textContent = `${title}. ${detail}`;
 }
 

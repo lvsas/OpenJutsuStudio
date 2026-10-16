@@ -76,6 +76,7 @@ h2 { font-family: var(--font-display); font-size: 1.45rem; letter-spacing: -.035
 .run-overlay span { color: var(--muted); font-size: .84rem; margin-top: .25rem; }
 .progress-track { background: var(--surface-raised); border-radius: 999px; height: .45rem; margin: var(--space-5) auto 0; max-width: 18rem; overflow: hidden; }
 .progress-track i { background: var(--accent); display: block; height: 100%; transition: width .4s ease; width: 0; }
+.run-overlay .run-progress { color: var(--accent); font-size: .72rem; font-variant-numeric: tabular-nums; font-weight: 720; letter-spacing: .08em; text-transform: uppercase; }
 .source-summary { align-items: center; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; padding: var(--space-4) 0; }
 .source-summary strong, .source-summary .eyebrow { display: block; }
 .source-summary strong { font-size: .85rem; margin-top: .15rem; }

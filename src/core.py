@@ -85,6 +85,28 @@ class Job:
         return js
 
 
+_SEGMENT_BOUNDARY_FRACTIONS = {
+    "prepare_segment": 0.0,
+    "edit_frame_submitting": 0.08,
+    "edit_frame_downloaded": 0.28,
+    "propagate_submitting": 0.34,
+    "propagate_downloaded": 0.86,
+    "trim_segment": 0.92,
+}
+
+
+def _record_segment_progress(job: Job, index: int, total: int, stage: str) -> None:
+    """Persist only real, ordered pipeline boundaries for the active segment."""
+    fraction = _SEGMENT_BOUNDARY_FRACTIONS.get(stage)
+    if fraction is None:
+        return
+    segment_start = 0.05 + (0.85 * index / total)
+    segment_end = 0.05 + (0.85 * (index + 1) / total)
+    job.step = f"{stage}_{index + 1}/{total}"
+    job.progress = segment_start + ((segment_end - segment_start) * fraction)
+    job.save()
+
+
 def run_pipeline(job: Job, video_path: Path, opts: dict) -> None:
     """Multi-segment pipeline: detect cuts → edit each segment → merge.
     Runs in a worker thread."""
@@ -123,11 +145,10 @@ def run_pipeline(job: Job, video_path: Path, opts: dict) -> None:
         edited_segments = []
         total = len(segments)
         for i, seg in enumerate(segments):
-            job.step = f"edit_segment_{i + 1}/{total}"
-            job.progress = 0.05 + (0.9 * i / total)
-            job.save()
-            # Remove 'prompt' from opts to avoid duplicate argument
+            _record_segment_progress(job, i, total, "prepare_segment")
+            # Remove 'prompt' from opts to avoid duplicate argument.
             seg_opts = {k: v for k, v in opts.items() if k != "prompt"}
+            seg_opts["on_progress"] = lambda stage, i=i: _record_segment_progress(job, i, total, stage)
             result = edit_segment(
                 video_path=video_path,
                 segment=seg,

@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from contextlib import ExitStack
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import ANY, MagicMock, call, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -64,7 +64,7 @@ class TestPipelineWithCuts(unittest.TestCase):
         self.make_client.assert_called_once_with()
         self.assertEqual(self.edit.call_args_list, [
             call(video_path=self.video, segment=segment, prompt=job.prompt,
-                 client=self.client, engine=self.engine)
+                 client=self.client, engine=self.engine, on_progress=ANY)
             for segment in TWO_SHOTS
         ])
         self.merge.assert_called_once_with(self.segments)

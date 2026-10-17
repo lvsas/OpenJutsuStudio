@@ -95,6 +95,9 @@ export class H3Take {
       this.render(job);
       if (TERMINAL.has(job.status)) {
         this.setActive(false);
+        // Align with LTX: a finished take is not restored after a refresh. Robust
+        // persistence is a separate design decision, not an accident of this key.
+        this.storage(null);
         if (job.status === 'done') await this.loadCapsule(epoch);
       } else this.pollTimer = setTimeout(() => this.poll(epoch), 2000);
     } catch (error) {

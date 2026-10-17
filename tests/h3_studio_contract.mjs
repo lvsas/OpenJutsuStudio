@@ -98,6 +98,8 @@ job = {...base, status: 'done', step: 'done', progress: 1};
 await take.poll(take.epoch);
 assert.equal(take.active, false);
 assert.equal(el('run-overlay').hidden, true);
+// Like LTX: a finished take is not restored by a later refresh.
+assert.equal(store.has('opengenjutsu.h3.current-job'), false);
 assert.match(el('run-title').textContent, /Your H3 take is ready/);
 assert.equal(el('result-preview').src, `/api/jobs/${id}/result`);
 assert.equal(el('result-actions').hidden, false);

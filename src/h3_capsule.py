@@ -44,6 +44,13 @@ def freeze_capsule(job, recipe, source, reference, result, media_dir):
 
 
 def get_capsule(job):
+    """Return the frozen provenance record exactly as it was stored.
+
+    A capsule is a historical document, not a submission: it is deliberately not
+    re-validated against the current prompt policy. Doing so would make every take
+    produced under an earlier policy unreadable. Policy validity is enforced when
+    a take is submitted and when it is replayed.
+    """
     if job.engine != ENGINE or job.status != 'done' or not job.result:
         raise ValueError('A completed H3 result is required')
     capsule = copy.deepcopy(job.meta.get('h3_capsule'))
@@ -55,18 +62,22 @@ def get_capsule(job):
     capsule['capsule_id'] = identifier
     if capsule.get('engine') != ENGINE or capsule.get('job_id') != job.id:
         raise ValueError('H3 capsule identity mismatch')
-    recipe = validate_recipe(capsule['recipe'])
-    if capsule.get('recipe_sha256') != digest_json(recipe):
+    recipe = capsule.get('recipe')
+    if not isinstance(recipe, dict) or capsule.get('recipe_sha256') != digest_json(recipe):
         raise ValueError('The frozen H3 recipe changed')
     return capsule
 
 
 def replay_inputs(job, media_dir):
     capsule = get_capsule(job)
+    try:
+        recipe = validate_recipe(capsule['recipe'])
+    except ValueError as exc:
+        raise ValueError('This take was frozen with an earlier H3 prompt policy. Start a new take from the source instead of replaying it.') from exc
     source = contained(job.video, media_dir)
     reference = contained(job.meta['h3_reference'], media_dir)
     for role, path in [('source', source), ('reference', reference)]:
         expected = capsule['assets'][role]
         if expected['sha256'] != digest_file(path) or expected['size_bytes'] != path.stat().st_size:
             raise ValueError('A local H3 input changed after the capsule was frozen')
-    return copy.deepcopy(capsule['recipe']), source, reference
+    return copy.deepcopy(recipe), source, reference

@@ -136,7 +136,10 @@ class H3API:
             result = contained(job.result, self.get_media_dir())
             if digest_file(result) != capsule['assets']['result']['sha256']:
                 raise ValueError('H3 result changed after the capsule was frozen')
-        except (ValueError, KeyError, OSError) as exc:
+        except ValueError as exc:
+            # Our own messages are path-free and are the actionable reason.
+            raise HTTPException(409, str(exc)) from exc
+        except (KeyError, OSError) as exc:
             raise HTTPException(409, 'The frozen H3 capsule or local result is unavailable or changed') from exc
         if download:
             return Response(json.dumps(capsule, indent=2, ensure_ascii=False), media_type='application/json',
@@ -148,7 +151,9 @@ class H3API:
         media_dir = Path(self.get_media_dir()).resolve()
         try:
             recipe, source, reference = await asyncio.to_thread(replay_inputs, parent, media_dir)
-        except (ValueError, KeyError, OSError, TypeError) as exc:
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except (KeyError, OSError, TypeError) as exc:
             raise HTTPException(409, 'Frozen H3 recipe or verified local inputs are unavailable or changed') from exc
         await self.ready()
         child = core.Job(id=uuid.uuid4().hex, engine=ENGINE, prompt=recipe['effective_prompt'],

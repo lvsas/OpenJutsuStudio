@@ -65,8 +65,8 @@ class H3IntegrationTests(unittest.TestCase):
                     recipe = capsule['recipe']
                     self.assertEqual((info['frames'], info['fps'], info['width'], info['height']),
                                      (12, 24, recipe['output_width'], recipe['output_height']))
-                    self.assertEqual((recipe['width'], recipe['height']), (512, 512))
-                    self.assertEqual((recipe['output_width'], recipe['output_height']), (1024, 1024))
+                    self.assertEqual((recipe['width'], recipe['height']), (480, 480))
+                    self.assertEqual((recipe['output_width'], recipe['output_height']), (960, 960))
                     self.assertEqual(capsule['recipe']['user_edit_prompt'], '  exact user text\n')
                     self.assertNotIn(str(root), json.dumps(capsule))
                     response = http.post(f'/api/h3/jobs/{parent.id}/replay')

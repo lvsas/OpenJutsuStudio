@@ -10,23 +10,28 @@ from h3_recipe import h3_dimensions, make_recipe, validate_recipe
 
 class H3DimensionsTests(unittest.TestCase):
     def test_common_aspects_are_derived_not_fixed_to_landscape(self):
+        # Input canvas = half the 0.9 MP aspect-aware output canvas, on H3's 32 grid.
         cases = [
-            ((1920, 1080), (512, 288)),
-            ((1080, 1920), (288, 512)),
-            ((1080, 1080), (512, 512)),
-            ((1440, 1080), (512, 384)),
-            ((1200, 500), (384, 160)),
+            ((1920, 1080), (640, 352), (1280, 704)),
+            ((1080, 1920), (352, 640), (704, 1280)),
+            ((1080, 1080), (480, 480), (960, 960)),
+            ((1440, 1080), (544, 416), (1088, 832)),
+            ((1200, 500), (736, 320), (1472, 640)),
         ]
-        for source, expected in cases:
+        for source, expected_input, expected_output in cases:
             with self.subTest(source=source):
-                self.assertEqual(h3_dimensions(*source), expected)
-                w, h = expected
-                self.assertLessEqual(abs((w / h) / (source[0] / source[1]) - 1), 0.05)
+                self.assertEqual(h3_dimensions(*source), expected_input)
+                recipe = make_recipe(source_width=source[0], source_height=source[1])
+                self.assertEqual((recipe["output_width"], recipe["output_height"]), expected_output)
+                for side in (*expected_input, *expected_output):
+                    self.assertEqual(side % 32, 0)
+                # Every aspect lands near the shared 0.9 MP target.
+                self.assertAlmostEqual(expected_output[0] * expected_output[1] / 1e6, 0.9, delta=0.05)
 
     def test_recipe_freezes_source_derived_dimensions(self):
         portrait = make_recipe(source_width=1080, source_height=1920)
-        self.assertEqual((portrait["width"], portrait["height"]), (288, 512))
-        self.assertEqual((portrait["output_width"], portrait["output_height"]), (576, 1024))
+        self.assertEqual((portrait["width"], portrait["height"]), (352, 640))
+        self.assertEqual((portrait["output_width"], portrait["output_height"]), (704, 1280))
         self.assertEqual((portrait["source_width"], portrait["source_height"]), (1080, 1920))
         validate_recipe(portrait)
         changed = copy.deepcopy(portrait)

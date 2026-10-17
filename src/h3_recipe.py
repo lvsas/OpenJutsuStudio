@@ -16,11 +16,16 @@ from dataclasses import asdict
 import copy
 import hashlib
 import json
+import math
 from h3_graphs import H3Models, REFERENCE_NODE, REFERENCE_SLOTS, build_h3_recast, h3_frames
 
 ENGINE = 'minimax-h3'
 POLICY = 'h3-recast-v3'
-INPUT_LONG_EDGE = 512
+# LTX's quality card promises ~0.9 MP aspect-aware. H3 targets the same output size so
+# the two studios stay coherent; the input canvas follows from it.
+TARGET_OUTPUT_MEGAPIXELS = 0.9
+OUTPUT_ALIGN = 64
+MIN_SIDE = 64
 OUTPUT_SCALE = 2
 MAX_TEXT = 2000
 DESCRIPTION_SOURCES = ('user', 'generated')
@@ -85,17 +90,35 @@ def compose_prompt(reference_descriptions=('',), edit_prompt=''):
     return '\n'.join(parts)
 
 
-def h3_dimensions(source_width, source_height):
-    """Choose the closest 32-aligned H3 canvas to the source aspect ratio."""
+def _source_ratio(source_width, source_height):
     if type(source_width) is not int or type(source_height) is not int or min(source_width, source_height) <= 0:
         raise ValueError('Source dimensions must be positive integers')
     ratio = source_width / source_height
     if not 1 / 8 <= ratio <= 8:
         raise ValueError('H3 supports source aspect ratios between 1:8 and 8:1')
-    choices = [(w, h) for w in range(64, INPUT_LONG_EDGE + 1, 32)
-               for h in range(64, INPUT_LONG_EDGE + 1, 32)]
-    return min(choices, key=lambda size: (abs((size[0] / size[1]) / ratio - 1),
-                                         -(size[0] * size[1])))
+    return ratio
+
+
+def h3_output_dimensions(source_width, source_height):
+    """Closest 64-aligned canvas at the source aspect ratio, near the target megapixels.
+
+    Aligning the output to 64 keeps the derived input canvas on H3's 32 grid.
+    """
+    ratio = _source_ratio(source_width, source_height)
+    target_pixels = TARGET_OUTPUT_MEGAPIXELS * 1_000_000
+    ideal_width = math.sqrt(target_pixels * ratio)
+    snap = lambda value: max(MIN_SIDE, int(round(value / OUTPUT_ALIGN)) * OUTPUT_ALIGN)
+    return snap(ideal_width), snap(target_pixels / ideal_width)
+
+
+def h3_dimensions(source_width, source_height):
+    """H3 input canvas: half the target output canvas on each axis.
+
+    The canvas follows the source aspect ratio and the shared 0.9 MP output target,
+    instead of a fixed square-ish cap that starved portrait sources.
+    """
+    width, height = h3_output_dimensions(source_width, source_height)
+    return width // OUTPUT_SCALE, height // OUTPUT_SCALE
 
 
 def digest_json(value):

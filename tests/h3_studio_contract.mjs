@@ -31,6 +31,12 @@ for (const match of html.matchAll(/<([\w-]+)\b([^>]*\bid="([^"]+)"[^>]*)>/g)) {
   elements.set(match[3], element);
 }
 elements.set('h3-advanced', new Element('DETAILS'));
+// Structural parity with LTX: the source summary follows the frame, and the
+// capsule lives inside the result actions rather than beside them.
+const frameAt = html.indexOf('class="stage-frame"');
+const resultActionsAt = html.indexOf('id="h3-result-actions"');
+assert.ok(html.indexOf('id="h3-source-summary"') > frameAt, 'source summary must follow the frame');
+assert.ok(html.indexOf('id="h3-take-story"') > resultActionsAt, 'capsule must sit inside result actions');
 const el = id => elements.get(`h3-${id}`);
 globalThis.document = {getElementById: id => elements.get(id), createElement: tag => new Element(tag.toUpperCase())};
 const toasts = [];

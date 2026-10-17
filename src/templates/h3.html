@@ -97,21 +97,25 @@
             <span id="h3-progress-label" class="run-progress">Preparing</span>
           </div>
         </div>
-        <section id="h3-take-story" class="take-story" aria-labelledby="h3-take-story-title" hidden>
-          <div class="take-story-heading">
-            <div><p class="eyebrow">Take Capsule</p><h3 id="h3-take-story-title">Source + reference → H3 result</h3></div>
-            <span id="h3-take-proof" class="badge">Recording take</span>
-          </div>
-          <div class="take-story-path" aria-label="Visual take stages">
-            <button class="take-stage-card" type="button" data-h3-stage="source"><span>01 · Source</span></button>
-            <span class="take-path-arrow" aria-hidden="true">+</span>
-            <button class="take-stage-card" type="button" data-h3-stage="reference"><span>02 · Reference</span></button>
-            <span class="take-path-arrow" aria-hidden="true">→</span>
-            <button class="take-stage-card" type="button" data-h3-stage="result"><span>03 · H3 result</span></button>
-          </div>
-          <p id="h3-take-copy" class="microcopy">This visual chain is the recipe this take freezes. Select a stage to inspect it in the preview above.</p>
-        </section>
+        <div id="h3-source-summary" class="source-summary" hidden>
+          <div><span class="eyebrow">Source</span><strong id="h3-source-summary-name"></strong></div>
+          <span id="h3-source-summary-meta" class="muted"></span>
+        </div>
         <div id="h3-result-actions" class="result-actions" hidden>
+          <section id="h3-take-story" class="take-story" aria-labelledby="h3-take-story-title" hidden>
+            <div class="take-story-heading">
+              <div><p class="eyebrow">Take Capsule</p><h3 id="h3-take-story-title">Source + reference → H3 result</h3></div>
+              <span id="h3-take-proof" class="badge">Recording take</span>
+            </div>
+            <div class="take-story-path" aria-label="Visual take stages">
+              <button class="take-stage-card" type="button" data-h3-stage="source"><span>01 · Source</span></button>
+              <span class="take-path-arrow" aria-hidden="true">+</span>
+              <button class="take-stage-card" type="button" data-h3-stage="reference"><span>02 · Reference</span></button>
+              <span class="take-path-arrow" aria-hidden="true">→</span>
+              <button class="take-stage-card" type="button" data-h3-stage="result"><span>03 · H3 result</span></button>
+            </div>
+            <p id="h3-take-copy" class="microcopy">This visual chain is the recipe this take freezes. Select a stage to inspect it in the preview above.</p>
+          </section>
           <div class="export-actions">
             <a id="h3-download" class="btn btn-secondary btn-small" download>Download MP4</a>
             <button id="h3-build-reel" class="btn btn-secondary btn-small" type="button" disabled>Build comparison reel</button>

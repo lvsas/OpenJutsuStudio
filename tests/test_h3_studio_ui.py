@@ -107,7 +107,7 @@ class H3StudioUITests(unittest.TestCase):
                        'take-stage-card', 'class="run-overlay"', 'class="run-orb"', 'class="progress-track"',
                        'class="run-progress"', 'class="toast-region"', 'class="sr-status"', 'class="export-actions"',
                        'Download MP4', 'Build comparison reel', 'Copy caption',
-                       'Add a clear character image']:
+                       'Add a clear character image', 'class="source-summary"']:
             self.assertIn(marker, self.html)
             self.assertIn(marker, ltx)
         self.assertIn('Choose one continuous shot', self.html)

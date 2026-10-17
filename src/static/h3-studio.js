@@ -77,8 +77,21 @@ function previewInputs() {
     blobs.set(kind, url);
   }
   paintPickers();
+  paintSourceSummary();
   syncStage();
   update();
+}
+// Mirrors LTX: the frame is followed by the selected source's own summary block.
+function paintSourceSummary() {
+  const file = byId('video').files[0];
+  byId('source-summary').hidden = !file;
+  byId('source-summary-name').textContent = file ? file.name : '';
+  if (!file) return;
+  byId('source-preview').onloadedmetadata = () => {
+    const media = byId('source-preview');
+    const duration = window.OpenGenjutsuStudio?.formatDuration?.(media.duration) ?? '';
+    byId('source-summary-meta').textContent = `${duration}${duration ? ' · ' : ''}${media.videoWidth}×${media.videoHeight}`;
+  };
 }
 function submission() {
   byId('edit').disabled = !byId('directions').open;

@@ -53,7 +53,7 @@ h2 { font-family: var(--font-display); font-size: 1.45rem; letter-spacing: -.035
 .directions-step .field-label:first-of-type { margin-top: var(--space-3); }
 .directions-step .field-label { margin-top: var(--space-3); }
 .field-help { color: var(--subtle); font-size: .76rem; line-height: 1.4; margin: .4rem 0 0; }
-.quality-card { align-items: center; background: var(--accent-soft); border: 1px solid rgba(216,255,62,.35); border-radius: var(--radius-md); display: flex; justify-content: space-between; margin-top: var(--space-3); padding: .85rem .95rem; }
+.quality-card { align-items: center; background: var(--accent-soft); border: 1px solid var(--accent-card-line); border-radius: var(--radius-md); display: flex; justify-content: space-between; margin-top: var(--space-3); padding: .85rem .95rem; }
 .quality-card strong, .quality-card small { display: block; }
 .quality-card small { color: var(--muted); font-size: .72rem; margin-top: .12rem; }
 .quality-state { color: var(--accent); font-size: .7rem; font-weight: 800; text-transform: uppercase; }

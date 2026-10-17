@@ -107,7 +107,8 @@ class H3StudioUITests(unittest.TestCase):
                        'take-stage-card', 'class="run-overlay"', 'class="run-orb"', 'class="progress-track"',
                        'class="run-progress"', 'class="toast-region"', 'class="sr-status"', 'class="export-actions"',
                        'Download MP4', 'Build comparison reel', 'Copy caption',
-                       'Add a clear character image', 'class="source-summary"']:
+                       'Add a clear character image', 'class="source-summary"',
+                       'class="quality-card selected"', 'class="quality-state"', 'Quality']:
             self.assertIn(marker, self.html)
             self.assertIn(marker, ltx)
         self.assertIn('Choose one continuous shot', self.html)
@@ -176,9 +177,8 @@ class H3StudioUITests(unittest.TestCase):
 
     def test_scoped_theme_and_small_modules(self):
         css = (STATIC / 'h3-studio.css').read_text()
-        self.assertIn('html[data-engine="h3"]', css)
-        self.assertIn('--accent: #ff4f2e', css)
-        self.assertIn('prefers-reduced-motion', css)
+        for marker in ('html[data-engine="h3"]', '--accent: #ff4f2e', 'prefers-reduced-motion'):
+            self.assertIn(marker, css)
         for path in [HTML, STATIC / 'h3-studio.css', *(STATIC / name for name in MODULES), Path(__file__), ROOT / 'tests/h3_studio_contract.mjs']:
             self.assertLessEqual(len(path.read_text().splitlines()), 200, str(path))
         ids = [attrs['id'] for _, attrs in self.parser.tags if 'id' in attrs]

@@ -9,6 +9,11 @@ export function h3URL(id, suffix) {
   jobURL(id);
   return `/api/h3/jobs/${encodeURIComponent(id)}${suffix}`;
 }
+// The comparison reel is engine-agnostic: the same route serves LTX and H3 jobs.
+export function revealURL(id) {
+  jobURL(id);
+  return `/api/jobs/${encodeURIComponent(id)}/reveal`;
+}
 export async function request(url, options = {}) {
   let response;
   try {

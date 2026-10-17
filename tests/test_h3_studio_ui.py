@@ -119,6 +119,24 @@ class H3StudioUITests(unittest.TestCase):
         # The raw native file control must no longer be themed as a visible input.
         self.assertNotIn('file-selector-button', (STATIC / 'h3-studio.css').read_text())
 
+    def test_shared_result_actions_use_the_generic_reel_contract(self):
+        for control in ('h3-download', 'h3-build-reel', 'h3-copy-caption', 'h3-save-capsule', 'h3-replay'):
+            self.assertIn(control, self.ids)
+        self.assertIn('disabled', self.ids['h3-build-reel'][1])
+        self.assertNotIn('disabled', self.ids['h3-copy-caption'][1])
+        ltx = (ROOT / 'src' / 'templates' / 'index.html').read_text()
+        for shared in ('class="export-actions"', 'Download MP4', 'Build comparison reel', 'Copy caption'):
+            self.assertIn(shared, self.html)
+            self.assertIn(shared, ltx)
+        take = self.scripts['h3-take.js']
+        self.assertIn('/reveal', self.scripts['h3-http.js'])
+        self.assertIn('byId(\'build-reel\').disabled = false', take)
+        # The caption is engine-grounded: no LTX or FLUX claim inside the H3 studio.
+        captions = [line for line in take.splitlines() if 'Made with OpenGenjutsu' in line]
+        self.assertEqual(len(captions), 1)
+        self.assertIn('MiniMax H3', captions[0])
+        self.assertNotIn('LTX', captions[0])
+
     def test_preview_frame_and_stage_switching_match_the_ltx_layout(self):
         ltx = (ROOT / 'src' / 'templates' / 'index.html').read_text()
         for shared in ('<p class="eyebrow">Preview</p>', 'class="result-switch"', 'class="take-story"', 'take-stage-card'):

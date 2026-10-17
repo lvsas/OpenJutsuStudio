@@ -1,8 +1,10 @@
-import {byId, validId, jobURL, h3URL, request, showMedia} from './h3-http.js';
+import {byId, validId, jobURL, h3URL, request, revealURL, showMedia} from './h3-http.js';
 const STORAGE_KEY = 'opengenjutsu.h3.current-job';
 const TERMINAL = new Set(['done', 'error', 'failed', 'cancelled']);
 const STAGES = {h3_prepare: 'Preparing source and reference', h3_submitting: 'H3 submission / inference',
   h3_assemble: 'Assembling result and preserving audio', done: 'H3 take complete', h3_error: 'H3 take failed'};
+// Grounded in the frozen recipe: this studio runs MiniMax H3 with its Character Swap LoRA.
+const CAPTION = 'Made with OpenGenjutsu — an open-source local video transformation studio, recast with MiniMax H3 and its Character Swap LoRA.';
 
 function saveCapsule(capsule, id) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(capsule, null, 2)], {type: 'application/json'}));
@@ -12,6 +14,14 @@ function saveCapsule(capsule, id) {
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+function downloadReel(url, id) {
+  const link = document.createElement('a');
+  link.href = `${url}?download=true`;
+  link.download = `opengenjutsu-h3-${id}-comparison.mp4`;
+  link.click();
+}
+
 function elapsedText(job) {
   if (!job) return '';
   const start = job.status === 'queued' ? job.created : job.started || job.created;
@@ -29,6 +39,9 @@ export class H3Take {
     this.active = false;
     byId('save-capsule').addEventListener('click', () => { if (this.capsule) saveCapsule(this.capsule, this.id); });
     byId('replay').addEventListener('click', () => this.replay());
+    // Shared result actions: the same generic comparison-reel contract LTX uses.
+    byId('build-reel').addEventListener('click', () => this.reel());
+    byId('copy-caption').addEventListener('click', () => this.copyCaption());
     setInterval(() => this.timer(), 1000);
   }
   storage(id) {
@@ -61,6 +74,7 @@ export class H3Take {
     byId('capsule-details').hidden = true;
     byId('capsule-manifest').textContent = '';
     byId('save-capsule').disabled = byId('replay').disabled = true;
+    byId('build-reel').disabled = true;
     byId('download').removeAttribute('href');
     showMedia('result', '', 'Available after completion.');
   }
@@ -120,6 +134,7 @@ export class H3Take {
       showMedia('result', jobURL(job.id, '/result'));
       byId('download').href = jobURL(job.id, '/result');
       byId('result-actions').hidden = false;
+      byId('build-reel').disabled = false;
       this.onStage?.('result');
     }
     this.timer();
@@ -142,6 +157,29 @@ export class H3Take {
       byId('capsule-status').textContent = 'Frozen H3 recipe and fingerprints verified by the studio. Replay checks local input bytes.';
     } catch (error) {
       if (epoch === this.epoch) byId('capsule-status').textContent = `Capsule unavailable: ${error.message} Retry status to check again.`;
+    }
+  }
+  async copyCaption() {
+    try {
+      await navigator.clipboard.writeText(CAPTION);
+      byId('capsule-status').textContent = 'Caption copied. Add your downloaded result before posting.';
+    } catch {
+      byId('capsule-status').textContent = 'Clipboard access was unavailable. Copy the caption manually.';
+    }
+  }
+  async reel() {
+    if (!validId(this.id)) return;
+    byId('build-reel').disabled = true;
+    byId('build-reel').textContent = 'Building reel…';
+    try {
+      const payload = await request(revealURL(this.id), {method: 'POST'});
+      downloadReel(payload.reveal_url, this.id);
+      byId('capsule-status').textContent = 'Your local 9:16 comparison reel is downloading.';
+    } catch (error) {
+      byId('capsule-status').textContent = error.message;
+    } finally {
+      byId('build-reel').disabled = !this.job || this.job.status !== 'done';
+      byId('build-reel').textContent = 'Build comparison reel';
     }
   }
   async replay() {

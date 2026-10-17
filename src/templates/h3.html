@@ -124,7 +124,11 @@
           <span id="h3-timer" class="muted" aria-live="off"></span>
         </div>
         <div id="h3-result-actions" class="result-actions" hidden>
-          <a id="h3-download" class="btn btn-primary btn-small" download>Download MP4</a>
+          <div class="export-actions">
+            <a id="h3-download" class="btn btn-secondary btn-small" download>Download MP4</a>
+            <button id="h3-build-reel" class="btn btn-secondary btn-small" type="button" disabled>Build comparison reel</button>
+            <button id="h3-copy-caption" class="btn btn-secondary btn-small" type="button">Copy caption</button>
+          </div>
           <div class="export-actions">
             <button id="h3-save-capsule" class="btn btn-secondary btn-small" type="button" disabled>Save Capsule JSON</button>
             <button id="h3-replay" class="btn btn-secondary btn-small" type="button" disabled>Re-run this take</button>

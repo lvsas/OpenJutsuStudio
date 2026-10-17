@@ -83,7 +83,7 @@ bash scripts/run_app.sh
 
 Open `http://127.0.0.1:8000`. Both services bind to loopback only. The launcher requires Python 3.12 and clears inherited `PYTHONPATH`.
 
-`OPENGENJUTSU_COMFY_BASE_URL` is the **only** application override for the self-hosted SDK proxy. An inherited `COMFY_BASE_URL` is deliberately overwritten, including if it points at a hosted service. The product never requires a `COMFY_API_KEY`. See the [local setup guide](docs/local-setup.md) for remote upstreams, readiness checks, safe environment recovery, and the limits of a successful install.
+`OPENGENJUTSU_COMFY_BASE_URL` is the **only** application target override. The default is the loopback self-hosted SDK proxy; an inherited `COMFY_BASE_URL` is deliberately overwritten to prevent accidental remote inference. Explicit Cloud/deployment targets require `COMFY_API_KEY` in the app process environment. Remote readiness branches are tested locally, not evidence of a live Cloud render. See the [local setup guide](docs/local-setup.md).
 
 
 ---
@@ -175,9 +175,9 @@ scripts/
 
 **Pipeline**: `detect_scenes()` → `edit_segment()` per shot → `merge_segments()` → `upscale_video()`
 
-The launcher always ignores inherited `COMFY_BASE_URL`; the SDK target is local by default and may be changed only with the explicit `OPENGENJUTSU_COMFY_BASE_URL` setting for a trusted self-hosted proxy. This prevents an accidental ambient Cloud target from becoming an inference dependency.
+The launcher always ignores inherited `COMFY_BASE_URL`; the SDK target is local by default and may be changed only with the explicit `OPENGENJUTSU_COMFY_BASE_URL` setting for an explicitly selected Comfy target. This prevents an accidental ambient Cloud target from becoming an inference dependency.
 
-The current app does **not** support Comfy Cloud as a product mode. The proxy may point at a ComfyUI instance you operate yourself, including a trusted LAN machine; verify model licenses, node inventory, and network access before calling that configuration eligible for a competition category.
+The app has target-aware readiness for a local proxy, remote self-hosted proxy, Comfy Cloud and API v2 deployments. **Only the self-hosted path has live render evidence**; Cloud/deployment authentication branches have tests, but required nodes/models and real rendering must still be validated on the selected target. Queueing behind an existing Comfy job is allowed with an on-screen waiting notice. No specific server cache setting is required.
 
 ## Current Evidence
 
@@ -200,4 +200,4 @@ The current app does **not** support Comfy Cloud as a product mode. The proxy ma
 
 Apache-2.0 — see [LICENSE](LICENSE).
 
-This repository is Apache-2.0. LTX 2.5, Ripple, FLUX.2 Klein and all ComfyUI extensions retain their own licenses and acceptable-use terms; review those terms separately before commercial use or redistribution.
+This repository is Apache-2.0. LTX 2.5, Ripple, FLUX.2 Klein, experimental MiniMax H3 and all ComfyUI extensions retain their own licenses and acceptable-use terms; the app license does not license model weights. **Obtain any required commercial license before using models commercially.** H3 also has territorial restrictions: read the [official H3 license](https://huggingface.co/MiniMaxAI/MiniMax-H3/raw/main/LICENSE) and the [H3 scope note](docs/validation/h3-license-gate.md). Organizer guidance relayed by the user accepts locally downloadable/runnable models, including non-commercial models and H3, for contest eligibility; this is not permission for unrestricted commercial or territorial deployment. No weights are bundled.

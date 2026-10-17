@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
@@ -30,6 +30,21 @@ DEFAULT_ENGINE = "ltx25-ripple"
 
 app = FastAPI(title="OpenGenjutsu LTX", version="0.1.0")
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
+
+
+@app.middleware("http")
+async def revalidate_local_assets(request: Request, call_next):
+    """Force revalidation of static assets.
+
+    Heuristic freshness otherwise lets a browser keep serving a previous
+    stylesheet or script, which silently hides a shipped interface fix.
+    """
+    response = await call_next(request)
+    if request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 MAX_UPLOAD_BYTES = int(os.getenv("OPENGENJUTSU_MAX_UPLOAD_BYTES", str(500 * 1024 * 1024)))
 MEDIA_DIR = core.WORK / "media"
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)

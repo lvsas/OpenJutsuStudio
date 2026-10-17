@@ -46,6 +46,13 @@ class AppTests(unittest.TestCase):
         app_module.MEDIA_DIR.mkdir(parents=True, exist_ok=True)
         self.client = TestClient(app_module.app)
 
+    def test_static_assets_revalidate_so_a_stale_stylesheet_cannot_hide_a_fix(self):
+        asset = self.client.get("/static/app.css")
+        self.assertEqual(asset.status_code, 200)
+        self.assertEqual(asset.headers.get("cache-control"), "no-cache")
+        # Only assets are forced to revalidate; data routes keep their own behaviour.
+        self.assertIsNone(self.client.get("/health").headers.get("cache-control"))
+
     def test_health_and_home(self):
         self.assertEqual(
             self.client.get("/health").json(),

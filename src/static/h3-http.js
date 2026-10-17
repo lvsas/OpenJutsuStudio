@@ -44,11 +44,15 @@ export function setStage(mode) {
   return current;
 }
 
+// The frame and the capsule card both show the same stage, as LTX does: the card
+// keeps a thumbnail of the media that the take actually consumed.
 export function loadStageMedia(kind, url) {
-  const media = byId(`${kind}-preview`);
-  if (media.getAttribute('src') === (url || null)) return;
-  if (media.tagName === 'VIDEO') media.pause();
-  if (url) media.src = url;
-  else media.removeAttribute('src');
-  if (media.tagName === 'VIDEO') media.load();
+  for (const id of [`${kind}-preview`, `take-${kind}-preview`]) {
+    const media = byId(id);
+    if (!media || media.getAttribute('src') === (url || null)) continue;
+    if (media.tagName === 'VIDEO') media.pause();
+    if (url) media.src = url;
+    else media.removeAttribute('src');
+    if (media.tagName === 'VIDEO') media.load();
+  }
 }

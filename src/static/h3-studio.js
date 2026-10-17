@@ -15,8 +15,8 @@ function syncStage() {
 
 function update() {
   const locked = pending || take.active;
-  for (const field of ['video', 'reference', 'description', 'seed']) byId(field).disabled = locked;
-  byId('edit').disabled = locked || !byId('directions').open;
+  for (const field of ['video', 'reference', 'seed']) byId(field).disabled = locked;
+  for (const field of ['edit', 'description']) byId(field).disabled = locked || !byId('directions').open;
   const inputs = byId('video').files.length === 1 && byId('reference').files.length === 1;
   // Readiness is advisory here: the server checks the target again and returns the exact reason.
   byId('submit').disabled = locked || !inputs;
@@ -103,7 +103,10 @@ function submission() {
   }
   if (!form.reportValidity()) return null;
   const data = new FormData(form);
-  if (!byId('directions').open) data.delete('edit_prompt');
+  if (!byId('directions').open) {
+    data.delete('edit_prompt');
+    data.delete('character_description');
+  }
   return data;
 }
 async function submit(event) {

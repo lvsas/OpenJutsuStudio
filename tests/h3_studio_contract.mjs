@@ -33,6 +33,10 @@ for (const match of html.matchAll(/<([\w-]+)\b([^>]*\bid="([^"]+)"[^>]*)>/g)) {
 elements.set('h3-advanced', new Element('DETAILS'));
 // Structural parity with LTX: the source summary follows the frame, and the
 // capsule lives inside the result actions rather than beside them.
+// The capsule cards carry the media, exactly as the LTX cards do.
+for (const kind of ['source', 'reference', 'result']) {
+  assert.ok(html.includes(`id="h3-take-${kind}-preview"`), `capsule card ${kind} needs media`);
+}
 const frameAt = html.indexOf('class="stage-frame"');
 const resultActionsAt = html.indexOf('id="h3-result-actions"');
 assert.ok(html.indexOf('id="h3-source-summary"') > frameAt, 'source summary must follow the frame');

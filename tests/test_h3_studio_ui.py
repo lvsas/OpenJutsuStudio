@@ -128,12 +128,14 @@ class H3StudioUITests(unittest.TestCase):
             self.assertIn('hidden', self.ids[id_][1])
         self.assertEqual(self.ids['h3-run-overlay'][1].get('class'), 'run-overlay')
         self.assertEqual(self.ids['h3-readiness'][1].get('class'), 'badge')
-        for gone in ('h3-retry', 'h3-readiness-notes'):
-            self.assertNotIn(gone, self.ids)
+        for gone in ('h3-retry', 'h3-readiness-notes'): self.assertNotIn(gone, self.ids)
         for page in (self.html, ltx): self.assertIn('<span>Generate edit</span>', page)
 
     def test_shared_components_are_the_only_implementations(self):
         main, take, http = (self.scripts[name] for name in ('h3-studio.js', 'h3-take.js', 'h3-http.js'))
+        for control in ('h3-download', 'h3-build-reel', 'h3-copy-caption', 'h3-save-capsule', 'h3-replay'): self.assertIn(control, self.ids)
+        self.assertIn('disabled', self.ids['h3-build-reel'][1])
+        self.assertNotIn('disabled', self.ids['h3-copy-caption'][1])
         for marker in ('bindFileDropTargets', 'replaceChildren', "byId('remove-reference')"):
             self.assertIn(marker, main)
         for marker in ("renderProgress?.(job, 'h3-')", "byId('take-story').hidden = false",
@@ -159,20 +161,17 @@ class H3StudioUITests(unittest.TestCase):
         self.assertIn('MiniMax H3', captions[0])
         self.assertNotIn('LTX', captions[0])
 
-    def test_shared_result_actions_use_the_generic_reel_contract(self):
-        for control in ('h3-download', 'h3-build-reel', 'h3-copy-caption', 'h3-save-capsule', 'h3-replay'):
-            self.assertIn(control, self.ids)
-        self.assertIn('disabled', self.ids['h3-build-reel'][1])
-        self.assertNotIn('disabled', self.ids['h3-copy-caption'][1])
-
     def test_character_description_is_user_owned_and_reaches_the_payload(self):
         tag, attrs = self.ids['h3-description']
         self.assertEqual((tag, attrs['name']), ('input', 'character_description'))
         self.assertEqual(attrs['maxlength'], '2000')
         self.assertNotIn('required', attrs)
-        self.assertIn('inserted verbatim', self.html)
+        # It shares the Optional directions disclosure, so the visible panel matches LTX.
+        self.assertLess(self.html.index('class="advanced-settings directions-step"'),
+                        self.html.index('id="h3-description"'))
         main = self.scripts['h3-studio.js']
-        self.assertIn("['video', 'reference', 'description', 'seed']", main)
+        self.assertIn("data.delete('character_description')", main)
+        self.assertIn("for (const field of ['edit', 'description'])", main)
         # The description is client-supplied text, never generated in the transport layer.
         self.assertNotIn('description', self.scripts['h3-http.js'])
 

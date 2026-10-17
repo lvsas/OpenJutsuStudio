@@ -51,16 +51,15 @@
               <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
             </label>
             <button id="h3-remove-reference" class="btn btn-ghost btn-small remove-reference" type="button" hidden>Remove character reference</button>
-            <label class="field-label" for="h3-description">Describe the replacement character <span>Optional</span></label>
-            <input id="h3-description" name="character_description" class="text-input" maxlength="2000" placeholder="e.g. an adult man with bowl-cut light brown hair, an orange t-shirt and olive cargo pants" aria-describedby="h3-description-help">
-            <p id="h3-description-help" class="field-help">Your words are inserted verbatim into the frozen prompt scaffold. Nothing is invented for you; leaving it empty stays deterministic.</p>
             <p class="field-help">Exactly one PNG, JPEG or WebP. The reference guides identity; it is not a mask or a tracking guarantee.</p>
           </fieldset>
           <details id="h3-directions" class="advanced-settings directions-step">
             <summary>Add directions <span>Optional</span></summary>
             <label class="field-label" for="h3-edit">What should change?</label>
             <textarea id="h3-edit" name="edit_prompt" class="text-input textarea" maxlength="2000" disabled placeholder="e.g. Keep the original jacket."></textarea>
-            <p class="field-help">Closed directions are not submitted. Your original text is sent unchanged when open.</p>
+            <label class="field-label" for="h3-description">Describe the replacement character</label>
+            <input id="h3-description" name="character_description" class="text-input" maxlength="2000" disabled placeholder="e.g. bowl-cut light brown hair, orange t-shirt, olive cargo pants" aria-describedby="h3-description-help">
+            <p id="h3-description-help" class="field-help">Closed directions are not submitted. Your text is sent unchanged when open, and the replacement description is inserted verbatim into the frozen prompt scaffold — nothing is invented for you.</p>
           </details>
           <fieldset class="recipe-step quality-step">
             <legend><span>03</span> Quality</legend>
@@ -116,11 +115,11 @@
               <span id="h3-take-proof" class="badge">Recording take</span>
             </div>
             <div class="take-story-path" aria-label="Visual take stages">
-              <button class="take-stage-card" type="button" data-h3-stage="source"><span>01 · Source</span></button>
+              <button class="take-stage-card" type="button" data-h3-stage="source"><video id="h3-take-source-preview" muted playsinline preload="metadata"></video><span>01 · Source</span></button>
               <span class="take-path-arrow" aria-hidden="true">+</span>
-              <button class="take-stage-card" type="button" data-h3-stage="reference"><span>02 · Reference</span></button>
+              <button class="take-stage-card" type="button" data-h3-stage="reference"><img id="h3-take-reference-preview" alt=""><span>02 · Reference</span></button>
               <span class="take-path-arrow" aria-hidden="true">→</span>
-              <button class="take-stage-card" type="button" data-h3-stage="result"><span>03 · H3 result</span></button>
+              <button class="take-stage-card" type="button" data-h3-stage="result"><video id="h3-take-result-preview" muted playsinline preload="metadata"></video><span>03 · H3 result</span></button>
             </div>
             <p id="h3-take-copy" class="microcopy">This visual chain is the recipe this take freezes. Select a stage to inspect it in the preview above.</p>
           </section>

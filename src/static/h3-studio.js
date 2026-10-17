@@ -47,6 +47,20 @@ async function checkReadiness() {
   update();
   return ready;
 }
+function notify(message) {
+  const status = byId('status');
+  status.textContent = message;
+  status.setAttribute('role', 'alert');
+}
+function paintPickers() {
+  for (const [field, fallback] of [['video', 'Choose one continuous shot'], ['reference', 'Add a clear character image']]) {
+    const file = byId(field).files[0];
+    byId(`${field}-name`).textContent = file ? file.name : fallback;
+  }
+  const url = blobs.get('reference');
+  byId('reference-thumb').replaceChildren(url ? Object.assign(document.createElement('img'), {src: url, alt: ''}) : '＋');
+  byId('remove-reference').hidden = !byId('reference').files[0];
+}
 function previewInputs() {
   take.reset();
   for (const [kind, field] of [['source', 'video'], ['reference', 'reference']]) {
@@ -57,6 +71,7 @@ function previewInputs() {
     if (old) URL.revokeObjectURL(old);
     blobs.set(kind, url);
   }
+  paintPickers();
   update();
 }
 function submission() {
@@ -97,6 +112,12 @@ async function submit(event) {
 form.addEventListener('submit', submit);
 byId('directions').addEventListener('toggle', update);
 for (const field of ['video', 'reference']) byId(field).addEventListener('change', previewInputs);
+byId('remove-reference').addEventListener('click', () => {
+  byId('reference').value = '';
+  previewInputs();
+});
+// Same shared drag/drop implementation as the LTX studio; unsupported drops keep the current file.
+window.OpenGenjutsuStudio?.bindFileDropTargets?.(notify);
 byId('seed').addEventListener('input', () => byId('seed').setCustomValidity(''));
 byId('retry').addEventListener('click', () => {
   if (pending) return;

@@ -24,8 +24,6 @@ html[data-engine="h3"] {
 [data-engine="h3"] .h3-run [role="alert"] { color: var(--danger); }
 [data-engine="h3"] #h3-timer { font-size: .76rem; font-variant-numeric: tabular-nums; }
 [data-engine="h3"] .advanced-settings .field-label { margin-top: var(--space-3); }
-[data-engine="h3"] input[type="file"] { font-size: .8rem; padding: .65rem; }
-[data-engine="h3"] input::file-selector-button { background: var(--surface-raised); border: 1px solid var(--line); border-radius: .4rem; color: var(--text); cursor: pointer; margin-right: .6rem; padding: .35rem .5rem; }
 [data-engine="h3"] .h3-license { border-top: 1px solid var(--line); margin-top: var(--space-6); padding-top: var(--space-4); }
 [data-engine="h3"] .h3-license a { color: var(--text); }
 @media (max-width: 900px) {

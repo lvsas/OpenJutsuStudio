@@ -32,7 +32,10 @@ class H3StudioUITests(unittest.TestCase):
     def test_studio_is_isolated_and_only_local_modules_are_loaded(self):
         self.assertIn(('html', {'lang': 'en', 'data-engine': 'h3'}), self.parser.tags)
         scripts = [attrs for tag, attrs in self.parser.tags if tag == 'script']
-        self.assertEqual(scripts, [{'type': 'module', 'src': '/static/h3-studio.js'}])
+        # The shared studio helper is the single drag/drop implementation for both studios.
+        self.assertEqual([s.get('src') for s in scripts],
+                         ['/static/studio-utils.js', '/static/h3-studio.js'])
+        self.assertEqual([s.get('type') for s in scripts], [None, 'module'])
         links = [attrs.get('href') for tag, attrs in self.parser.tags if tag == 'link']
         self.assertEqual(links, ['/static/design-system.css', '/static/app.css', '/static/h3-studio.css'])
         for src in self.scripts.values():
@@ -84,6 +87,37 @@ class H3StudioUITests(unittest.TestCase):
         self.assertIn("byId('status').textContent = 'Uploading inputs.", main)
         # The precise server refusal reason must reach the user.
         self.assertIn('HTTP ${response.status}: ${detail}', self.scripts['h3-http.js'])
+
+    def test_shared_brand_heading_matches_the_ltx_studio(self):
+        ltx = (ROOT / 'src' / 'templates' / 'index.html').read_text()
+        for shared in ('<p class="eyebrow">Open video transformation</p>',
+                       'Make the edit.<br><em>Keep the moment.</em>'):
+            self.assertIn(shared, self.html)
+            self.assertIn(shared, ltx)
+        # The supporting sentence is engine-specific and must name the real H3 stack.
+        self.assertIn('MiniMax H3', self.html)
+        self.assertIn('Character Swap LoRA', self.html)
+        self.assertNotIn('FLUX', self.html)
+
+    def test_media_pickers_match_the_ltx_studio_contract(self):
+        ltx = (ROOT / 'src' / 'templates' / 'index.html').read_text()
+        # Both studios use the same shared picker markup, icon and drag/drop hook.
+        for shared in ['class="media-picker', 'class="picker-icon" aria-hidden="true"', 'class="picker-drop-hint"', 'data-drop-kind=', 'class="reference-thumb"']:
+            self.assertIn(shared, self.html)
+            self.assertIn(shared, ltx)
+        self.assertEqual('visually-hidden', self.ids['h3-video'][1]['class'])
+        self.assertEqual('visually-hidden', self.ids['h3-reference'][1]['class'])
+        self.assertEqual(('video', 'h3-video'), (self.ids['h3-video-picker'][1]['data-drop-kind'], self.ids['h3-video-picker'][1]['for']))
+        self.assertEqual(('image', 'h3-reference'), (self.ids['h3-reference-picker'][1]['data-drop-kind'], self.ids['h3-reference-picker'][1]['for']))
+        self.assertIn('hidden', self.ids['h3-remove-reference'][1])
+        self.assertIn('Choose one continuous shot', self.html)
+        self.assertIn('Add a clear character image', self.html)
+        main = self.scripts['h3-studio.js']
+        self.assertIn('bindFileDropTargets', main)
+        self.assertIn("byId('remove-reference')", main)
+        self.assertIn('replaceChildren', main)
+        # The raw native file control must no longer be themed as a visible input.
+        self.assertNotIn('file-selector-button', (STATIC / 'h3-studio.css').read_text())
 
     def test_scoped_theme_and_small_modules(self):
         css = (STATIC / 'h3-studio.css').read_text()

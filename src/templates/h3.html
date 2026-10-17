@@ -21,9 +21,9 @@
   </header>
   <main class="studio-shell">
     <section class="studio-intro" aria-labelledby="studio-title">
-      <p class="eyebrow">H3 character recast</p>
-      <h1 id="studio-title">A new character.<br><em>The same moment.</em></h1>
-      <p>Give one continuous shot a new character with one reference image. Optional directions fine-tune the change. Motion and likeness remain experimental.</p>
+      <p class="eyebrow">Open video transformation</p>
+      <h1 id="studio-title">Make the edit.<br><em>Keep the moment.</em></h1>
+      <p>Character recast with MiniMax H3 and its Character Swap LoRA: one continuous shot and one reference image. Motion and likeness remain experimental.</p>
     </section>
     <section class="h3-readiness" aria-label="H3 availability">
       <strong id="h3-readiness" role="status" aria-live="polite">Checking H3 availability…</strong>
@@ -39,14 +39,23 @@
         <form id="h3-form" autocomplete="off" novalidate>
           <fieldset class="recipe-step">
             <legend><span>01</span> Source video</legend>
-            <label class="field-label" for="h3-video">Choose one continuous shot</label>
-            <input id="h3-video" name="video" class="text-input" type="file" accept=".mp4,.mov,.mkv,.webm" required>
-            <p class="field-help">MP4, MOV, MKV or WebM. Isolate your shot first: no automatic scene splitting or cut rejection.</p>
+            <input id="h3-video" name="video" class="visually-hidden" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska" required>
+            <label class="media-picker" for="h3-video" id="h3-video-picker" data-drop-kind="video">
+              <span class="picker-icon" aria-hidden="true">↗</span>
+              <span><strong id="h3-video-name">Choose one continuous shot</strong><small>MP4, MOV, MKV or WebM · up to 500 MB</small></span>
+              <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
+            </label>
+            <p class="field-help">Your source is processed as one timeline. No scene splitting or cut rejection.</p>
           </fieldset>
           <fieldset class="recipe-step">
             <legend><span>02</span> Character reference <small>No prompt needed</small></legend>
-            <label class="field-label" for="h3-reference">Choose one clear character image</label>
-            <input id="h3-reference" name="reference_image" class="text-input" type="file" accept=".png,.jpg,.jpeg,.webp" required>
+            <input id="h3-reference" name="reference_image" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" required>
+            <label class="media-picker reference-picker" for="h3-reference" id="h3-reference-picker" data-drop-kind="image">
+              <span class="reference-thumb" id="h3-reference-thumb" aria-hidden="true">＋</span>
+              <span><strong id="h3-reference-name">Add a clear character image</strong><small>PNG, JPG or WebP · guides identity for the recast</small></span>
+              <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
+            </label>
+            <button id="h3-remove-reference" class="btn btn-ghost btn-small remove-reference" type="button" hidden>Remove character reference</button>
             <p class="field-help">Exactly one PNG, JPEG or WebP. The reference guides identity; it is not a mask or a tracking guarantee.</p>
           </fieldset>
           <details id="h3-directions" class="advanced-settings directions-step">
@@ -105,6 +114,7 @@
     </footer>
     <noscript><p role="alert">Enable JavaScript to check readiness, submit a take, and resume job status.</p></noscript>
   </main>
+  <script src="/static/studio-utils.js" defer></script>
   <script type="module" src="/static/h3-studio.js"></script>
 </body>
 </html>

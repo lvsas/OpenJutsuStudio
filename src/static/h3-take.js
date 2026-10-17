@@ -1,4 +1,4 @@
-import {byId, validId, jobURL, h3URL, request, revealURL, showMedia} from './h3-http.js';
+import {byId, validId, jobURL, h3URL, request, revealURL, setStage, loadStageMedia} from './h3-http.js';
 const STORAGE_KEY = 'opengenjutsu.h3.current-job';
 const TERMINAL = new Set(['done', 'error', 'failed', 'cancelled']);
 const STAGES = {h3_prepare: 'Preparing source and reference', h3_submitting: 'H3 submission / inference',
@@ -13,13 +13,6 @@ function saveCapsule(capsule, id) {
   link.download = `h3-take-${id}.json`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function downloadReel(url, id) {
-  const link = document.createElement('a');
-  link.href = `${url}?download=true`;
-  link.download = `opengenjutsu-h3-${id}-comparison.mp4`;
-  link.click();
 }
 
 function elapsedText(job) {
@@ -76,7 +69,8 @@ export class H3Take {
     byId('save-capsule').disabled = byId('replay').disabled = true;
     byId('build-reel').disabled = true;
     byId('download').removeAttribute('href');
-    showMedia('result', '', 'Available after completion.');
+    byId('take-story').hidden = true;
+    loadStageMedia('result', '');
   }
   setActive(active) {
     this.active = active;
@@ -89,8 +83,8 @@ export class H3Take {
     this.id = id;
     this.job = null;
     this.clearResult();
-    showMedia('source', '', 'Loading this take’s source…');
-    showMedia('reference', '', 'Loading this take’s reference…');
+    loadStageMedia('source', '');
+    loadStageMedia('reference', '');
     this.storage(id);
     this.setActive(true);
     this.onStage?.('source');
@@ -128,13 +122,15 @@ export class H3Take {
     byId('status').setAttribute('role', job.status === 'error' || job.status === 'failed' ? 'alert' : 'status');
     byId('status').textContent = job.error || (job.status === 'running'
       ? 'Processing. Stage labels come from the worker; no estimated progress is shown.' : `H3 job ${job.id}: ${job.status}.`);
-    showMedia('source', h3URL(job.id, '/source'), 'Source preview unavailable. Retry status.');
-    showMedia('reference', h3URL(job.id, '/reference'), 'Reference preview unavailable. Retry status.');
+    loadStageMedia('source', h3URL(job.id, '/source'));
+    loadStageMedia('reference', h3URL(job.id, '/reference'));
     if (job.status === 'done') {
-      showMedia('result', jobURL(job.id, '/result'));
+      loadStageMedia('result', jobURL(job.id, '/result'));
       byId('download').href = jobURL(job.id, '/result');
       byId('result-actions').hidden = false;
       byId('build-reel').disabled = false;
+      // Same as LTX: the capsule describes a take, so it appears with the take.
+      byId('take-story').hidden = false;
       this.onStage?.('result');
     }
     this.timer();
@@ -173,7 +169,10 @@ export class H3Take {
     byId('build-reel').textContent = 'Building reel…';
     try {
       const payload = await request(revealURL(this.id), {method: 'POST'});
-      downloadReel(payload.reveal_url, this.id);
+      const link = document.createElement('a');
+      link.href = `${payload.reveal_url}?download=true`;
+      link.download = `opengenjutsu-h3-${this.id}-comparison.mp4`;
+      link.click();
       byId('capsule-status').textContent = 'Your local 9:16 comparison reel is downloading.';
     } catch (error) {
       byId('capsule-status').textContent = error.message;

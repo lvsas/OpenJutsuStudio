@@ -83,28 +83,17 @@
           <div><p class="eyebrow">Preview</p><h2 id="stage-title">Your H3 take, in motion</h2></div>
           <span id="h3-state" class="badge">Awaiting media</span>
         </div>
-        <div class="stage-frame h3-stage-frame">
-          <div id="h3-pane-source" class="h3-pane">
-            <video id="h3-source-preview" class="stage-video" controls playsinline preload="metadata" hidden></video>
-            <p id="h3-source-empty" class="field-help">Choose a source video to preview it here.</p>
+        <div class="stage-frame">
+          <div id="h3-stage-empty" class="stage-empty">
+            <div class="empty-orb" aria-hidden="true"></div>
+            <h3>Start with a moment worth keeping.</h3>
+            <p>Select a source video to preview it here. Add a character reference when identity matters.</p>
           </div>
-          <div id="h3-pane-reference" class="h3-pane" hidden>
-            <img id="h3-reference-preview" class="h3-stage-image" alt="Character reference for this H3 take" hidden>
-            <p id="h3-reference-empty" class="field-help">Choose one reference image.</p>
-          </div>
-          <div id="h3-pane-result" class="h3-pane" hidden>
-            <video id="h3-result-preview" class="stage-video" controls playsinline preload="metadata" hidden></video>
-            <p id="h3-result-empty" class="field-help">Available after completion.</p>
-          </div>
+          <video id="h3-source-preview" class="stage-video" controls playsinline hidden></video>
+          <img id="h3-reference-preview" alt="Character reference for this H3 take" hidden>
+          <video id="h3-result-preview" class="stage-video" controls playsinline hidden></video>
         </div>
-        <div id="h3-preview-switch" class="result-actions">
-          <div class="result-switch" role="group" aria-label="Preview mode">
-            <button id="h3-show-source" class="btn btn-secondary btn-small" type="button" aria-pressed="true">Source</button>
-            <button id="h3-show-reference" class="btn btn-secondary btn-small" type="button" aria-pressed="false">Reference</button>
-            <button id="h3-show-result" class="btn btn-secondary btn-small" type="button" aria-pressed="false">Result</button>
-          </div>
-        </div>
-        <section id="h3-take-story" class="take-story" aria-labelledby="h3-take-story-title">
+        <section id="h3-take-story" class="take-story" aria-labelledby="h3-take-story-title" hidden>
           <div class="take-story-heading">
             <div><p class="eyebrow">Take Capsule</p><h3 id="h3-take-story-title">Source + reference → H3 result</h3></div>
             <span id="h3-take-proof" class="badge">Recording take</span>

@@ -33,15 +33,22 @@ export async function request(url, options = {}) {
   if (!data || typeof data !== 'object') throw new Error('Invalid JSON response. Check the studio service.');
   return data;
 }
-export function showMedia(kind, url, missing = '') {
-  const media = byId(`${kind}-preview`), empty = byId(`${kind}-empty`);
-  if (media.getAttribute('src') !== url) {
-    if (media.tagName === 'VIDEO') media.pause();
-    if (url) media.src = url;
-    else media.removeAttribute('src');
-    if (media.tagName === 'VIDEO') media.load();
-  }
-  media.hidden = !url;
-  empty.hidden = !!url;
-  if (missing) empty.textContent = missing;
+const STAGE_LABELS = {empty: 'Awaiting media', source: 'Source preview', reference: 'Reference', result: 'Result ready'};
+
+// Same contract as the LTX studio: one stage state drives the frame and its badge.
+export function setStage(mode) {
+  const current = Object.hasOwn(STAGE_LABELS, mode) ? mode : 'empty';
+  byId('stage-empty').hidden = current !== 'empty';
+  for (const kind of ['source', 'reference', 'result']) byId(`${kind}-preview`).hidden = kind !== current;
+  byId('state').textContent = STAGE_LABELS[current];
+  return current;
+}
+
+export function loadStageMedia(kind, url) {
+  const media = byId(`${kind}-preview`);
+  if (media.getAttribute('src') === (url || null)) return;
+  if (media.tagName === 'VIDEO') media.pause();
+  if (url) media.src = url;
+  else media.removeAttribute('src');
+  if (media.tagName === 'VIDEO') media.load();
 }

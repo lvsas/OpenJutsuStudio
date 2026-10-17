@@ -1,17 +1,16 @@
-import {byId, validId, request, showMedia} from './h3-http.js';
+import {byId, validId, request, setStage, loadStageMedia} from './h3-http.js';
 import {H3Take} from './h3-take.js';
 
 const form = byId('form');
 let pending = false, ready = false, readinessEpoch = 0;
 const blobs = new Map();
 const H3_STAGES = ['source', 'reference', 'result'];
-const take = new H3Take(() => update(), checkReadiness, stage => setPane(stage));
+const take = new H3Take(() => update(), checkReadiness, stage => setStage(stage));
 
-function setPane(kind) {
-  for (const name of H3_STAGES) {
-    byId(`pane-${name}`).hidden = name !== kind;
-    byId(`show-${name}`).setAttribute('aria-pressed', String(name === kind));
-  }
+// One stage state, exactly like the LTX studio: whichever media exists wins.
+function syncStage() {
+  for (const kind of H3_STAGES) if (byId(`${kind}-preview`).getAttribute('src')) return setStage(kind);
+  return setStage('empty');
 }
 
 function update() {
@@ -75,11 +74,12 @@ function previewInputs() {
     const old = blobs.get(kind);
     const file = byId(field).files[0];
     const url = file ? URL.createObjectURL(file) : '';
-    showMedia(kind, url, `Choose ${kind === 'source' ? 'a source video' : 'one reference image'}.`);
+    loadStageMedia(kind, url);
     if (old) URL.revokeObjectURL(old);
     blobs.set(kind, url);
   }
   paintPickers();
+  syncStage();
   update();
 }
 function submission() {
@@ -119,13 +119,12 @@ async function submit(event) {
 }
 form.addEventListener('submit', submit);
 byId('directions').addEventListener('toggle', update);
-for (const [field, pane] of [['video', 'source'], ['reference', 'reference']]) {
-  byId(field).addEventListener('change', () => { previewInputs(); setPane(pane); });
+for (const [field, kind] of [['video', 'source'], ['reference', 'reference']]) {
+  byId(field).addEventListener('change', () => { previewInputs(); setStage(kind); });
 }
-for (const kind of H3_STAGES) byId(`show-${kind}`).addEventListener('click', () => setPane(kind));
-// The capsule chain selects the matching stage in the preview frame.
+// The capsule marks each take stage and selects it in the preview frame.
 for (const card of document.querySelectorAll?.('[data-h3-stage]') || []) {
-  card.addEventListener('click', () => setPane(card.dataset.h3Stage));
+  card.addEventListener('click', () => setStage(card.dataset.h3Stage));
 }
 byId('remove-reference').addEventListener('click', () => {
   byId('reference').value = '';
@@ -140,7 +139,11 @@ byId('retry').addEventListener('click', () => {
   take.resume();
 });
 for (const kind of ['source', 'reference', 'result']) {
-  byId(`${kind}-preview`).addEventListener('error', () => showMedia(kind, '', `${kind} preview unavailable. Check the retained media and retry status.`));
+  byId(`${kind}-preview`).addEventListener('error', () => {
+    loadStageMedia(kind, '');
+    notify(`${kind} preview unavailable. Retry status.`);
+    syncStage();
+  });
 }
 window.addEventListener('pagehide', () => {
   for (const url of blobs.values()) if (url) URL.revokeObjectURL(url);

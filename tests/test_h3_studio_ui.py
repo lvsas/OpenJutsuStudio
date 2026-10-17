@@ -137,27 +137,29 @@ class H3StudioUITests(unittest.TestCase):
         self.assertIn('MiniMax H3', captions[0])
         self.assertNotIn('LTX', captions[0])
 
-    def test_preview_frame_and_stage_switching_match_the_ltx_layout(self):
+    def test_preview_frame_and_stage_match_the_ltx_contract_exactly(self):
         ltx = (ROOT / 'src' / 'templates' / 'index.html').read_text()
-        for shared in ('<p class="eyebrow">Preview</p>', 'class="result-switch"', 'class="take-story"', 'take-stage-card'):
+        for shared in ('<p class="eyebrow">Preview</p>', 'class="stage-frame"', 'class="stage-empty"',
+                       'class="stage-video"', 'class="take-story"', 'take-stage-card'):
             self.assertIn(shared, self.html)
             self.assertIn(shared, ltx)
-        self.assertIn('class="stage-frame h3-stage-frame"', self.html)
+        # LTX's contract: media are direct frame children and one stage state
+        # drives the frame. No wrapper panes and no second switcher group.
+        self.assertIn('id="h3-stage-empty"', self.html)
+        self.assertNotIn('display: contents', (STATIC / 'h3-studio.css').read_text())
+        for absent in ('h3-preview-switch', 'h3-pane-', 'h3-show-source', 'h3-show-reference', 'h3-show-result'):
+            self.assertNotIn(absent, self.html)
         for stage in ('source', 'reference', 'result'):
-            self.assertIn(f'id="h3-pane-{stage}"', self.html)
-            self.assertIn(f'id="h3-show-{stage}"', self.html)
-        # Only the source pane starts visible; the others are switched in.
-        self.assertNotIn('hidden', self.ids['h3-pane-source'][1])
-        for stage in ('reference', 'result'):
-            self.assertIn('hidden', self.ids[f'h3-pane-{stage}'][1])
-        # The capsule chain never disappears and each card selects a real stage.
-        self.assertNotIn('hidden', self.ids['h3-take-story'][1])
-        for stage in ('source', 'reference', 'result'):
+            self.assertIn(f'id="h3-{stage}-preview"', self.html)
             self.assertIn(f'data-h3-stage="{stage}"', self.html)
-        main = self.scripts['h3-studio.js']
-        self.assertIn("const H3_STAGES = ['source', 'reference', 'result'];", main)
-        self.assertIn('byId(`pane-${name}`).hidden', main)
-        self.assertIn("querySelectorAll?.('[data-h3-stage]')", main)
+        http = self.scripts['h3-http.js']
+        self.assertIn('export function setStage(mode)', http)
+        self.assertIn("byId('stage-empty').hidden", http)
+        self.assertIn('export function loadStageMedia(kind, url)', http)
+        self.assertNotIn('showMedia', http)
+        # The capsule describes a take, so it appears with the take, exactly as in LTX.
+        self.assertIn('hidden', self.ids['h3-take-story'][1])
+        self.assertIn("byId('take-story').hidden = false", self.scripts['h3-take.js'])
         self.assertIn("this.onStage?.('result')", self.scripts['h3-take.js'])
 
     def test_character_description_is_user_owned_and_reaches_the_payload(self):

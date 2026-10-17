@@ -58,7 +58,7 @@ function notify(message) {
   window.OpenGenjutsuStudio?.showToast?.(byId('toast-region'), message, 'error');
 }
 function paintPickers() {
-  for (const [field, fallback] of [['video', 'Choose one continuous shot'], ['reference', 'Add a clear character image']]) {
+  for (const [field, fallback] of [['video', 'Choose a video'], ['reference', 'Add a clear character image']]) {
     const file = byId(field).files[0];
     byId(`${field}-name`).textContent = file ? file.name : fallback;
   }

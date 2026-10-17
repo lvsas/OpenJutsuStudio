@@ -112,7 +112,7 @@ class H3StudioUITests(unittest.TestCase):
                        'class="badge live">Local inference', 'No public link is created in local mode']:
             self.assertIn(marker, self.html)
             self.assertIn(marker, ltx)
-        self.assertIn('Choose one continuous shot', self.html)
+        self.assertIn('Choose a video', self.html)
         # LTX's stage contract: media are direct frame children driven by one state,
         # and the capsule appears with the take. No wrapper panes, no second switcher.
         for absent in ('h3-preview-switch', 'h3-pane-', 'h3-show-source', 'h3-show-reference',

@@ -23,12 +23,12 @@
     <section class="studio-intro" aria-labelledby="studio-title">
       <p class="eyebrow">Open video transformation</p>
       <h1 id="studio-title">Make the edit.<br><em>Keep the moment.</em></h1>
-      <p>Character recast with MiniMax H3 and its Character Swap LoRA: one continuous shot and one reference image. Motion and likeness remain experimental.</p>
+      <p>Character Swap is the first active mode: a local workflow powered by MiniMax H3 and the Character Swap LoRA <code>h3_character_swap_v1.5</code> by akatz-ai. One continuous shot, one reference image; motion and likeness remain experimental.</p>
     </section>
     <div class="studio-grid">
       <section class="recipe-panel" aria-labelledby="recipe-title">
         <div class="panel-heading">
-          <div><p class="eyebrow">Edit recipe</p><h2 id="recipe-title">Build your H3 take</h2></div>
+          <div><p class="eyebrow">Edit recipe</p><h2 id="recipe-title">Build your transformation</h2></div>
           <span class="badge live">Local inference</span>
         </div>
         <form id="h3-form" autocomplete="off" novalidate>
@@ -37,7 +37,7 @@
             <input id="h3-video" name="video" class="visually-hidden" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska" required>
             <label class="media-picker" for="h3-video" id="h3-video-picker" data-drop-kind="video">
               <span class="picker-icon" aria-hidden="true">↗</span>
-              <span><strong id="h3-video-name">Choose one continuous shot</strong><small>MP4, MOV, MKV or WebM · up to 500 MB</small></span>
+              <span><strong id="h3-video-name">Choose a video</strong><small>MP4, MOV, MKV or WebM · up to 500 MB</small></span>
               <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
             </label>
             <p class="field-help">Your source is processed as one timeline. No scene splitting or cut rejection.</p>
@@ -63,8 +63,8 @@
           </details>
           <fieldset class="recipe-step quality-step">
             <legend><span>03</span> Quality</legend>
-            <div class="quality-card selected" aria-label="H3 two-pass recipe">
-              <div><strong>H3 two-pass</strong><small>Source-derived canvas · split 6+3 steps · 24 fps output</small></div>
+            <div class="quality-card selected" aria-label="Studio HD">
+              <div><strong>Studio HD</strong><small>≈0.9 MP, aspect-aware · two-pass 3+3 steps</small></div>
               <span class="quality-state">Fixed</span>
             </div>
           </fieldset>
@@ -83,7 +83,7 @@
       </section>
       <section class="studio-stage" aria-labelledby="stage-title">
         <div class="stage-header">
-          <div><p class="eyebrow">Preview</p><h2 id="stage-title">Your H3 take, in motion</h2></div>
+          <div><p class="eyebrow">Preview</p><h2 id="stage-title">Your edit, in motion</h2></div>
           <span id="h3-state" class="badge">Awaiting media</span>
         </div>
         <div class="stage-frame">

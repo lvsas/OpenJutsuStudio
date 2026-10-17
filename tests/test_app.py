@@ -85,7 +85,7 @@ class AppTests(unittest.TestCase):
         self.assertIn('id="reference-mapping" class="reference-mapping" hidden', page.text)
         self.assertIn("Add a second character", page.text)
         self.assertIn("experimental", page.text)
-        self.assertIn("Character recast is the first active mode", page.text)
+        self.assertIn("Character Swap is the first active mode", page.text)
         self.assertNotIn("character or object", page.text)
         self.assertIn('href="/h3">H3 <span>Studio</span></a>', page.text)
         self.assertIn('href="/" aria-current="page">LTX <span>Studio</span></a>', page.text)

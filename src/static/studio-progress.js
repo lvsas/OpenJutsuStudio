@@ -21,7 +21,7 @@
     },
     'minimax-h3': {
       queued: ['Queued for the H3 studio', 'Your take is ready to start.'],
-      done: ['Your H3 take is ready', 'Review the result, download it, or copy a caption.'],
+      done: ['Your edit is ready', 'Review the result, download it, or copy a caption.'],
       failed: 'This take could not finish',
       unknown: ['Preparing your take', 'Validating media and the H3 service.'],
       steps: {

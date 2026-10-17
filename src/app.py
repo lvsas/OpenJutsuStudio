@@ -24,6 +24,7 @@ from output_media import build_comparison_reel
 from job_api import create_router as create_job_router
 from take_capsule_api import create_router as create_take_capsule_router
 from runtime_inventory import declared_runtime_inventory
+from h3_studio_app import register_optional_h3
 
 DEFAULT_ENGINE = "ltx25-ripple"
 
@@ -50,6 +51,7 @@ app.include_router(_job_router)
 create_job = next(route.endpoint for route in _job_router.routes
                   if isinstance(route, APIRoute) and route.path == "/api/jobs")
 app.include_router(create_take_capsule_router(_dispatch_job, lambda: check_readiness()))
+register_optional_h3(app, _EXECUTOR, lambda: MEDIA_DIR, MAX_UPLOAD_BYTES)
 
 
 @app.get("/health")

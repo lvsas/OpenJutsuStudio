@@ -1,11 +1,14 @@
 """Bounded, read-only checks before any local GPU work is accepted."""
 import json
+import logging
 import os
 import shutil
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 from config import LOCAL_COMFY_PROXY_URL, comfy_base_url
 from graphs import build_frame_edit, build_ripple
+
+_LOG = logging.getLogger(__name__)
 
 
 def _json_get(url, headers=None):
@@ -35,10 +38,11 @@ def _target_mode(base):
     return "remote-self-hosted"
 
 
-def _inventory(info):
+def _inventory(info, required_graph=None):
     nodes, models = set(), set()
-    graph = [*build_frame_edit("placeholder.png", "edit").values(),
-             *build_ripple("placeholder.mp4", "placeholder.png").values()]
+    graph = (list(required_graph.values()) if required_graph is not None else
+             [*build_frame_edit("placeholder.png", "edit").values(),
+              *build_ripple("placeholder.mp4", "placeholder.png").values()])
     for node in graph:
         name = node["class_type"]
         if name not in info:
@@ -47,9 +51,11 @@ def _inventory(info):
         inputs = info[name].get("input", {})
         specs = {**inputs.get("required", {}), **inputs.get("optional", {})}
         for key, value in node["inputs"].items():
-            if key in {"unet_name", "clip_name", "vae_name", "lora_name"}:
+            if key in {"unet_name", "clip_name", "vae_name", "lora_name", "model_name"}:
                 spec = specs.get(key, [])
-                if not spec or value not in spec[0]:
+                choices = (spec[0] if spec and isinstance(spec[0], list) else
+                           spec[1].get("options", []) if len(spec) > 1 else [])
+                if value not in choices:
                     models.add(value)
     return sorted(nodes), sorted(models)
 
@@ -62,7 +68,7 @@ def _probe_v2_jobs(base, api_key):
         raise ValueError("Expected Comfy API v2 job listing")
 
 
-def check_readiness():
+def check_readiness(required_graph=None):
     """Check the configured Comfy target without leaking its URL or credentials."""
     issues, warnings = [], []
     report = {"ready": False, "mode": "unknown", "issues": issues,
@@ -83,7 +89,7 @@ def check_readiness():
                 queue = _json_get(upstream + "/queue")
                 if queue.get("queue_running") or queue.get("queue_pending"):
                     warnings.append("ComfyUI is busy. Your workflow can join its queue and will run after earlier jobs; waiting time is not inference time.")
-                nodes, models = _inventory(_json_get(upstream + "/object_info"))
+                nodes, models = _inventory(_json_get(upstream + "/object_info"), required_graph)
                 report.update(missing_nodes=nodes, missing_models=models)
                 if nodes:
                     issues.append("Install missing ComfyUI nodes: " + ", ".join(nodes))
@@ -95,7 +101,7 @@ def check_readiness():
                 issues.append("Set COMFY_API_KEY in the app process environment for this authenticated Comfy target; never put the key in the URL or repository.")
             else:
                 info = _json_get(base + "/api/object_info", {"X-API-Key": api_key})
-                nodes, models = _inventory(info)
+                nodes, models = _inventory(info, required_graph)
                 report.update(missing_nodes=nodes, missing_models=models)
                 if nodes:
                     issues.append("The selected Comfy target is missing required nodes: " + ", ".join(nodes))
@@ -119,7 +125,8 @@ def check_readiness():
                 # its own host. Never follow that URL from this app process.
                 _probe_v2_jobs(base, api_key)
                 warnings.append("Remote proxy API access is verified. Upstream availability and node/model inventory are not fully verified; workflow submission remains the execution check.")
-    except Exception:
+    except Exception as exc:
+        _LOG.warning('Configured Comfy readiness probe failed (%s)', type(exc).__name__)
         issues.append("Cannot verify the configured Comfy target. Check its API v2 URL, authentication and service health; target details are not returned here.")
     report["ready"] = not issues
     return report

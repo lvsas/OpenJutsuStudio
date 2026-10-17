@@ -6,7 +6,8 @@ import time
 import uuid
 from pathlib import Path
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
+import mimetypes
 import core
 from h3_capsule import contained, digest_file, get_capsule, replay_inputs
 from h3_recipe import ENGINE, make_recipe
@@ -31,15 +32,20 @@ def _response(job):
             'limitations': ['One continuous shot only; no automatic scene splitting or cut rejection.']}
 
 
-def _dispatch(dispatch, job, source, reference, recipe, media_dir):
-    opts = {'recipe': copy.deepcopy(recipe), 'reference_image': reference, 'media_dir': media_dir,
+def _dispatch_options(job, source, reference, recipe, media_dir):
+    return {'recipe': copy.deepcopy(recipe), 'reference_image': reference, 'media_dir': media_dir,
             'input_hashes': {'source': digest_file(source), 'reference': digest_file(reference)}}
-    job.save()
+
+
+async def _dispatch(dispatch, job, source, reference, recipe, media_dir):
+    opts = await asyncio.to_thread(_dispatch_options, job, source, reference, recipe, media_dir)
+    await asyncio.to_thread(job.save)
     try:
+        # Call dispatch on the ASGI loop: app adapters use run_in_executor here.
         dispatch(job, source, opts)
     except Exception as exc:
         job.status, job.error, job.finished = 'error', 'H3 dispatch failed', time.time()
-        job.save()
+        await asyncio.to_thread(job.save)
         raise HTTPException(503, 'H3 worker queue is unavailable') from exc
     return _response(job)
 
@@ -50,6 +56,24 @@ class H3API:
         self.limit = max_upload_bytes
         self.readiness_check = readiness_check
         self.dispatch_job = dispatch_job
+
+    async def readiness(self):
+        return await asyncio.to_thread(self.readiness_check)
+
+    def _asset(self, job_id, field, media_type):
+        job = _load(job_id)
+        try:
+            path = contained(job.video if field == 'source' else job.meta['h3_reference'],
+                             self.get_media_dir())
+        except (KeyError, ValueError, OSError) as exc:
+            raise HTTPException(404, f'H3 {field} asset is unavailable') from exc
+        return FileResponse(path, media_type=media_type or mimetypes.guess_type(path.name)[0])
+
+    def source(self, job_id):
+        return self._asset(job_id, 'source', None)
+
+    def reference(self, job_id):
+        return self._asset(job_id, 'reference', 'image/png')
 
     async def ready(self):
         report = await asyncio.to_thread(self.readiness_check)
@@ -86,7 +110,7 @@ class H3API:
             if not 1 <= info['duration'] * 24 <= 3592:
                 raise HTTPException(422, 'H3 source must fit within 1–3592 frames at 24fps')
             await save_reference(reference_image, reference, self.limit)
-            recipe = make_recipe(edit_prompt, seed)
+            recipe = make_recipe(edit_prompt, seed, source_width=info['width'], source_height=info['height'])
             recipe['source_timing'] = copy.deepcopy(info)
             job = core.Job(id=job_id, engine=ENGINE, prompt=recipe['effective_prompt'], video=str(source),
                            meta={'h3_reference': str(reference), 'h3_recipe': recipe,
@@ -99,7 +123,7 @@ class H3API:
             if isinstance(exc, HTTPException):
                 raise
             raise HTTPException(422, 'H3 could not validate the source and reference') from exc
-        return await asyncio.to_thread(_dispatch, self.dispatch_job, job, source, reference, recipe, media_dir)
+        return await _dispatch(self.dispatch_job, job, source, reference, recipe, media_dir)
 
     def capsule(self, job_id: str, download: bool = False):
         job = _load(job_id)
@@ -126,7 +150,7 @@ class H3API:
         child = core.Job(id=uuid.uuid4().hex, engine=ENGINE, prompt=recipe['effective_prompt'],
                          video=str(source), meta={'h3_reference': str(reference), 'h3_recipe': recipe,
                                                  'parent_job_id': parent.id, 'single_shot_only': True})
-        return await asyncio.to_thread(_dispatch, self.dispatch_job, child, source, reference, recipe, media_dir)
+        return await _dispatch(self.dispatch_job, child, source, reference, recipe, media_dir)
 
 
 def create_router(get_media_dir, max_upload_bytes, readiness_check, dispatch_job):
@@ -137,7 +161,10 @@ def create_router(get_media_dir, max_upload_bytes, readiness_check, dispatch_job
     """
     api = H3API(get_media_dir, max_upload_bytes, readiness_check, dispatch_job)
     router = APIRouter(tags=['H3 Studio'])
+    router.add_api_route('/api/h3/readiness', api.readiness, methods=['GET'])
     router.add_api_route('/api/h3/jobs', api.create_job, methods=['POST'], status_code=202)
+    router.add_api_route('/api/h3/jobs/{job_id}/source', api.source, methods=['GET'])
+    router.add_api_route('/api/h3/jobs/{job_id}/reference', api.reference, methods=['GET'])
     router.add_api_route('/api/h3/jobs/{job_id}/capsule', api.capsule, methods=['GET'])
     router.add_api_route('/api/h3/jobs/{job_id}/replay', api.replay, methods=['POST'], status_code=202)
     return router

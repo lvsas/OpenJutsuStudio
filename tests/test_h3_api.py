@@ -56,6 +56,9 @@ class APITests(unittest.TestCase):
         response = self.submit(data={'edit_prompt': '  exact\n', 'seed': '42'})
         self.assertEqual(response.status_code, 202, response.text)
         job, source, opts = self.dispatch.call_args.args
+        self.assertEqual(self.client.get('/api/h3/readiness').json(), {'ready': True, 'issues': []})
+        self.assertEqual(self.client.get(f'/api/h3/jobs/{job.id}/source').content, b'video')
+        self.assertEqual(self.client.get(f'/api/h3/jobs/{job.id}/reference').content, b'image')
         self.assertEqual(job.engine, 'minimax-h3')
         self.assertEqual(opts['recipe']['user_edit_prompt'], '  exact\n')
         self.assertEqual(opts['recipe']['seed'], 42)

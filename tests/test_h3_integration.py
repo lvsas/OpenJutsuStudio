@@ -37,11 +37,15 @@ class H3IntegrationTests(unittest.TestCase):
                 result.as_reference.return_value = f'uploaded-{len(assets)}'
                 return result
             client.assets.from_file.side_effect = asset
+            graph_box = {}
+            client.workflows.from_json.side_effect = lambda graph: (graph_box.update(graph=graph) or graph)
             output = MagicMock()
             output.name = 'render.mp4'
             def download(destination):
                 # This is a deliberate fake GPU render, not a visual quality claim.
-                ffmpeg('-i', assets[-2], '-vf', 'scale=1024:576', '-an', '-c:v', 'libx264',
+                inputs = graph_box['graph']['169']['inputs']
+                width, height = inputs['mode.width'], inputs['mode.height']
+                ffmpeg('-i', assets[-2], '-vf', f'scale={width}:{height}', '-an', '-c:v', 'libx264',
                        '-f', 'mp4', destination)
             output.to_file.side_effect = download
             client.run.return_value.get_outputs.return_value = [output]
@@ -57,10 +61,12 @@ class H3IntegrationTests(unittest.TestCase):
                     parent = core.Job.load(response.json()['job_id'])
                     self.assertEqual(parent.status, 'done', parent.error)
                     info = ffprobe(parent.result)
-                    self.assertEqual((info['frames'], info['fps'], info['width'], info['height']),
-                                     (12, 24, 1024, 576))
                     capsule = http.get(f'/api/h3/jobs/{parent.id}/capsule').json()
-                    self.assertEqual(capsule['recipe']['inference_frames'], 22)
+                    recipe = capsule['recipe']
+                    self.assertEqual((info['frames'], info['fps'], info['width'], info['height']),
+                                     (12, 24, recipe['output_width'], recipe['output_height']))
+                    self.assertEqual((recipe['width'], recipe['height']), (512, 512))
+                    self.assertEqual((recipe['output_width'], recipe['output_height']), (1024, 1024))
                     self.assertEqual(capsule['recipe']['user_edit_prompt'], '  exact user text\n')
                     self.assertNotIn(str(root), json.dumps(capsule))
                     response = http.post(f'/api/h3/jobs/{parent.id}/replay')

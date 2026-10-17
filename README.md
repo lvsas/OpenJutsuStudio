@@ -119,6 +119,20 @@ The Creative Studio previews local media, keeps the active job ID across reloads
 Check `GET /api/readiness` before submitting a job. `GET /health` proves only that
 the app process is alive; it does not validate the proxy, upstream, nodes or models.
 
+### H3 Studio (experimental)
+
+The engine switch now links to `/h3`. H3 is available by default but can be
+administratively disabled with `OPENGENJUTSU_H3_STUDIO_ENABLED=0`. Its readiness
+check is target-specific and blocks generation until the configured Comfy target
+reports the H3 graph's nodes and models as available. It accepts one continuous
+shot and one character reference, normalizes to 24 fps, derives a 32-aligned
+render canvas from source aspect ratio (each input edge at most 512 px), and
+upscales that canvas 2×. H3 weights and custom-node availability remain target
+requirements; a successful self-hosted render does not prove Comfy Cloud support.
+The Studio shows real queue/run states and preserves source audio when present.
+See [H3 runtime validation](docs/validation/h3-studio-runtime.md) for tested
+fixtures, measurements, known visual limits and the actual model license.
+
 The CLI in `src/genjutsu.py` is a legacy LTX 2.3 prototype and is not the current app entry point.
 
 ---

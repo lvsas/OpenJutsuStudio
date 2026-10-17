@@ -27,7 +27,7 @@ class BackendTests(unittest.TestCase):
         self.reference = self.media / 'ref.png'
         self.source.write_bytes(b'source')
         self.reference.write_bytes(b'reference')
-        self.recipe = make_recipe('  user text\n', 123)
+        self.recipe = make_recipe('  user text\n', 123, source_width=640, source_height=360)
         self.job = core.Job('h3-test', engine='minimax-h3', video=str(self.source),
                             meta={'h3_reference': str(self.reference)})
         self.opts = {'recipe': self.recipe, 'reference_image': self.reference,

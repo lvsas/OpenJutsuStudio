@@ -112,7 +112,7 @@ export class H3Take {
     byId('status').setAttribute('role', job.status === 'error' || job.status === 'failed' ? 'alert' : 'status');
     byId('status').textContent = job.error || (job.status === 'running'
       ? 'Processing. Stage labels come from the worker; no estimated progress is shown.' : `H3 job ${job.id}: ${job.status}.`);
-    showMedia('source', jobURL(job.id, '/source'), 'Source preview unavailable. Retry status.');
+    showMedia('source', h3URL(job.id, '/source'), 'Source preview unavailable. Retry status.');
     showMedia('reference', h3URL(job.id, '/reference'), 'Reference preview unavailable. Retry status.');
     if (job.status === 'done') {
       showMedia('result', jobURL(job.id, '/result'));

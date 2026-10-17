@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en" data-engine="h3">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101014">
+  <title>OpenGenjutsu — H3 Studio</title>
+  <meta name="description" content="A separate local H3 character recast studio: one continuous shot, one reference, and a verifiable Take Capsule.">
+  <link rel="stylesheet" href="/static/design-system.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/h3-studio.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="wordmark" href="/" aria-label="OpenGenjutsu home">OPEN<span>GENJUTSU</span></a>
+    <nav class="engine-switch" aria-label="Generation engine">
+      <a class="engine-chip" href="/">LTX <span>Studio</span></a>
+      <a class="engine-chip active" href="/h3" aria-current="page">H3 <span>Studio</span></a>
+    </nav>
+    <span class="badge">MiniMax H3 · Local</span>
+  </header>
+  <main class="studio-shell">
+    <section class="studio-intro" aria-labelledby="studio-title">
+      <p class="eyebrow">H3 character recast</p>
+      <h1 id="studio-title">A new character.<br><em>The same moment.</em></h1>
+      <p>Give one continuous shot a new character with one reference image. Optional directions fine-tune the change. Motion and likeness remain experimental.</p>
+    </section>
+    <section class="h3-readiness" aria-label="H3 availability">
+      <strong id="h3-readiness" role="status" aria-live="polite">Checking H3 availability…</strong>
+      <ul id="h3-readiness-notes"></ul>
+      <button id="h3-retry" class="btn btn-secondary btn-small" type="button">Check connection / retry status</button>
+    </section>
+    <div class="studio-grid">
+      <section class="recipe-panel" aria-labelledby="recipe-title">
+        <div class="panel-heading">
+          <div><p class="eyebrow">Edit recipe</p><h2 id="recipe-title">Build your H3 take</h2></div>
+          <span class="badge">One shot</span>
+        </div>
+        <form id="h3-form" autocomplete="off" novalidate>
+          <fieldset class="recipe-step">
+            <legend><span>01</span> Source video</legend>
+            <label class="field-label" for="h3-video">Choose one continuous shot</label>
+            <input id="h3-video" name="video" class="text-input" type="file" accept=".mp4,.mov,.mkv,.webm" required>
+            <p class="field-help">MP4, MOV, MKV or WebM. Isolate your shot first: no automatic scene splitting or cut rejection.</p>
+          </fieldset>
+          <fieldset class="recipe-step">
+            <legend><span>02</span> Character reference <small>No prompt needed</small></legend>
+            <label class="field-label" for="h3-reference">Choose one clear character image</label>
+            <input id="h3-reference" name="reference_image" class="text-input" type="file" accept=".png,.jpg,.jpeg,.webp" required>
+            <p class="field-help">Exactly one PNG, JPEG or WebP. The reference guides identity; it is not a mask or a tracking guarantee.</p>
+          </fieldset>
+          <details id="h3-directions" class="advanced-settings directions-step">
+            <summary>Add directions <span>Optional</span></summary>
+            <label class="field-label" for="h3-edit">What should change?</label>
+            <textarea id="h3-edit" name="edit_prompt" class="text-input textarea" maxlength="2000" disabled placeholder="e.g. Keep the original jacket."></textarea>
+            <p class="field-help">Closed directions are not submitted. Your original text is sent unchanged when open.</p>
+          </details>
+          <details class="advanced-settings">
+            <summary>Advanced controls <span>Seed</span></summary>
+            <label class="field-label" for="h3-seed">Seed</label>
+            <input id="h3-seed" name="seed" class="text-input" type="text" inputmode="numeric" pattern="[0-9]{1,20}" value="302929098223082" required aria-describedby="h3-seed-help">
+            <p id="h3-seed-help" class="field-help">Unsigned 64-bit integer. Replays use the frozen recipe, not this form.</p>
+          </details>
+          <button id="h3-submit" class="btn btn-primary generate-button" type="submit" disabled>Generate H3 take <span aria-hidden="true">→</span></button>
+          <p id="h3-form-help" class="field-help">Add a source and one reference. H3 must be ready to submit.</p>
+          <p class="privacy-note">Inputs stay with this studio's configured processing service. H3 output is normalized to 24fps; source audio is preserved when present.</p>
+        </form>
+      </section>
+      <section class="studio-stage" aria-labelledby="stage-title">
+        <div class="stage-header">
+          <div><p class="eyebrow">Take Capsule</p><h2 id="stage-title">Source + reference → H3 result</h2></div>
+          <span id="h3-state" class="badge">Awaiting media</span>
+        </div>
+        <div class="h3-visual-chain" aria-label="Visual take chain">
+          <figure><video id="h3-source-preview" controls playsinline preload="metadata" hidden></video><figcaption>01 · Source</figcaption><p id="h3-source-empty" class="field-help">Choose a source video.</p></figure>
+          <span class="take-path-arrow" aria-hidden="true">+</span>
+          <figure><img id="h3-reference-preview" alt="Character reference for this H3 take" hidden><figcaption>02 · Reference</figcaption><p id="h3-reference-empty" class="field-help">Choose one reference image.</p></figure>
+          <span class="take-path-arrow" aria-hidden="true">→</span>
+          <figure><video id="h3-result-preview" controls playsinline preload="metadata" hidden></video><figcaption>03 · H3 result</figcaption><p id="h3-result-empty" class="field-help">Available after completion.</p></figure>
+        </div>
+        <div class="h3-run" aria-live="polite" aria-atomic="true">
+          <strong id="h3-stage">Ready for your inputs</strong>
+          <p id="h3-status" role="status">No take submitted.</p>
+          <span id="h3-timer" class="muted" aria-live="off"></span>
+        </div>
+        <div id="h3-result-actions" class="result-actions" hidden>
+          <a id="h3-download" class="btn btn-primary btn-small" download>Download MP4</a>
+          <div class="export-actions">
+            <button id="h3-save-capsule" class="btn btn-secondary btn-small" type="button" disabled>Save Capsule JSON</button>
+            <button id="h3-replay" class="btn btn-secondary btn-small" type="button" disabled>Re-run this take</button>
+          </div>
+          <p id="h3-capsule-status" class="microcopy" role="status">Checking the frozen recipe…</p>
+          <details id="h3-capsule-details" class="capsule-inspector" hidden>
+            <summary>Technical provenance: frozen recipe and fingerprints</summary>
+            <pre id="h3-capsule-manifest" class="capsule-manifest"></pre>
+          </details>
+          <p class="microcopy">Source/reference files are not bundled. Replay requires the original local inputs and model setup; pixel-identical output is not guaranteed.</p>
+        </div>
+      </section>
+    </div>
+    <footer class="h3-license microcopy">
+      Contest eligibility is separate from model-use permission. Review the
+      <a href="https://huggingface.co/MiniMaxAI/MiniMax-H3/raw/main/LICENSE" target="_blank" rel="noopener noreferrer">official MiniMax H3 license</a>,
+      including territorial and commercial terms, before deployment or sharing outputs. Contest organizer guidance does not override those terms.
+    </footer>
+    <noscript><p role="alert">Enable JavaScript to check readiness, submit a take, and resume job status.</p></noscript>
+  </main>
+  <script type="module" src="/static/h3-studio.js"></script>
+</body>
+</html>

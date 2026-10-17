@@ -22,15 +22,15 @@
   <main class="studio-shell">
     <section class="studio-intro" aria-labelledby="studio-title">
       <p class="eyebrow">Open video transformation</p>
-      <h1 id="studio-title">Make the edit.<br><em>Keep the moment.</em></h1>
-      <p>Character Swap is the first active mode: a local workflow powered by FLUX 2 Klein from Black Forest Labs and LTX 2.5.</p>
+      <h1 id="studio-title">Make the swap.<br><em>Keep the moment.</em></h1>
+      <p>Character Swap is the first active mode: powered by FLUX 2 Klein from Black Forest Labs and LTX 2.5.</p>
     </section>
 
     <div class="studio-grid">
       <section id="recipe-panel" class="recipe-panel" aria-labelledby="recipe-title">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Edit recipe</p>
+            <p class="eyebrow">Swap recipe</p>
             <h2 id="recipe-title">Build your transformation</h2>
           </div>
           <span class="badge live">Local inference</span>
@@ -52,7 +52,7 @@
             <input id="reference" name="reference_images" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp">
             <label class="media-picker reference-picker" for="reference" id="reference-picker" data-drop-kind="image">
               <span class="reference-thumb" id="reference-thumb" aria-hidden="true">＋</span>
-              <span><strong id="reference-file-name">Add a clear character image</strong><small>PNG, JPG, or WebP · guides the first-frame edit</small></span>
+              <span><strong id="reference-file-name">Add a clear character image</strong><small>PNG, JPG, or WebP · guides the first-frame swap</small></span>
               <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
             </label>
             <button id="remove-reference" class="btn btn-ghost btn-small remove-reference" type="button" hidden>Remove character reference</button>
@@ -61,7 +61,7 @@
               <input id="reference-2" name="reference_images" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" disabled>
               <label class="media-picker reference-picker" for="reference-2" id="reference-picker-2" data-drop-kind="image">
                 <span class="reference-thumb" id="reference-thumb-2" aria-hidden="true">＋</span>
-                <span><strong id="reference-file-name-2">Add the second character</strong><small>Use only when two visible people need recasting</small></span>
+                <span><strong id="reference-file-name-2">Add the second character</strong><small>Use only when two visible people need swapping</small></span>
                 <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
               </label>
             </div>
@@ -79,7 +79,7 @@
             <summary>Add directions <span>Optional</span></summary>
             <label class="field-label" for="edit">What should change?</label>
             <textarea id="edit" name="edit_prompt" class="text-input textarea" maxlength="2000" disabled placeholder="e.g. Keep the original jacket, or replace only the performer on the right."></textarea>
-            <p class="field-help">A reference is enough to start a recast. Add a direction only to fine-tune the change, or describe an edit without a reference.</p>
+            <p class="field-help">A reference is enough to start a swap. Add a direction only to fine-tune the change, or describe a swap without a reference.</p>
           </details>
 
           <fieldset class="recipe-step quality-step">
@@ -91,14 +91,14 @@
           </fieldset>
 
           <details class="advanced-settings">
-            <summary>Advanced controls <span>Seed and edit strength</span></summary>
+            <summary>Advanced controls <span>Seed and swap strength</span></summary>
             <div class="advanced-grid">
               <label><span class="field-label">Ripple strength</span><input id="strength" name="ripple_strength" class="text-input" type="number" min="0" max="2" step="0.05" value="1.35"></label>
               <label><span class="field-label">Seed</span><input id="seed" name="seed" class="text-input" type="number" min="0" value="125348341465200"></label>
             </div>
           </details>
 
-          <button id="submit" class="btn btn-primary generate-button" type="submit" disabled aria-describedby="generate-help"><span>Generate edit</span><span aria-hidden="true">→</span></button>
+          <button id="submit" class="btn btn-primary generate-button" type="submit" disabled aria-describedby="generate-help"><span>Generate swap</span><span aria-hidden="true">→</span></button>
           <p id="generate-help" class="field-help" role="status">Add your video and character reference. No prompt needed.</p>
           <p class="privacy-note">Your media stays on this local studio. Character reference is experimental: it guides first-frame identity, not likeness, tracking, or occlusion.</p>
         </form>
@@ -106,7 +106,7 @@
 
       <section id="studio-stage" class="studio-stage" aria-labelledby="stage-title">
         <div class="stage-header">
-          <div><p class="eyebrow">Preview</p><h2 id="stage-title">Your edit, in motion</h2></div>
+          <div><p class="eyebrow">Preview</p><h2 id="stage-title">Your swap, in motion</h2></div>
           <span id="stage-mode" class="badge">Awaiting media</span>
         </div>
 
@@ -129,7 +129,7 @@
           <div id="run-overlay" class="run-overlay" hidden>
             <div class="run-orb" aria-hidden="true"></div>
             <p class="eyebrow">Generating</p>
-            <strong id="run-title">Preparing your edit</strong>
+            <strong id="run-title">Preparing your swap</strong>
             <span id="run-detail">Validating media and local models</span>
             <div id="progress-track" class="progress-track" role="progressbar" aria-labelledby="run-title" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="progress-fill"></i></div>
             <span id="progress-label" class="run-progress">Preparing</span>
@@ -150,7 +150,7 @@
           </div>
           <section id="take-story" class="take-story" aria-labelledby="take-story-title" hidden>
             <div class="take-story-heading">
-              <div><p class="eyebrow">Take Capsule</p><h3 id="take-story-title">Your edit, with its visual truth.</h3></div>
+              <div><p class="eyebrow">Take Capsule</p><h3 id="take-story-title">Your swap, with its visual truth.</h3></div>
               <span id="take-story-proof" class="badge">Recording take</span>
             </div>
             <div class="take-story-path" aria-label="Visual take stages">

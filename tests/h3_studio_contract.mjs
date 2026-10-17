@@ -100,7 +100,7 @@ assert.equal(take.active, false);
 assert.equal(el('run-overlay').hidden, true);
 // Like LTX: a finished take is not restored by a later refresh.
 assert.equal(store.has('opengenjutsu.h3.current-job'), false);
-assert.match(el('run-title').textContent, /Your edit is ready/);
+assert.match(el('run-title').textContent, /Your swap is ready/);
 assert.equal(el('result-preview').src, `/api/jobs/${id}/result`);
 assert.equal(el('result-actions').hidden, false);
 assert.match(el('capsule-manifest').textContent, /<img onerror=bad>/);

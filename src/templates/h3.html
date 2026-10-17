@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#101014">
   <title>OpenGenjutsu — H3 Studio</title>
-  <meta name="description" content="A separate local H3 character recast studio: one continuous shot, one reference, and a verifiable Take Capsule.">
+  <meta name="description" content="A separate local H3 Character Swap studio: one continuous shot, one reference, and a verifiable Take Capsule.">
   <link rel="stylesheet" href="/static/design-system.css">
   <link rel="stylesheet" href="/static/app.css">
   <link rel="stylesheet" href="/static/h3-studio.css">
@@ -22,13 +22,13 @@
   <main class="studio-shell">
     <section class="studio-intro" aria-labelledby="studio-title">
       <p class="eyebrow">Open video transformation</p>
-      <h1 id="studio-title">Make the edit.<br><em>Keep the moment.</em></h1>
-      <p>Character Swap is the first active mode: a local workflow powered by MiniMax H3 and the Character Swap LoRA <code>h3_character_swap_v1.5</code> by akatz-ai. One continuous shot, one reference image; motion and likeness remain experimental.</p>
+      <h1 id="studio-title">Make the swap.<br><em>Keep the moment.</em></h1>
+      <p>Character Swap is the first active mode: powered by MiniMax H3 and the Character Swap LoRA by akatz-ai.</p>
     </section>
     <div class="studio-grid">
       <section class="recipe-panel" aria-labelledby="recipe-title">
         <div class="panel-heading">
-          <div><p class="eyebrow">Edit recipe</p><h2 id="recipe-title">Build your transformation</h2></div>
+          <div><p class="eyebrow">Swap recipe</p><h2 id="recipe-title">Build your transformation</h2></div>
           <span class="badge live">Local inference</span>
         </div>
         <form id="h3-form" autocomplete="off" novalidate>
@@ -40,14 +40,13 @@
               <span><strong id="h3-video-name">Choose a video</strong><small>MP4, MOV, MKV or WebM · up to 500 MB</small></span>
               <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
             </label>
-            <p class="field-help">Your source is processed as one timeline. No scene splitting or cut rejection.</p>
           </fieldset>
           <fieldset class="recipe-step">
             <legend><span>02</span> Character reference <small>No prompt needed</small></legend>
             <input id="h3-reference" name="reference_image" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" required>
             <label class="media-picker reference-picker" for="h3-reference" id="h3-reference-picker" data-drop-kind="image">
               <span class="reference-thumb" id="h3-reference-thumb" aria-hidden="true">＋</span>
-              <span><strong id="h3-reference-name">Add a clear character image</strong><small>PNG, JPG or WebP · guides identity for the recast</small></span>
+              <span><strong id="h3-reference-name">Add a clear character image</strong><small>PNG, JPG or WebP · guides identity for the swap</small></span>
               <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
             </label>
             <button id="h3-remove-reference" class="btn btn-ghost btn-small remove-reference" type="button" hidden>Remove character reference</button>
@@ -75,7 +74,7 @@
             <input id="h3-seed" name="seed" class="text-input" type="text" inputmode="numeric" pattern="[0-9]{1,20}" value="302929098223082" required aria-describedby="h3-seed-help">
             <p id="h3-seed-help" class="field-help">Unsigned 64-bit integer. Replays use the frozen recipe, not this form.</p>
           </details>
-          <button id="h3-submit" class="btn btn-primary generate-button" type="submit" disabled><span>Generate edit</span><span aria-hidden="true">→</span></button>
+          <button id="h3-submit" class="btn btn-primary generate-button" type="submit" disabled><span>Generate swap</span><span aria-hidden="true">→</span></button>
           <p id="h3-form-help" class="field-help">Add a source and one reference. H3 must be ready to submit.</p>
           <p id="h3-notices" class="field-help" role="status" hidden></p>
           <p class="privacy-note">Inputs stay with this studio's configured processing service. H3 output is normalized to 24fps; source audio is preserved when present.</p>
@@ -83,7 +82,7 @@
       </section>
       <section class="studio-stage" aria-labelledby="stage-title">
         <div class="stage-header">
-          <div><p class="eyebrow">Preview</p><h2 id="stage-title">Your edit, in motion</h2></div>
+          <div><p class="eyebrow">Preview</p><h2 id="stage-title">Your swap, in motion</h2></div>
           <span id="h3-state" class="badge">Awaiting media</span>
         </div>
         <div class="stage-frame">

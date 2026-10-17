@@ -89,7 +89,7 @@ class H3StudioUITests(unittest.TestCase):
     def test_shared_brand_heading_matches_the_ltx_studio(self):
         ltx = (ROOT / 'src' / 'templates' / 'index.html').read_text()
         for shared in ('<p class="eyebrow">Open video transformation</p>',
-                       'Make the edit.<br><em>Keep the moment.</em>'):
+                       'Make the swap.<br><em>Keep the moment.</em>'):
             self.assertIn(shared, self.html)
             self.assertIn(shared, ltx)
         # The supporting sentence is engine-specific and must name the real H3 stack.
@@ -129,7 +129,7 @@ class H3StudioUITests(unittest.TestCase):
         self.assertEqual(self.ids['h3-run-overlay'][1].get('class'), 'run-overlay')
         self.assertEqual(self.ids['h3-readiness'][1].get('class'), 'badge')
         for gone in ('h3-retry', 'h3-readiness-notes'): self.assertNotIn(gone, self.ids)
-        for page in (self.html, ltx): self.assertIn('<span>Generate edit</span>', page)
+        for page in (self.html, ltx): self.assertIn('<span>Generate swap</span>', page)
 
     def test_shared_components_are_the_only_implementations(self):
         main, take, http = (self.scripts[name] for name in ('h3-studio.js', 'h3-take.js', 'h3-http.js'))

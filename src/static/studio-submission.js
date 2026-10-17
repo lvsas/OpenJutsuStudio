@@ -29,11 +29,11 @@
       edit.disabled = !directions.open;
       const hasIntent = selectedReferences().length > 0 || (!edit.disabled && Boolean(edit.value.trim()));
       button.disabled = !ready || submitting || isBusy() || !video.files[0] || !hasIntent;
-      if (submitting || isBusy()) help.textContent = 'Your edit is in progress.';
+      if (submitting || isBusy()) help.textContent = 'Your swap is in progress.';
       else if (!video.files[0]) help.textContent = 'Add your source video to start.';
-      else if (!hasIntent) help.textContent = 'Add a character reference, or open Add directions for a text-only edit.';
+      else if (!hasIntent) help.textContent = 'Add a character reference, or open Add directions for a text-only swap.';
       else if (!ready) help.textContent = 'Waiting for the local studio to be ready.';
-      else help.textContent = selectedReferences().length ? 'Ready to recast. Directions are optional.' : 'Ready to apply your directions.';
+      else help.textContent = selectedReferences().length ? 'Ready to swap. Directions are optional.' : 'Ready to apply your directions.';
     }
 
     function payload() {
@@ -81,7 +81,7 @@
       try {
         const response = await fetch('/api/jobs', { method: 'POST', body: data });
         const result = await response.json();
-        if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : 'Unable to start the edit.');
+        if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : 'Unable to start the swap.');
         onQueued(result);
       } catch (error) {
         onFailure();

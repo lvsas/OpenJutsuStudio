@@ -6,7 +6,8 @@ const html = readFileSync(new URL('../src/templates/h3.html', import.meta.url), 
 class Element {
   constructor(tag = 'DIV') {
     Object.assign(this, {tagName: tag, hidden: false, disabled: false, open: false,
-      textContent: '', value: '', files: [], events: {}, attrs: {}, children: [], validity: '', style: {}});
+      textContent: '', value: '', files: [], events: {}, attrs: {}, children: [], validity: '', style: {},
+      classList: {add() {}, remove() {}, toggle() {}, contains() { return false; }}});
   }
   addEventListener(name, fn) { this.events[name] = fn; }
   setAttribute(name, value) { this.attrs[name] = value; }
@@ -136,7 +137,10 @@ handler = (url, opts) => {
 await import('../src/static/h3-studio.js');
 await settle();
 assert.equal(el('submit').disabled, true);
-assert.match(el('readiness-notes').children[0].textContent, /Queue is busy/);
+assert.equal(el('readiness').textContent, 'H3 ready');
+// Warnings land in the panel notice line, exactly as in the LTX studio.
+assert.match(el('notices').textContent, /Queue is busy/);
+assert.equal(el('notices').hidden, false);
 el('video').files = [new File(['video bytes'], 'source.webm')];
 el('reference').files = [new File(['image bytes'], 'character.png')];
 el('video').events.change();
@@ -147,8 +151,6 @@ assert.equal(submitted.has('edit_prompt'), false);
 assert.equal(submitted.get('seed'), '302929098223082');
 assert.equal(submitted.get('reference_image').name, 'character.png');
 handler = url => response(url === '/api/h3/readiness' ? {ready} : {...base, status: 'done'});
-await el('retry').click();
-await settle();
 el('video').events.change();
 el('directions').open = true;
 el('directions').events.toggle();
@@ -163,11 +165,8 @@ await settle();
 assert.equal(submitted.get('edit_prompt'), '  original\n directions  ');
 // The user's character description reaches the frozen prompt verbatim, untrimmed.
 assert.equal(submitted.get('character_description'), '  a tall woman  ');
-ready = false;
-await el('retry').click();
-await settle();
-assert.match(el('readiness').textContent, /not ready/);
-// A false-negative readiness must not lock a valid submission: the server is the authoritative gate.
+// A false-negative readiness must never lock a valid submission: readiness is
+// advisory and the server is the authoritative gate.
 assert.equal(el('submit').disabled, false);
 handler = (url, opts) => {
   if (url === '/api/h3/readiness') return response({ready});

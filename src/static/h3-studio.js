@@ -21,9 +21,9 @@ function update() {
   // Readiness is advisory here: the server checks the target again and returns the exact reason.
   byId('submit').disabled = locked || !inputs;
   byId('replay').disabled = locked || !take.capsule;
-  byId('form-help').textContent = locked ? 'A take is being submitted or tracked. Retry status if the connection is interrupted.'
+  byId('form-help').textContent = locked ? 'A take is being submitted or tracked.'
     : !inputs ? 'Add one source video and one character reference. No prompt needed.'
-    : ready ? 'Ready to generate an H3 take.'
+    : ready ? 'Ready to generate.'
     : 'H3 availability is unverified. You can still submit; the server rechecks it and reports the exact reason.';
 }
 async function checkReadiness() {
@@ -31,24 +31,24 @@ async function checkReadiness() {
   ready = false;
   take.ready = false;
   update();
-  byId('readiness').textContent = 'Checking H3 availability…';
-  const notes = byId('readiness-notes');
-  notes.replaceChildren();
+  const badge = byId('readiness');
+  const notes = byId('notices');
+  badge.classList.remove('live');
+  badge.textContent = 'Checking H3 availability…';
+  notes.hidden = true;
   try {
     const report = await request('/api/h3/readiness', {signal: AbortSignal.timeout(20000)});
     if (epoch !== readinessEpoch) return false;
     ready = report.ready === true;
-    byId('readiness').textContent = ready ? 'H3 ready' : 'H3 not ready';
-    for (const message of [...(report.issues || []), ...(report.warnings || [])]) {
-      const item = document.createElement('li');
-      item.textContent = String(message);
-      notes.append(item);
-    }
-    if (!ready && !notes.childElementCount) byId('readiness').textContent = 'H3 not ready. Check the studio configuration.';
+    badge.classList.toggle('live', ready);
+    badge.textContent = ready ? 'H3 ready' : (report.issues || ['H3 unavailable']).join(' ');
+    notes.textContent = (report.warnings || []).join(' ');
+    notes.hidden = !notes.textContent;
   } catch (error) {
     if (epoch !== readinessEpoch) return false;
     ready = false;
-    byId('readiness').textContent = `H3 availability unknown: ${error.message}`;
+    badge.textContent = 'H3 unavailable';
+    notes.hidden = true;
   }
   take.ready = ready;
   update();
@@ -131,11 +131,6 @@ byId('remove-reference').addEventListener('click', () => {
 // Same shared drag/drop implementation as the LTX studio; unsupported drops keep the current file.
 window.OpenGenjutsuStudio?.bindFileDropTargets?.(notify);
 byId('seed').addEventListener('input', () => byId('seed').setCustomValidity(''));
-byId('retry').addEventListener('click', () => {
-  if (pending) return;
-  checkReadiness();
-  take.resume();
-});
 for (const kind of ['source', 'reference', 'result']) {
   byId(`${kind}-preview`).addEventListener('error', () => {
     loadStageMedia(kind, '');

@@ -125,6 +125,10 @@ class H3StudioUITests(unittest.TestCase):
         for id_ in ('h3-take-story', 'h3-run-overlay', 'h3-remove-reference'):
             self.assertIn('hidden', self.ids[id_][1])
         self.assertEqual(self.ids['h3-run-overlay'][1].get('class'), 'run-overlay')
+        self.assertEqual(self.ids['h3-readiness'][1].get('class'), 'badge')
+        for gone in ('h3-retry', 'h3-readiness-notes'):
+            self.assertNotIn(gone, self.ids)
+        for page in (self.html, ltx): self.assertIn('<span>Generate edit</span>', page)
 
     def test_shared_components_are_the_only_implementations(self):
         main, take, http = (self.scripts[name] for name in ('h3-studio.js', 'h3-take.js', 'h3-http.js'))

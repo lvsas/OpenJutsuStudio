@@ -17,18 +17,13 @@
       <a class="engine-chip" href="/">LTX <span>Studio</span></a>
       <a class="engine-chip active" href="/h3" aria-current="page">H3 <span>Studio</span></a>
     </nav>
-    <span class="badge">Experimental H3</span>
+    <div id="h3-readiness" class="badge" role="status" aria-live="polite">Checking H3 availability…</div>
   </header>
   <main class="studio-shell">
     <section class="studio-intro" aria-labelledby="studio-title">
       <p class="eyebrow">Open video transformation</p>
       <h1 id="studio-title">Make the edit.<br><em>Keep the moment.</em></h1>
       <p>Character recast with MiniMax H3 and its Character Swap LoRA: one continuous shot and one reference image. Motion and likeness remain experimental.</p>
-    </section>
-    <section class="h3-readiness" aria-label="H3 availability">
-      <strong id="h3-readiness" role="status" aria-live="polite">Checking H3 availability…</strong>
-      <ul id="h3-readiness-notes"></ul>
-      <button id="h3-retry" class="btn btn-secondary btn-small" type="button">Check connection / retry status</button>
     </section>
     <div class="studio-grid">
       <section class="recipe-panel" aria-labelledby="recipe-title">
@@ -73,8 +68,9 @@
             <input id="h3-seed" name="seed" class="text-input" type="text" inputmode="numeric" pattern="[0-9]{1,20}" value="302929098223082" required aria-describedby="h3-seed-help">
             <p id="h3-seed-help" class="field-help">Unsigned 64-bit integer. Replays use the frozen recipe, not this form.</p>
           </details>
-          <button id="h3-submit" class="btn btn-primary generate-button" type="submit" disabled>Generate H3 take <span aria-hidden="true">→</span></button>
+          <button id="h3-submit" class="btn btn-primary generate-button" type="submit" disabled><span>Generate edit</span><span aria-hidden="true">→</span></button>
           <p id="h3-form-help" class="field-help">Add a source and one reference. H3 must be ready to submit.</p>
+          <p id="h3-notices" class="field-help" role="status" hidden></p>
           <p class="privacy-note">Inputs stay with this studio's configured processing service. H3 output is normalized to 24fps; source audio is preserved when present.</p>
         </form>
       </section>

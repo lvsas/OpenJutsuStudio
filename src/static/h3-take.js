@@ -21,9 +21,10 @@ function elapsedText(job) {
 }
 
 export class H3Take {
-  constructor(onActivity, checkReady) {
+  constructor(onActivity, checkReady, onStage) {
     this.onActivity = onActivity;
     this.checkReady = checkReady;
+    this.onStage = onStage;
     this.epoch = 0;
     this.active = false;
     byId('save-capsule').addEventListener('click', () => { if (this.capsule) saveCapsule(this.capsule, this.id); });
@@ -78,6 +79,7 @@ export class H3Take {
     showMedia('reference', '', 'Loading this take’s reference…');
     this.storage(id);
     this.setActive(true);
+    this.onStage?.('source');
     byId('state').textContent = 'Checking job';
     byId('stage').textContent = 'Checking persisted H3 status';
     byId('timer').textContent = '';
@@ -118,6 +120,7 @@ export class H3Take {
       showMedia('result', jobURL(job.id, '/result'));
       byId('download').href = jobURL(job.id, '/result');
       byId('result-actions').hidden = false;
+      this.onStage?.('result');
     }
     this.timer();
   }

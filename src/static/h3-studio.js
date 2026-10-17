@@ -4,7 +4,15 @@ import {H3Take} from './h3-take.js';
 const form = byId('form');
 let pending = false, ready = false, readinessEpoch = 0;
 const blobs = new Map();
-const take = new H3Take(() => update(), checkReadiness);
+const H3_STAGES = ['source', 'reference', 'result'];
+const take = new H3Take(() => update(), checkReadiness, stage => setPane(stage));
+
+function setPane(kind) {
+  for (const name of H3_STAGES) {
+    byId(`pane-${name}`).hidden = name !== kind;
+    byId(`show-${name}`).setAttribute('aria-pressed', String(name === kind));
+  }
+}
 
 function update() {
   const locked = pending || take.active;
@@ -111,7 +119,14 @@ async function submit(event) {
 }
 form.addEventListener('submit', submit);
 byId('directions').addEventListener('toggle', update);
-for (const field of ['video', 'reference']) byId(field).addEventListener('change', previewInputs);
+for (const [field, pane] of [['video', 'source'], ['reference', 'reference']]) {
+  byId(field).addEventListener('change', () => { previewInputs(); setPane(pane); });
+}
+for (const kind of H3_STAGES) byId(`show-${kind}`).addEventListener('click', () => setPane(kind));
+// The capsule chain selects the matching stage in the preview frame.
+for (const card of document.querySelectorAll?.('[data-h3-stage]') || []) {
+  card.addEventListener('click', () => setPane(card.dataset.h3Stage));
+}
 byId('remove-reference').addEventListener('click', () => {
   byId('reference').value = '';
   previewInputs();

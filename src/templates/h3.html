@@ -80,16 +80,44 @@
       </section>
       <section class="studio-stage" aria-labelledby="stage-title">
         <div class="stage-header">
-          <div><p class="eyebrow">Take Capsule</p><h2 id="stage-title">Source + reference → H3 result</h2></div>
+          <div><p class="eyebrow">Preview</p><h2 id="stage-title">Your H3 take, in motion</h2></div>
           <span id="h3-state" class="badge">Awaiting media</span>
         </div>
-        <div class="h3-visual-chain" aria-label="Visual take chain">
-          <figure><video id="h3-source-preview" controls playsinline preload="metadata" hidden></video><figcaption>01 · Source</figcaption><p id="h3-source-empty" class="field-help">Choose a source video.</p></figure>
-          <span class="take-path-arrow" aria-hidden="true">+</span>
-          <figure><img id="h3-reference-preview" alt="Character reference for this H3 take" hidden><figcaption>02 · Reference</figcaption><p id="h3-reference-empty" class="field-help">Choose one reference image.</p></figure>
-          <span class="take-path-arrow" aria-hidden="true">→</span>
-          <figure><video id="h3-result-preview" controls playsinline preload="metadata" hidden></video><figcaption>03 · H3 result</figcaption><p id="h3-result-empty" class="field-help">Available after completion.</p></figure>
+        <div class="stage-frame h3-stage-frame">
+          <div id="h3-pane-source" class="h3-pane">
+            <video id="h3-source-preview" class="stage-video" controls playsinline preload="metadata" hidden></video>
+            <p id="h3-source-empty" class="field-help">Choose a source video to preview it here.</p>
+          </div>
+          <div id="h3-pane-reference" class="h3-pane" hidden>
+            <img id="h3-reference-preview" class="h3-stage-image" alt="Character reference for this H3 take" hidden>
+            <p id="h3-reference-empty" class="field-help">Choose one reference image.</p>
+          </div>
+          <div id="h3-pane-result" class="h3-pane" hidden>
+            <video id="h3-result-preview" class="stage-video" controls playsinline preload="metadata" hidden></video>
+            <p id="h3-result-empty" class="field-help">Available after completion.</p>
+          </div>
         </div>
+        <div id="h3-preview-switch" class="result-actions">
+          <div class="result-switch" role="group" aria-label="Preview mode">
+            <button id="h3-show-source" class="btn btn-secondary btn-small" type="button" aria-pressed="true">Source</button>
+            <button id="h3-show-reference" class="btn btn-secondary btn-small" type="button" aria-pressed="false">Reference</button>
+            <button id="h3-show-result" class="btn btn-secondary btn-small" type="button" aria-pressed="false">Result</button>
+          </div>
+        </div>
+        <section id="h3-take-story" class="take-story" aria-labelledby="h3-take-story-title">
+          <div class="take-story-heading">
+            <div><p class="eyebrow">Take Capsule</p><h3 id="h3-take-story-title">Source + reference → H3 result</h3></div>
+            <span id="h3-take-proof" class="badge">Recording take</span>
+          </div>
+          <div class="take-story-path" aria-label="Visual take stages">
+            <button class="take-stage-card" type="button" data-h3-stage="source"><span>01 · Source</span></button>
+            <span class="take-path-arrow" aria-hidden="true">+</span>
+            <button class="take-stage-card" type="button" data-h3-stage="reference"><span>02 · Reference</span></button>
+            <span class="take-path-arrow" aria-hidden="true">→</span>
+            <button class="take-stage-card" type="button" data-h3-stage="result"><span>03 · H3 result</span></button>
+          </div>
+          <p id="h3-take-copy" class="microcopy">This visual chain is the recipe this take freezes. Select a stage to inspect it in the preview above.</p>
+        </section>
         <div class="h3-run" aria-live="polite" aria-atomic="true">
           <strong id="h3-stage">Ready for your inputs</strong>
           <p id="h3-status" role="status">No take submitted.</p>

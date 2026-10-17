@@ -80,7 +80,7 @@ h2 { font-family: var(--font-display); font-size: 1.45rem; letter-spacing: -.035
 .stage-empty { max-width: 21rem; padding: var(--space-5); text-align: center; }
 .stage-empty h3 { font-family: var(--font-display); font-size: 1.35rem; letter-spacing: -.035em; margin: var(--space-4) 0 var(--space-2); }
 .stage-empty p { color: var(--muted); font-size: .86rem; margin: 0; }
-.empty-orb, .run-orb { background: radial-gradient(circle at 35% 30%, #f3ffb6, var(--accent) 38%, #6e8510 100%); border-radius: 50%; box-shadow: 0 0 5rem rgba(216,255,62,.25); height: 3.25rem; margin: auto; width: 3.25rem; }
+.empty-orb, .run-orb { background: radial-gradient(circle at 35% 30%, var(--accent-light), var(--accent) 38%, var(--accent-deep) 100%); border-radius: 50%; box-shadow: 0 0 5rem var(--accent-glow); height: 3.25rem; margin: auto; width: 3.25rem; }
 .run-overlay { background: rgba(8,8,11,.84); inset: 0; padding: var(--space-6); position: absolute; text-align: center; z-index: 2; }
 .run-overlay .run-orb { animation: glow 1.2s infinite alternate; margin-bottom: var(--space-4); }
 .run-overlay strong, .run-overlay span { display: block; }
@@ -107,7 +107,7 @@ h2 { font-family: var(--font-display); font-size: 1.45rem; letter-spacing: -.035
 .take-stage-card:disabled { cursor: not-allowed; opacity: .48; }
 .take-stage-card video, .take-stage-card img { aspect-ratio: 16 / 9; background: #08080b; display: block; object-fit: cover; width: 100%; }
 .take-stage-card > span { display: block; font-size: .67rem; font-weight: 760; letter-spacing: .035em; padding: .42rem .5rem; }
-.take-anchor-card { border-color: rgba(216,255,62,.35); }
+.take-anchor-card { border-color: var(--accent-card-line); }
 .take-path-arrow { align-self: center; color: var(--accent); font-weight: 800; }
 .anchor-select { align-items: center; display: flex; gap: var(--space-2); justify-content: flex-end; }
 .anchor-select > span { color: var(--subtle); font-size: .72rem; }
@@ -117,6 +117,6 @@ h2 { font-family: var(--font-display); font-size: 1.45rem; letter-spacing: -.035
 .capsule-manifest { color: var(--muted); font-size: .7rem; margin: var(--space-3) 0 0; max-height: 18rem; overflow: auto; white-space: pre-wrap; word-break: break-word; }
 .sr-status { height: 1px; overflow: hidden; width: 1px; }
 
-@keyframes glow { to { box-shadow: 0 0 6rem rgba(216,255,62,.6); transform: scale(1.12); } }
+@keyframes glow { to { box-shadow: 0 0 6rem var(--accent-glow-strong); transform: scale(1.12); } }
 @media (max-width: 900px) { .studio-grid { grid-template-columns: 1fr; } .studio-stage { min-height: 0; position: static; } }
-@media (max-width: 640px) { .site-header { grid-template-columns: 1fr auto; padding: 0 var(--space-3); } .engine-switch { justify-self: end; } .site-header #readiness { display: none; } .studio-shell { padding: 1.25rem var(--space-3) var(--space-8); } .studio-intro { display: block; padding-top: 0; } .studio-intro > .eyebrow { position: static; } .studio-intro h1 { font-size: clamp(2.4rem, 11vw, 3.25rem); line-height: .92; margin-top: .45rem; } .studio-intro > p:last-child { border-left: 0; font-size: .9rem; margin-top: var(--space-3); padding-left: 0; } .advanced-grid, .reference-mapping-grid { grid-template-columns: 1fr; } .panel-heading .badge { display: none; } .source-summary { align-items: flex-start; flex-direction: column; gap: var(--space-2); } .source-summary > span { text-align: left; } .take-story-path { gap: .25rem; } .take-path-arrow { font-size: .8rem; } .anchor-stage figcaption { align-items: flex-start; flex-direction: column; gap: .15rem; right: var(--space-3); } }
+@media (max-width: 640px) { .site-header { grid-template-columns: 1fr auto; padding: 0 var(--space-3); } .engine-switch { justify-self: end; } .site-header #readiness, .site-header #h3-readiness { display: none; } .studio-shell { padding: 1.25rem var(--space-3) var(--space-8); } .studio-intro { display: block; padding-top: 0; } .studio-intro > .eyebrow { position: static; } .studio-intro h1 { font-size: clamp(2.4rem, 11vw, 3.25rem); line-height: .92; margin-top: .45rem; } .studio-intro > p:last-child { border-left: 0; font-size: .9rem; margin-top: var(--space-3); padding-left: 0; } .advanced-grid, .reference-mapping-grid { grid-template-columns: 1fr; } .panel-heading .badge { display: none; } .source-summary { align-items: flex-start; flex-direction: column; gap: var(--space-2); } .source-summary > span { text-align: left; } .take-story-path { gap: .25rem; } .take-path-arrow { font-size: .8rem; } .anchor-stage figcaption { align-items: flex-start; flex-direction: column; gap: .15rem; right: var(--space-3); } }

@@ -5,6 +5,10 @@ html[data-engine="h3"] {
   --accent-soft: rgba(255, 79, 46, .13);
   --accent-line: rgba(255, 79, 46, .28);
   --accent-card-line: rgba(255, 79, 46, .35);
+  --accent-glow: rgba(255, 79, 46, .25);
+  --accent-glow-strong: rgba(255, 79, 46, .6);
+  --accent-light: #ffd9cc;
+  --accent-deep: #8a1f08;
 }
 [data-engine="h3"] .engine-chip { text-decoration: none; }
 [data-engine="h3"] a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
@@ -18,8 +22,6 @@ html[data-engine="h3"] {
   [data-engine="h3"] .studio-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 640px) {
-  [data-engine="h3"] .site-header > .badge { grid-column: 1 / -1; justify-self: start; margin-bottom: .75rem; }
-  [data-engine="h3"] .h3-visual-chain { grid-template-columns: minmax(0, 1fr); }
   [data-engine="h3"] .take-path-arrow { justify-self: center; }
 }
 @media (prefers-reduced-motion: reduce) {

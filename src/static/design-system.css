@@ -13,6 +13,10 @@
   --accent-soft: rgba(216, 255, 62, .13);
   --accent-line: rgba(216, 255, 62, .28);
   --accent-card-line: rgba(216, 255, 62, .35);
+  --accent-glow: rgba(216, 255, 62, .25);
+  --accent-glow-strong: rgba(216, 255, 62, .6);
+  --accent-light: #f3ffb6;
+  --accent-deep: #6e8510;
   --success: #75e1a6;
   --danger: #ff8e96;
   --warning: #ffd36b;

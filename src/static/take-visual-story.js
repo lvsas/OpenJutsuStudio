@@ -18,6 +18,8 @@
     const selected = anchors[index];
     if (!selected) return;
     anchor.src = selected.url;
+    $('#anchor-preview').src = selected.url;
+    $('#anchor-caption').textContent = `Anchor for source frames ${selected.start}–${selected.end}.`;
     picker.value = String(index);
     window.dispatchEvent(new CustomEvent('opengenjutsu:select-stage', {
       detail: { stage: 'anchor', anchor: selected },

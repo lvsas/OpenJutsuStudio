@@ -47,15 +47,8 @@
             </label>
           </fieldset>
 
-          <fieldset class="recipe-step directions-step">
-            <legend><span>02</span> Edit brief</legend>
-            <label class="field-label" for="edit">What should change?</label>
-            <textarea id="edit" name="edit_prompt" class="text-input textarea" minlength="3" maxlength="2000" required placeholder="e.g. Turn the performer in the red jacket into the reference character. Keep their pose, camera motion, and background."></textarea>
-            <p class="field-help">Name the person and change in one sentence. Add a character reference below only when identity matters.</p>
-          </fieldset>
-
           <fieldset class="recipe-step">
-            <legend><span>03</span> Character reference <small>Optional · experimental</small></legend>
+            <legend><span>02</span> Character reference <small>No prompt needed</small></legend>
             <input id="reference" name="reference_images" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp">
             <label class="media-picker reference-picker" for="reference" id="reference-picker" data-drop-kind="image">
               <span class="reference-thumb" id="reference-thumb" aria-hidden="true">＋</span>
@@ -82,8 +75,15 @@
             <p class="field-help reference-limits">Character references guide first-frame identity. They are not masks, tracking, or guaranteed assignment.</p>
           </fieldset>
 
+          <details id="optional-directions" class="advanced-settings directions-step">
+            <summary>Add directions <span>Optional</span></summary>
+            <label class="field-label" for="edit">What should change?</label>
+            <textarea id="edit" name="edit_prompt" class="text-input textarea" maxlength="2000" disabled placeholder="e.g. Keep the original jacket, or replace only the performer on the right."></textarea>
+            <p class="field-help">A reference is enough to start a recast. Add a direction only to fine-tune the change, or describe an edit without a reference.</p>
+          </details>
+
           <fieldset class="recipe-step quality-step">
-            <legend><span>04</span> Quality</legend>
+            <legend><span>03</span> Quality</legend>
             <div class="quality-card selected" aria-label="Studio HD selected">
               <div><strong>Studio HD</strong><small>≈0.9 MP, aspect-aware · 16 inference steps</small></div>
               <span class="quality-state">Selected</span>
@@ -98,7 +98,8 @@
             </div>
           </details>
 
-          <button id="submit" class="btn btn-primary generate-button" type="submit" disabled><span>Generate edit</span><span aria-hidden="true">→</span></button>
+          <button id="submit" class="btn btn-primary generate-button" type="submit" disabled aria-describedby="generate-help"><span>Generate edit</span><span aria-hidden="true">→</span></button>
+          <p id="generate-help" class="field-help" role="status">Add your video and character reference. No prompt needed.</p>
           <p class="privacy-note">Your media stays on this local studio. Character reference is experimental: it guides first-frame identity, not likeness, tracking, or occlusion.</p>
         </form>
       </section>
@@ -191,6 +192,8 @@
   <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
   <script src="/static/studio-utils.js" defer></script>
   <script src="/static/reference-controls.js" defer></script>
+  <script src="/static/studio-submission.js" defer></script>
+  <script src="/static/studio-progress.js" defer></script>
   <script src="/static/app.js" defer></script>
   <script src="/static/take-visual-story.js" defer></script>
   <script src="/static/take-capsule.js" defer></script>

@@ -1,15 +1,11 @@
 const $ = (selector) => document.querySelector(selector);
 const { bindFileDropTargets, formatDuration, replaceObjectUrl, showToast: appendToast } = window.OpenGenjutsuStudio;
 
-const form = $('#form');
-const button = $('#submit');
 const videoInput = $('#video');
-const editInput = $('#edit');
 const sourcePreview = $('#source-preview');
 const resultVideo = $('#result');
 const anchorStage = $('#anchor-stage');
-const anchorPreview = $('#anchor-preview');
-const anchorCaption = $('#anchor-caption');
+
 const compareStage = $('#compare-stage');
 const compareSource = $('#compare-source');
 const compareResult = $('#compare-result');
@@ -23,12 +19,11 @@ const buildReelButton = $('#build-reel');
 const toastRegion = $('#toast-region');
 const showToast = (message, type) => appendToast(toastRegion, message, type);
 bindFileDropTargets((message) => showToast(message, 'error'));
-const statusBox = $('#status');
+
 
 let activeJob = null;
 let pollTimer = null;
-let readinessTimer = null;
-let ready = false;
+let submission = null;
 let sourceUrl = null;
 let completedJobId = null;
 
@@ -40,10 +35,6 @@ function setStage(mode) {
   compareStage.hidden = mode !== 'compare';
   const labels = { empty: 'Awaiting media', source: 'Source preview', anchor: 'FLUX anchor', result: 'Result ready', compare: 'Before / after' };
   stageMode.textContent = labels[mode] || labels.empty;
-}
-
-function updateGenerateEnabled() {
-  button.disabled = !ready || Boolean(activeJob) || !videoInput.files[0] || editInput.value.trim().length < 3;
 }
 
 function renderSourceMetadata() {
@@ -67,38 +58,10 @@ function previewSource() {
   renderSourceMetadata();
   resultActions.hidden = true;
   setStage('source');
-  updateGenerateEnabled();
+  submission?.refresh();
 }
 
-function humanStage(job) {
-  if (job.status === 'queued') return ['Queued for the local studio', 'Your video is ready to start.'];
-  if (job.status === 'done') return ['Your edit is ready', 'Review the result, download it, or copy a caption.'];
-  if (job.status === 'error') return ['This edit could not finish', job.error || 'The local pipeline returned an unknown error.'];
-  if (job.step === 'detect_scenes') return ['Reading your video', 'Finding clean editing boundaries.'];
-  if (job.step?.startsWith('prepare_segment')) return ['Preparing this moment', 'Extracting the source frames for this edit.'];
-  if (job.step?.startsWith('edit_frame_submitting')) return ['Designing the first frame', 'Submitting your character edit to FLUX.'];
-  if (job.step?.startsWith('edit_frame_downloaded')) return ['First frame ready', 'Loading it into the motion workflow.'];
-  if (job.step?.startsWith('propagate_submitting')) return ['Creating and propagating the edit', 'LTX is carrying the edit through the clip.'];
-  if (job.step?.startsWith('propagate_downloaded')) return ['Motion edit ready', 'Preparing the exact source timing.'];
-  if (job.step?.startsWith('trim_segment')) return ['Finishing this moment', 'Restoring the exact clip length.'];
-  if (job.step === 'merge_segments') return ['Finishing your video', 'Joining the edited moments.'];
-  if (job.step === 'upscale') return ['Finishing in Studio HD', 'Preparing the final image detail.'];
-  return ['Preparing your edit', 'Validating media and local models.'];
-}
-
-function updateProgress(job) {
-  const [title, detail] = humanStage(job);
-  $('#run-title').textContent = title;
-  $('#run-detail').textContent = detail;
-  const progress = Math.max(4, Math.min(100, Math.round((job.progress || 0) * 100)));
-  $('#progress-fill').style.width = `${progress}%`;
-  $('.progress-track').setAttribute('aria-valuenow', String(progress));
-  const segment = job.step?.match(/_(\d+)\/(\d+)$/);
-  $('#progress-label').textContent = segment
-    ? `${progress}% · moment ${segment[1]} of ${segment[2]}`
-    : `${progress}%`;
-  statusBox.textContent = `${title}. ${detail}`;
-}
+const updateProgress = (job) => window.OpenGenjutsuStudio.renderProgress(job);
 
 function showResult(job) {
   completedJobId = job.id;
@@ -112,14 +75,6 @@ function showResult(job) {
   setStage('result');
 }
 
-function showAnchor(anchor) {
-  if (!anchor?.url) return;
-  anchorPreview.src = anchor.url;
-  anchorCaption.textContent = anchor.start === anchor.end
-    ? `Anchor from source frame ${anchor.source_frame}.`
-    : `Anchor for source frames ${anchor.start}–${anchor.end}.`;
-  setStage('anchor');
-}
 
 function syncComparison(source, target) {
   if (Math.abs(source.currentTime - target.currentTime) > .15) target.currentTime = source.currentTime;
@@ -146,7 +101,7 @@ function renderJob(job) {
     showResult(job);
     activeJob = null;
     localStorage.removeItem('opengenjutsu_job');
-    updateGenerateEnabled();
+    submission?.refresh();
     return true;
   }
   if (job.status === 'error') {
@@ -155,7 +110,7 @@ function renderJob(job) {
     localStorage.removeItem('opengenjutsu_job');
     showToast(job.error || 'Generation failed.', 'error');
     setStage(sourcePreview.src ? 'source' : 'empty');
-    updateGenerateEnabled();
+    submission?.refresh();
     return true;
   }
   runOverlay.hidden = false;
@@ -173,29 +128,8 @@ async function poll(id) {
   } catch (error) {
     runOverlay.hidden = true;
     activeJob = null;
-    updateGenerateEnabled();
+    submission?.refresh();
     showToast(`Unable to track the edit: ${error.message}`, 'error');
-  }
-}
-
-async function checkConnection() {
-  const indicator = $('#readiness');
-  try {
-    const response = await fetch('/api/readiness');
-    const report = await response.json();
-    ready = response.ok && report.ready;
-    indicator.classList.toggle('live', ready);
-    indicator.textContent = ready ? 'Local studio ready' : (report.issues || ['Studio unavailable']).join(' ');
-  } catch {
-    ready = false;
-    indicator.textContent = 'Local studio unavailable';
-  }
-  updateGenerateEnabled();
-  if (!ready && !readinessTimer) {
-    readinessTimer = window.setTimeout(() => {
-      readinessTimer = null;
-      checkConnection();
-    }, 5000);
   }
 }
 
@@ -232,48 +166,32 @@ async function buildComparisonReel() {
   }
 }
 
-form.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  if (!videoInput.files[0] || editInput.value.trim().length < 3) {
-    showToast('Choose a source video and describe the transformation first.', 'error');
-    return;
-  }
-  button.disabled = true;
-  resultActions.hidden = true;
-  runOverlay.hidden = false;
-  updateProgress({ status: 'running', progress: .03, step: 'init' });
-  try {
-    const response = await fetch('/api/jobs', { method: 'POST', body: new FormData(form) });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.detail || 'Unable to start the edit.');
-    renderJob(payload.job);
-    poll(payload.job_id);
-  } catch (error) {
-    runOverlay.hidden = true;
-    activeJob = null;
-    updateGenerateEnabled();
-    showToast(error.message, 'error');
-  }
-});
-
 videoInput.addEventListener('change', previewSource);
-editInput.addEventListener('input', updateGenerateEnabled);
 $('#show-source').addEventListener('click', () => setStage('source'));
 $('#show-result').addEventListener('click', () => setStage('result'));
 $('#show-compare').addEventListener('click', showComparison);
 $('#build-reel').addEventListener('click', buildComparisonReel);
 $('#copy-caption').addEventListener('click', copyCaption);
 window.addEventListener('opengenjutsu:select-stage', ({ detail }) => {
-  if (detail?.stage === 'anchor') showAnchor(detail.anchor);
+  if (detail?.stage === 'anchor') setStage('anchor');
   if (detail?.stage === 'source') setStage('source');
   if (detail?.stage === 'result') setStage('result');
 });
 window.addEventListener('beforeunload', () => {
   if (pollTimer) window.clearTimeout(pollTimer);
-  if (readinessTimer) window.clearTimeout(readinessTimer);
   if (sourceUrl) URL.revokeObjectURL(sourceUrl);
 });
 
-checkConnection();
+submission = window.OpenGenjutsuStudio.bindSubmission({
+  isBusy: () => Boolean(activeJob),
+  onBegin: () => {
+    resultActions.hidden = true;
+    runOverlay.hidden = false;
+    updateProgress({ status: 'running', progress: .03, step: 'init' });
+  },
+  onQueued: (payload) => { renderJob(payload.job); poll(payload.job_id); },
+  onFailure: () => { runOverlay.hidden = true; activeJob = null; },
+  toast: showToast,
+});
 const savedJob = localStorage.getItem('opengenjutsu_job');
 if (savedJob) poll(savedJob);

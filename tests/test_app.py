@@ -69,7 +69,7 @@ class AppTests(unittest.TestCase):
         self.assertNotIn('name="target_description"', page.text)
         self.assertIn("What should change?", page.text)
         self.assertNotIn("Target to edit", page.text)
-        self.assertIn("Name the person and change in one sentence.", page.text)
+        self.assertIn("A reference is enough to start a recast.", page.text)
         self.assertIn("Character reference", page.text)
         self.assertIn('name="reference_images"', page.text)
         self.assertIn('name="reference_targets"', page.text)

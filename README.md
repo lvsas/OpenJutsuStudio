@@ -16,7 +16,7 @@ Built for the **Open Source Higgsfield Competition** (ComfyUI · NVIDIA · Runpo
 The first working product path is a local-first **visible-character recast**. Its first-frame editor is FLUX.2 Klein from **Black Forest Labs**; LTX 2.5 + Ripple carries that approved image edit through motion.
 
 ```
-source video + edit instruction + up to two optional character references
+source video + character reference(s) + optional directions
         → edit frame 0 with FLUX.2 Klein image editing
         → propagate with LTX 2.5 + Ripple FFAF IC-LoRA
         → previewable edited video
@@ -112,7 +112,9 @@ The image-edit stage additionally requires the ComfyUI-compatible FLUX.2 Klein 9
 bash scripts/run_app.sh
 ```
 
-Then open `http://127.0.0.1:8000`, choose a source video, and write one Edit brief that names the person and desired change. Optionally add one character reference; reveal a second only when two visible people need recasting, then use the optional mapping hints to distinguish them. The Creative Studio previews selected local media, keeps the job ID across reloads, translates pipeline progress into user-facing stages, and exposes a result MP4 when ComfyUI finishes. After a completed take, **Take Capsule** is an opt-in result control: it exposes/downloads the effective local recipe, recorded cuts and SHA-256 fingerprints of the source, references and result, then can create a linked local replay. It never bundles private media or promises pixel-identical output. Studio HD targets approximately 0.9 megapixels at the source aspect ratio, rounded to LTX-friendly multiples of 32, with 16 Ripple inference steps. Ripple strength remains an advanced control; **1.35 is the validated starting point for the controlled single-subject identity fixture**, not a universal optimum.
+Then open `http://127.0.0.1:8000`, choose a source video and a character reference, and generate **without typing a prompt**. **Add directions** is collapsed by default and optional: open it to refine the recast or describe a text-only edit without a reference. A closed directions editor is excluded from submission. Reveal a second reference only when needed; person-mapping hints remain optional. The backend compiles a versioned reference-recast instruction for FLUX and keeps LTX's propagation instruction separate. Both effective prompts and the original optional brief are recorded for replay; see [prompt contracts](docs/architecture/prompt-profiles.md).
+
+The Creative Studio previews local media, keeps the active job ID across reloads, translates real pipeline stages, and exposes a result MP4. Completed takes show **Source → FLUX anchor → Motion result**; the anchor is the actual image passed to Ripple, not a reconstructed video frame. Older takes without recorded anchors are labeled honestly. **Take Capsule** records the local recipe, cuts and asset SHA-256 fingerprints and supports linked local replay. It never bundles private media or promises pixel-identical output. Studio HD targets approximately 0.9 megapixels at the source aspect ratio with 16 Ripple steps. Ripple strength remains advanced; **1.35 is a validated starting point on a controlled single-subject fixture**, not a universal optimum.
 
 Check `GET /api/readiness` before submitting a job. `GET /health` proves only that
 the app process is alive; it does not validate the proxy, upstream, nodes or models.

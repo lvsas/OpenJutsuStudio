@@ -50,6 +50,7 @@
     secondaryTarget.value = '';
     release('secondary');
     reset('secondary');
+    window.dispatchEvent(new Event('opengenjutsu:references-changed'));
   }
 
   function clearPrimaryReference() {

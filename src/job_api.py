@@ -11,7 +11,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 import config
 import core
 from api_schema import _public_job, _target_size
-from prompt_profiles import get_prompt_profile
+from prompt_profiles import PROMPT_POLICY_VERSION, get_prompt_profile
 from uploads import save_video
 
 ALLOWED_SUFFIXES = {".mp4", ".mov", ".mkv", ".webm"}
@@ -23,11 +23,11 @@ def _validate_uploads(video: UploadFile, edit_prompt: str, reference_image: Uplo
     suffix = Path(video.filename or "").suffix.lower()
     if suffix not in ALLOWED_SUFFIXES:
         raise HTTPException(415, "Accepted video formats: MP4, MOV, MKV, WebM")
-    if not edit_prompt.strip():
-        raise HTTPException(422, "Describe the transformation to apply.")
     references = list(reference_images)
     if reference_image is not None:
         references.insert(0, reference_image)
+    if not references and not edit_prompt.strip():
+        raise HTTPException(422, "Add a character reference or optional edit directions.")
     if len(references) > 2:
         raise HTTPException(422, "Use at most two character reference images.")
     if len(reference_targets) > len(references):
@@ -74,6 +74,7 @@ def _build_recipe(edit_prompt: str, target_description: str, reference_targets: 
                   info: dict[str, Any], width: int, height: int) -> dict[str, Any]:
     return {
         "schema_version": 1, "edit_brief": edit_prompt.strip(),
+        "prompt_policy_version": PROMPT_POLICY_VERSION,
         "target_description": target_description.strip(),
         "reference_targets": [target.strip() for target in reference_targets],
         "effective_edit_prompt": prompt, "propagation_prompt": profile.propagation_prompt,
@@ -125,7 +126,8 @@ def _queue_job(job_id: str, engine: str, video: UploadFile, video_path: Path, ed
               strength: float, info: dict[str, Any], reference_paths: list[Path],
               dispatch_job: Callable) -> core.Job:
     profile = get_prompt_profile(engine)
-    prompt = profile.compose_frame_edit(edit_prompt, target_description, reference_targets)
+    prompt = profile.compose_frame_edit(edit_prompt, target_description, reference_targets,
+                                        reference_count=len(reference_paths))
     width, height = _target_size(info["width"], info["height"])
     recipe = _build_recipe(edit_prompt, target_description, reference_targets, profile,
                            prompt, seed, strength, info, width, height)
@@ -151,7 +153,7 @@ class JobAPI:
 
     async def create_job(
         self, video: UploadFile = File(...),
-        edit_prompt: str = Form(..., min_length=3, max_length=2000),
+        edit_prompt: str = Form(default="", max_length=2000),
         target_description: str = Form(default="", max_length=500),
         seed: int = Form(default=125348341465200, ge=0),
         ripple_strength: float = Form(default=1.35, ge=0.0, le=2.0),

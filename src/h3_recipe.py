@@ -1,30 +1,36 @@
 """Versioned content-neutral H3 prompt policy and frozen render configuration.
 
-Prompt policy v2 adopts the structured scaffold that won the measured A/B arm
-``proven_audio``: an explicit <Subject 1> / <Picture 1> / <Video 1> role split,
-a replace-only instruction, an explicit preservation list and explicit negative
-constraints, plus source-audio conditioning. The character description and the
-edit directions are user-owned text and are never invented by a model.
-Policy v1 (one generic sentence, silent conditioning) is rejected.
+Prompt policy v3 keeps the scaffold that won the measured A/B arm ``proven_audio``
+(<Subject N> / <Picture N> / <Video 1> roles, a replace-only rule, a preservation
+list and negative constraints, plus source-audio conditioning) and extends it to two
+ordered character references, mirroring the sample workflow's ``subject_definitions``
+shape.
+
+Each reference carries its own description and its provenance: text typed by the user
+is recorded as 'user', text completed by the local vision model is recorded as
+'generated'. A generated description is never silent — it is frozen into the recipe,
+so a take stays reproducible and auditable. Nothing about the source video is ever
+invented. Policies v1 and v2 are rejected.
 """
 from dataclasses import asdict
 import copy
 import hashlib
 import json
-from h3_graphs import H3Models, build_h3_recast, h3_frames
+from h3_graphs import H3Models, REFERENCE_NODE, REFERENCE_SLOTS, build_h3_recast, h3_frames
 
 ENGINE = 'minimax-h3'
-POLICY = 'h3-recast-v2'
+POLICY = 'h3-recast-v3'
 INPUT_LONG_EDGE = 512
 OUTPUT_SCALE = 2
 MAX_TEXT = 2000
+DESCRIPTION_SOURCES = ('user', 'generated')
 SUBJECT_CLAUSE = (
-    '<Subject 1> is the replacement character whose appearance is shown in '
-    '<Picture 1>{descriptor}.'
+    '<Subject {index}> is the replacement character whose appearance is shown in '
+    '<Picture {index}>{descriptor}.'
 )
 PRESERVATION_CLAUSE = (
     '<Video 1> supplies the source performance, scene, framing, timing and camera motion.\n'
-    'Replace only the main performer in <Video 1> with <Subject 1>. Keep the original '
+    'Replace only the main performer{s} in <Video 1> with {subjects}. Keep the original '
     'performance, poses, gestures, framing, environment, camera movement and lighting from '
     "<Video 1>. Use <Picture 1> only for the replacement character's identity, build and "
     'clothing; do not reproduce its layout, background, extra poses or props. Do not invent '
@@ -41,11 +47,38 @@ def _text(value, name):
     return value
 
 
-def compose_prompt(character_description='', edit_prompt=''):
-    """Build the effective prompt from deterministic, user-owned text only."""
-    descriptor = _text(character_description, 'Character description').strip()
-    clause = SUBJECT_CLAUSE.format(descriptor=f': {descriptor}' if descriptor else '')
-    parts = [clause, PRESERVATION_CLAUSE]
+def _descriptions(reference_descriptions):
+    if isinstance(reference_descriptions, str):
+        items = [reference_descriptions]
+    elif isinstance(reference_descriptions, (list, tuple)):
+        items = list(reference_descriptions)
+    else:
+        raise ValueError('Reference descriptions must be text or a sequence of text')
+    if not 1 <= len(items) <= REFERENCE_SLOTS:
+        raise ValueError(f'H3 accepts between 1 and {REFERENCE_SLOTS} reference descriptions')
+    return [_text(item, 'Reference description') for item in items]
+
+
+def _sources(reference_sources, count):
+    if reference_sources is None:
+        return ['user'] * count
+    if not isinstance(reference_sources, (list, tuple)) or len(reference_sources) != count:
+        raise ValueError('Reference description provenance must match the reference count')
+    if any(source not in DESCRIPTION_SOURCES for source in reference_sources):
+        raise ValueError('Reference description provenance must be user or generated')
+    return list(reference_sources)
+
+
+def compose_prompt(reference_descriptions=('',), edit_prompt=''):
+    """Build the effective prompt from deterministic, frozen text only."""
+    texts = _descriptions(reference_descriptions)
+    subjects = ' and '.join(f'<Subject {index + 1}>' for index in range(len(texts)))
+    parts = [
+        SUBJECT_CLAUSE.format(index=index + 1,
+                              descriptor=f': {text.strip()}' if text.strip() else '')
+        for index, text in enumerate(texts)
+    ]
+    parts.append(PRESERVATION_CLAUSE.format(s='s' if len(texts) > 1 else '', subjects=subjects))
     directions = _text(edit_prompt, 'Edit directions').strip()
     if directions:
         parts.append('Additional directions: ' + directions)
@@ -70,25 +103,33 @@ def digest_json(value):
     return hashlib.sha256(encoded.encode('utf-8')).hexdigest()
 
 
-def make_recipe(edit_prompt='', seed=302929098223082, *, character_description='',
-                source_width, source_height):
+def make_recipe(edit_prompt='', seed=302929098223082, *, reference_descriptions=('',),
+                reference_sources=None, source_width, source_height):
     width, height = h3_dimensions(source_width, source_height)
     directions = _text(edit_prompt, 'Edit directions')
-    description = _text(character_description, 'Character description')
+    descriptions = _descriptions(reference_descriptions)
+    sources = _sources(reference_sources, len(descriptions))
     recipe = {
-        'schema_version': 2, 'engine': ENGINE, 'prompt_policy': POLICY,
-        'character_description': description, 'user_edit_prompt': directions,
-        'effective_prompt': compose_prompt(description, directions),
+        'schema_version': 3, 'engine': ENGINE, 'prompt_policy': POLICY,
+        'reference_count': len(descriptions),
+        'reference_descriptions': descriptions, 'reference_description_sources': sources,
+        'user_edit_prompt': directions,
+        'effective_prompt': compose_prompt(descriptions, directions),
         'seed': seed, 'fps': 24, 'single_shot_only': True,
         'preserve_source_audio': True, 'source_audio_conditioning': True,
         'reference_size': 'match',
         'width': width, 'height': height,
         'output_width': width * OUTPUT_SCALE, 'output_height': height * OUTPUT_SCALE,
         'steps': 6, 'split_step': 3, 'model_files': asdict(H3Models()),
-        'source_width': source_width, 'source_height': source_height, 'source_frames_24fps': None, 'inference_frames': None,
+        'source_width': source_width, 'source_height': source_height,
+        'source_frames_24fps': None, 'inference_frames': None,
     }
     validate_recipe(recipe)
     return recipe
+
+
+def reference_placeholders(count):
+    return [f'h3-reference-placeholder-{index}' for index in range(count)]
 
 
 def bind_frames(recipe, count, source_audio=True):
@@ -105,8 +146,9 @@ def bind_frames(recipe, count, source_audio=True):
     recipe['source_audio'] = source_audio
     recipe['shot_plan'] = [{'start': 0, 'end': count-1, 'fps': 24}]
     recipe['graph_template'] = build_h3_recast(
-        'h3-source-placeholder', 'h3-reference-placeholder', recipe['effective_prompt'],
-        source_frames=padded, source_audio=source_audio, **graph_options(recipe))
+        'h3-source-placeholder', reference_placeholders(recipe['reference_count']),
+        recipe['effective_prompt'], source_frames=padded, source_audio=source_audio,
+        **graph_options(recipe))
     return validate_recipe(recipe)
 
 
@@ -117,14 +159,21 @@ def graph_options(recipe):
 
 
 def validate_recipe(recipe):
-    if (recipe.get('schema_version') != 2 or recipe.get('engine') != ENGINE
+    if (recipe.get('schema_version') != 3 or recipe.get('engine') != ENGINE
             or recipe.get('prompt_policy') != POLICY or recipe.get('fps') != 24
             or recipe.get('single_shot_only') is not True
             or recipe.get('preserve_source_audio') is not True
             or recipe.get('source_audio_conditioning') is not True):
         raise ValueError('Unsupported H3 recipe contract')
-    if recipe.get('effective_prompt') != compose_prompt(
-            recipe.get('character_description', ''), recipe.get('user_edit_prompt', '')):
+    try:
+        descriptions = _descriptions(recipe.get('reference_descriptions', ()))
+        sources = _sources(recipe.get('reference_description_sources'), len(descriptions))
+    except ValueError as exc:
+        raise ValueError('Invalid H3 reference descriptions') from exc
+    if recipe.get('reference_count') != len(descriptions) or sources != list(
+            recipe.get('reference_description_sources', ())):
+        raise ValueError('H3 reference count does not match the frozen descriptions')
+    if recipe.get('effective_prompt') != compose_prompt(descriptions, recipe.get('user_edit_prompt', '')):
         raise ValueError('H3 effective prompt does not match the frozen policy text')
     models = recipe['model_files']
     if set(models) != set(asdict(H3Models())) or any(
@@ -141,7 +190,7 @@ def validate_recipe(recipe):
         raise ValueError('H3 render dimensions do not match the source aspect ratio policy')
     # Before normalization there is no source frame count yet; this graph is
     # validation-only. The runner binds and freezes the actual measured count.
-    build_h3_recast('video', 'reference', recipe['effective_prompt'],
+    build_h3_recast('video', reference_placeholders(len(descriptions)), recipe['effective_prompt'],
                     source_frames=recipe.get('inference_frames') or 5, **graph_options(recipe))
     count = recipe['source_frames_24fps']
     if count is not None:
@@ -156,6 +205,9 @@ def validate_recipe(recipe):
                 or node_inputs.get('136', {}).get('prompt') != recipe['effective_prompt']
                 or node_inputs.get('129', {}).get('noise_seed') != recipe['seed']):
             raise ValueError('Frozen H3 graph does not match the recipe')
+        for index in range(len(descriptions)):
+            if node_inputs.get('136', {}).get(f'ref_images.ref_image_{index}') != [str(REFERENCE_NODE + index), 0]:
+                raise ValueError('Frozen H3 graph reference slots do not match the recipe')
         conditioning = recipe.get('source_audio')
         if conditioning is not None and (
                 ('audio' in node_inputs.get('156', {})) is not conditioning

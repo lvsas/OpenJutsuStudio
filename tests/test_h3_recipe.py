@@ -39,37 +39,53 @@ class H3DimensionsTests(unittest.TestCase):
             with self.subTest(dimensions=dimensions), self.assertRaises(ValueError):
                 h3_dimensions(*dimensions)
 
-    def test_prompt_policy_v2_scaffold_and_user_owned_description(self):
-        plain = make_recipe(source_width=1920, source_height=1080)
-        self.assertEqual((plain["schema_version"], plain["prompt_policy"]), (2, "h3-recast-v2"))
-        for role in ("<Subject 1>", "<Picture 1>", "<Video 1>"):
-            self.assertIn(role, plain["effective_prompt"])
-        for rule in ("Replace only the main performer", "Do not invent", "Preserve the source soundtrack"):
-            self.assertIn(rule, plain["effective_prompt"])
-        self.assertNotIn(": .", plain["effective_prompt"])
-        described = make_recipe(source_width=1920, source_height=1080,
-                               character_description="a tall woman in a red coat")
-        self.assertIn("shown in <Picture 1>: a tall woman in a red coat.", described["effective_prompt"])
-        self.assertNotEqual(plain["effective_prompt"], described["effective_prompt"])
-        self.assertEqual(described["character_description"], "a tall woman in a red coat")
-        # Directions stay separate from the character description.
-        directed = make_recipe("keep the wooden staff", source_width=1920, source_height=1080,
-                               character_description="a tall woman in a red coat")
-        self.assertTrue(directed["effective_prompt"].endswith("Additional directions: keep the wooden staff"))
+    V2_PROMPT_FOR_ONE_REFERENCE = (
+        "<Subject 1> is the replacement character whose appearance is shown in <Picture 1>: "
+        "a tall woman in a red coat.\n"
+        "<Video 1> supplies the source performance, scene, framing, timing and camera motion.\n"
+        "Replace only the main performer in <Video 1> with <Subject 1>. Keep the original "
+        "performance, poses, gestures, framing, environment, camera movement and lighting from "
+        "<Video 1>. Use <Picture 1> only for the replacement character's identity, build and "
+        "clothing; do not reproduce its layout, background, extra poses or props. Do not invent "
+        "actions, people, cuts or objects. Preserve the source soundtrack and keep the replacement "
+        "stable throughout the shot."
+    )
 
-    def test_legacy_policy_and_oversized_text_are_rejected(self):
+    def test_policy_v3_keeps_the_winning_single_reference_prompt_byte_for_byte(self):
+        recipe = make_recipe(source_width=1920, source_height=1080,
+                             reference_descriptions=("a tall woman in a red coat",))
+        self.assertEqual((recipe["schema_version"], recipe["prompt_policy"]), (3, "h3-recast-v3"))
+        self.assertEqual(recipe["effective_prompt"], self.V2_PROMPT_FOR_ONE_REFERENCE)
+        self.assertEqual(recipe["reference_count"], 1)
+        self.assertEqual(recipe["reference_description_sources"], ["user"])
+        validate_recipe(recipe)
+
+    def test_two_references_extend_the_scaffold_and_carry_provenance(self):
+        recipe = make_recipe(source_width=1920, source_height=1080,
+                             reference_descriptions=("a tall woman in a red coat", "a small dog"),
+                             reference_sources=("user", "generated"))
+        prompt = recipe["effective_prompt"]
+        self.assertIn("<Picture 1>: a tall woman in a red coat.", prompt)
+        self.assertIn("<Picture 2>: a small dog.", prompt)
+        self.assertIn("Replace only the main performers in <Video 1> with <Subject 1> and <Subject 2>.", prompt)
+        self.assertEqual(recipe["reference_description_sources"], ["user", "generated"])
+        validate_recipe(recipe)
+
+    def test_legacy_policy_mismatched_prompt_and_oversized_text_are_rejected(self):
         recipe = make_recipe(source_width=1920, source_height=1080)
-        legacy = copy.deepcopy(recipe)
-        legacy["prompt_policy"] = "h3-recast-v1"
-        with self.assertRaises(ValueError):
-            validate_recipe(legacy)
-        tampered = copy.deepcopy(recipe)
-        tampered["effective_prompt"] = "Replace the main performer in <Video 1>."
-        with self.assertRaises(ValueError):
-            validate_recipe(tampered)
-        for field in ("character_description", "edit_prompt"):
+        for field, value in (("prompt_policy", "h3-recast-v2"), ("schema_version", 2),
+                             ("effective_prompt", "Replace the main performer in <Video 1>."),
+                             ("reference_description_sources", ["invented"])):
+            broken = copy.deepcopy(recipe)
+            broken[field] = value
             with self.subTest(field=field), self.assertRaises(ValueError):
-                make_recipe(source_width=1920, source_height=1080, **{field: "x" * 2001})
+                validate_recipe(broken)
+        for kwargs in ({"reference_descriptions": ("x" * 2001,)}, {"edit_prompt": "x" * 2001},
+                       {"reference_descriptions": ("a", "b", "c")}, {"reference_descriptions": ()},
+                       {"reference_descriptions": ("a",), "reference_sources": ("user", "generated")},
+                       {"reference_descriptions": ("a",), "reference_sources": ("guessed",)}):
+            with self.subTest(kwargs=list(kwargs)), self.assertRaises(ValueError):
+                make_recipe(source_width=1920, source_height=1080, **kwargs)
 
 
 if __name__ == "__main__":

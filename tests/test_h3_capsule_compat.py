@@ -14,7 +14,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from h3_capsule import freeze_capsule, get_capsule, replay_inputs
 from h3_recipe import bind_frames, digest_json, make_recipe
 
-V2_ONLY = ('source_audio', 'source_audio_conditioning', 'character_description')
+V2_ONLY = ('source_audio', 'source_audio_conditioning', 'reference_count',
+           'reference_descriptions', 'reference_description_sources')
 
 
 class Job:
@@ -64,7 +65,7 @@ class HistoricalCapsuleTests(unittest.TestCase):
 
     def test_a_current_capsule_still_replays_and_a_tampered_input_is_rejected(self):
         recipe, source, reference = replay_inputs(self.job, self.media)
-        self.assertEqual(recipe['prompt_policy'], 'h3-recast-v2')
+        self.assertEqual(recipe['prompt_policy'], 'h3-recast-v3')
         self.assertEqual((source, reference), (self.source, self.reference))
         capsule = self.job.meta['h3_capsule']
         capsule['assets']['source']['sha256'] = 'f' * 64

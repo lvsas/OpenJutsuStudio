@@ -113,7 +113,8 @@ class H3API:
             if not 1 <= info['duration'] * 24 <= 3592:
                 raise HTTPException(422, 'H3 source must fit within 1–3592 frames at 24fps')
             await save_reference(reference_image, reference, self.limit)
-            recipe = make_recipe(edit_prompt, seed, reference_descriptions=(character_description,),
+            recipe = make_recipe(preserve_clip=edit_prompt, seed=seed,
+                                 reference_descriptions=(character_description,),
                                  source_width=info['width'], source_height=info['height'])
             recipe['source_timing'] = copy.deepcopy(info)
             job = core.Job(id=job_id, engine=ENGINE, prompt=recipe['effective_prompt'], video=str(source),

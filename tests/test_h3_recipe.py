@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from h3_recipe import h3_dimensions, make_recipe, validate_recipe
+from h3_recipe import h3_dimensions, make_recipe, validate_recipe, with_preserve_clip
 
 
 class H3DimensionsTests(unittest.TestCase):
@@ -76,6 +76,30 @@ class H3DimensionsTests(unittest.TestCase):
         self.assertEqual(recipe["reference_description_sources"], ["user", "generated"])
         validate_recipe(recipe)
 
+    def test_generated_preservation_is_frozen_with_its_provenance(self):
+        recipe = make_recipe(source_width=1920, source_height=1080,
+                             reference_descriptions=('a tall woman',))
+        self.assertEqual((recipe['preserve_clip'], recipe['preserve_clip_source']), ('', 'none'))
+        self.assertNotIn('Additional directions', recipe['effective_prompt'])
+        completed = with_preserve_clip(recipe, 'the wooden staff and the snowy valley')
+        self.assertEqual(completed['preserve_clip_source'], 'generated')
+        self.assertTrue(completed['effective_prompt'].endswith(
+            'Additional directions: the wooden staff and the snowy valley'))
+        self.assertEqual(completed['reference_descriptions'], ['a tall woman'])
+        validate_recipe(completed)
+        authored = make_recipe(preserve_clip='keep the scarf', source_width=1920, source_height=1080)
+        self.assertEqual(authored['preserve_clip_source'], 'user')
+        with self.assertRaises(ValueError):
+            with_preserve_clip(authored, 'something else')
+        broken = copy.deepcopy(recipe)
+        broken['preserve_clip'] = 'text without a provenance'
+        with self.assertRaises(ValueError):
+            validate_recipe(broken)
+        for bad in ({'preserve_clip': 'x', 'preserve_clip_source': 'none'},
+                    {'preserve_clip': 'x', 'preserve_clip_source': 'invented'}):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                make_recipe(source_width=1920, source_height=1080, **bad)
+
     def test_legacy_policy_mismatched_prompt_and_oversized_text_are_rejected(self):
         recipe = make_recipe(source_width=1920, source_height=1080)
         for field, value in (("prompt_policy", "h3-recast-v2"), ("schema_version", 2),
@@ -85,7 +109,7 @@ class H3DimensionsTests(unittest.TestCase):
             broken[field] = value
             with self.subTest(field=field), self.assertRaises(ValueError):
                 validate_recipe(broken)
-        for kwargs in ({"reference_descriptions": ("x" * 2001,)}, {"edit_prompt": "x" * 2001},
+        for kwargs in ({"reference_descriptions": ("x" * 2001,)}, {"preserve_clip": "x" * 2001},
                        {"reference_descriptions": ("a", "b", "c")}, {"reference_descriptions": ()},
                        {"reference_descriptions": ("a",), "reference_sources": ("user", "generated")},
                        {"reference_descriptions": ("a",), "reference_sources": ("guessed",)}):

@@ -29,6 +29,7 @@ MIN_SIDE = 64
 OUTPUT_SCALE = 2
 MAX_TEXT = 2000
 DESCRIPTION_SOURCES = ('user', 'generated')
+PRESERVE_SOURCES = ('none', 'user', 'generated')
 SUBJECT_CLAUSE = (
     '<Subject {index}> is the replacement character whose appearance is shown in '
     '<Picture {index}>{descriptor}.'
@@ -74,7 +75,7 @@ def _sources(reference_sources, count):
     return list(reference_sources)
 
 
-def compose_prompt(reference_descriptions=('',), edit_prompt=''):
+def compose_prompt(reference_descriptions=('',), preserve_clip=''):
     """Build the effective prompt from deterministic, frozen text only."""
     texts = _descriptions(reference_descriptions)
     subjects = ' and '.join(f'<Subject {index + 1}>' for index in range(len(texts)))
@@ -84,9 +85,9 @@ def compose_prompt(reference_descriptions=('',), edit_prompt=''):
         for index, text in enumerate(texts)
     ]
     parts.append(PRESERVATION_CLAUSE.format(s='s' if len(texts) > 1 else '', subjects=subjects))
-    directions = _text(edit_prompt, 'Edit directions').strip()
-    if directions:
-        parts.append('Additional directions: ' + directions)
+    preserved = _text(preserve_clip, 'Preserved clip description').strip()
+    if preserved:
+        parts.append('Additional directions: ' + preserved)
     return '\n'.join(parts)
 
 
@@ -126,18 +127,23 @@ def digest_json(value):
     return hashlib.sha256(encoded.encode('utf-8')).hexdigest()
 
 
-def make_recipe(edit_prompt='', seed=302929098223082, *, reference_descriptions=('',),
-                reference_sources=None, source_width, source_height):
+def make_recipe(preserve_clip='', seed=302929098223082, *, reference_descriptions=('',),
+                reference_sources=None, preserve_clip_source=None, source_width, source_height):
     width, height = h3_dimensions(source_width, source_height)
-    directions = _text(edit_prompt, 'Edit directions')
+    preserved = _text(preserve_clip, 'Preserved clip description')
     descriptions = _descriptions(reference_descriptions)
     sources = _sources(reference_sources, len(descriptions))
+    preserve_source = preserve_clip_source or ('user' if preserved.strip() else 'none')
+    if preserve_source not in PRESERVE_SOURCES:
+        raise ValueError('Preserved clip provenance must be none, user or generated')
+    if preserve_source == 'none' and preserved.strip():
+        raise ValueError('Preserved clip text needs a provenance')
     recipe = {
         'schema_version': 3, 'engine': ENGINE, 'prompt_policy': POLICY,
         'reference_count': len(descriptions),
         'reference_descriptions': descriptions, 'reference_description_sources': sources,
-        'user_edit_prompt': directions,
-        'effective_prompt': compose_prompt(descriptions, directions),
+        'preserve_clip': preserved, 'preserve_clip_source': preserve_source,
+        'effective_prompt': compose_prompt(descriptions, preserved),
         'seed': seed, 'fps': 24, 'single_shot_only': True,
         'preserve_source_audio': True, 'source_audio_conditioning': True,
         'reference_size': 'match',
@@ -149,6 +155,24 @@ def make_recipe(edit_prompt='', seed=302929098223082, *, reference_descriptions=
     }
     validate_recipe(recipe)
     return recipe
+
+
+def with_preserve_clip(recipe, text, source='generated'):
+    """Complete a recipe with a preserved-content description produced from the clip.
+
+    Called before the graph is frozen, so the frozen template and the capsule both carry
+    the text and its provenance. The user's own text is never overwritten.
+    """
+    if source not in DESCRIPTION_SOURCES:
+        raise ValueError('Preserved clip provenance must be user or generated')
+    updated = copy.deepcopy(recipe)
+    if updated.get('preserve_clip_source') == 'user':
+        raise ValueError('A recipe with the operator text is not overwritten')
+    updated['preserve_clip'] = _text(text, 'Preserved clip description')
+    updated['preserve_clip_source'] = source
+    updated['effective_prompt'] = compose_prompt(updated['reference_descriptions'],
+                                                updated['preserve_clip'])
+    return validate_recipe(updated)
 
 
 def reference_placeholders(count):
@@ -196,7 +220,11 @@ def validate_recipe(recipe):
     if recipe.get('reference_count') != len(descriptions) or sources != list(
             recipe.get('reference_description_sources', ())):
         raise ValueError('H3 reference count does not match the frozen descriptions')
-    if recipe.get('effective_prompt') != compose_prompt(descriptions, recipe.get('user_edit_prompt', '')):
+    if recipe.get('preserve_clip_source') not in PRESERVE_SOURCES:
+        raise ValueError('Invalid preserved clip provenance')
+    if (recipe['preserve_clip'].strip() == '') is not (recipe['preserve_clip_source'] == 'none'):
+        raise ValueError('Preserved clip text and provenance disagree')
+    if recipe.get('effective_prompt') != compose_prompt(descriptions, recipe.get('preserve_clip', '')):
         raise ValueError('H3 effective prompt does not match the frozen policy text')
     models = recipe['model_files']
     if set(models) != set(asdict(H3Models())) or any(

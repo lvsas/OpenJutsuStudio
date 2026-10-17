@@ -53,6 +53,26 @@ class BackendTests(unittest.TestCase):
         pipeline.run_h3_pipeline(self.job, self.source, self.opts)
         return core.Job.load(self.job.id)
 
+    def test_preserve_generation_completes_the_recipe_and_warns_on_failure(self):
+        blank = make_recipe(source_width=640, source_height=360)
+        with patch.object(pipeline, 'describe_preserved',
+                          return_value={'text': 'the staff and the snow', 'model': 'm',
+                                        'frames': 4, 'job_id': 'j'}):
+            completed, warning = pipeline._complete_preserve_clip(None, blank, self.source, self.root)
+        self.assertIsNone(warning)
+        self.assertEqual(completed['preserve_clip'], 'the staff and the snow')
+        self.assertEqual(completed['preserve_clip_source'], 'generated')
+        with patch.object(pipeline, 'describe_preserved', side_effect=RuntimeError('model unavailable')):
+            kept, warning = pipeline._complete_preserve_clip(None, blank, self.source, self.root)
+        self.assertEqual((kept['preserve_clip'], kept['preserve_clip_source']), ('', 'none'))
+        self.assertIn('not described', warning)
+        # An operator's own text is never sent to the model at all.
+        authored = make_recipe(preserve_clip='keep the scarf', source_width=640, source_height=360)
+        with patch.object(pipeline, 'describe_preserved', side_effect=AssertionError('must not run')):
+            same, warning = pipeline._complete_preserve_clip(None, authored, self.source, self.root)
+        self.assertIsNone(warning)
+        self.assertEqual(same['preserve_clip'], 'keep the scarf')
+
     def test_success_is_h3_only_and_selects_mp4(self):
         with patch.object(core, 'edit_segment', side_effect=AssertionError('LTX forbidden')):
             job = self.run_job()
@@ -68,7 +88,7 @@ class BackendTests(unittest.TestCase):
         self.assertNotIn('ref_video_audios.ref_video_audio_0', graph['136']['inputs'])
         self.assertEqual(graph['155']['inputs']['frame_load_cap'], 39)
         frozen = job.meta['h3_capsule']
-        self.assertEqual(frozen['recipe']['user_edit_prompt'], '  user text\n')
+        self.assertEqual(frozen['recipe']['preserve_clip'], '  user text\n')
         self.assertEqual(set(frozen['assets']), {'source', 'reference', 'result'})
         self.assertNotIn(str(self.root), json.dumps(frozen))
         recipe, source, ref = capsule.replay_inputs(job, self.media)

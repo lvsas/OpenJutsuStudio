@@ -10,8 +10,26 @@ import core
 from comfy_transport import make_client
 from h3_media import prepare_source, finish_result, validate_result, has_audio
 from h3_capsule import contained, digest_file, freeze_capsule
-from h3_recipe import ENGINE, bind_frames, validate_recipe
+from h3_preserve import describe_preserved
+from h3_recipe import ENGINE, bind_frames, validate_recipe, with_preserve_clip
 from media import ffprobe
+
+
+def _complete_preserve_clip(client, recipe, prepared, folder):
+    """Ask the local vision model what the clip must keep, before the graph is frozen.
+
+    Returns the completed recipe and, when the model was unavailable or produced
+    something unusable, a warning recorded on the job. A failed description does not
+    fail the render: it leaves the recipe without preservation text, which is the
+    weakest configuration, and says so instead of hiding it.
+    """
+    if recipe.get('preserve_clip_source') != 'none':
+        return recipe, None
+    try:
+        described = describe_preserved(client, prepared, folder / 'preserve')
+    except Exception as exc:
+        return recipe, f'Clip preservation was not described ({type(exc).__name__}); the swap may be less faithful.'
+    return with_preserve_clip(recipe, described['text'], 'generated'), None
 
 
 def _download_mp4(client, graph, folder):
@@ -68,7 +86,11 @@ def run_h3_pipeline(job, video_path, opts):
             raise ValueError('Replay conditioning audio differs from the frozen recipe')
         if recipe['source_frames_24fps'] not in (None, count):
             raise ValueError('Replay normalization differs from the frozen recipe')
+        client = make_client()
         if recipe['source_frames_24fps'] is None:
+            recipe, preserve_warning = _complete_preserve_clip(client, recipe, prepared, folder)
+            if preserve_warning:
+                job.meta['h3_preserve_warning'] = preserve_warning
             recipe = bind_frames(recipe, count, source_audio=prepared_audio)
         if recipe['inference_frames'] != padded:
             raise ValueError('H3 preprocessing frame grid differs from the recipe')
@@ -81,7 +103,6 @@ def run_h3_pipeline(job, video_path, opts):
                         padding_frames=padded-count, single_shot_only=True)
         job.step, job.progress = 'h3_submitting', 0.15
         job.save()
-        client = make_client()
         video_ref = client.assets.from_file(prepared).as_reference()
         image_ref = client.assets.from_file(reference).as_reference()
         # The prepared clip keeps its soundtrack so the reference node and the

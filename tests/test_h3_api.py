@@ -60,7 +60,7 @@ class APITests(unittest.TestCase):
         self.assertEqual(self.client.get(f'/api/h3/jobs/{job.id}/source').content, b'video')
         self.assertEqual(self.client.get(f'/api/h3/jobs/{job.id}/reference').content, b'image')
         self.assertEqual(job.engine, 'minimax-h3')
-        self.assertEqual(opts['recipe']['user_edit_prompt'], '  exact\n')
+        self.assertEqual(opts['recipe']['preserve_clip'], '  exact\n')
         self.assertEqual(opts['recipe']['seed'], 42)
         self.assertEqual(source.parent, self.media)
         self.assertEqual(Path(opts['reference_image']).parent, self.media)

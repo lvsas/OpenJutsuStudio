@@ -111,7 +111,7 @@ const NativeFormData = globalThis.FormData;
 globalThis.FormData = class extends NativeFormData {
   constructor(form) {
     super();
-    if (form) for (const [field, name] of [['video', 'video'], ['reference', 'reference_image'], ['edit', 'edit_prompt'], ['seed', 'seed']]) {
+    if (form) for (const [field, name] of [['video', 'video'], ['reference', 'reference_image'], ['edit', 'edit_prompt'], ['description', 'character_description'], ['seed', 'seed']]) {
       if (!el(field).disabled) this.append(name, el(field).files[0] || el(field).value);
     }
   }
@@ -142,6 +142,7 @@ await settle();
 el('video').events.change();
 el('directions').open = true;
 el('directions').events.toggle();
+el('description').value = '  a tall woman  ';
 handler = (url, opts) => {
   if (url === '/api/h3/readiness') return response({ready});
   if (url === '/api/h3/jobs') { submitted = opts.body; return response({job_id: child}, 202); }
@@ -150,6 +151,8 @@ handler = (url, opts) => {
 await el('form').events.submit({preventDefault() {}});
 await settle();
 assert.equal(submitted.get('edit_prompt'), '  original\n directions  ');
+// The user's character description reaches the frozen prompt verbatim, untrimmed.
+assert.equal(submitted.get('character_description'), '  a tall woman  ');
 ready = false;
 await el('retry').click();
 await settle();
@@ -166,4 +169,4 @@ await el('form').events.submit({preventDefault() {}});
 await settle();
 assert.equal(calls.filter(([url]) => url === '/api/h3/jobs').length, count + 1);
 assert.match(el('status').textContent, /timed out/);
-console.log('H3 UI contract checks passed: form, exact prompt, advisory readiness, queue, terminal states, resume, replay, HTTP failures.');
+console.log('H3 UI contract checks passed: form, exact prompt, description, advisory readiness, queue, terminal states, resume, replay, HTTP failures.');

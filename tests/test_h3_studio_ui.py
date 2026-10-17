@@ -119,6 +119,17 @@ class H3StudioUITests(unittest.TestCase):
         # The raw native file control must no longer be themed as a visible input.
         self.assertNotIn('file-selector-button', (STATIC / 'h3-studio.css').read_text())
 
+    def test_character_description_is_user_owned_and_reaches_the_payload(self):
+        tag, attrs = self.ids['h3-description']
+        self.assertEqual((tag, attrs['name']), ('input', 'character_description'))
+        self.assertEqual(attrs['maxlength'], '2000')
+        self.assertNotIn('required', attrs)
+        self.assertIn('inserted verbatim', self.html)
+        main = self.scripts['h3-studio.js']
+        self.assertIn("['video', 'reference', 'description', 'seed']", main)
+        # The description is client-supplied text, never generated in the transport layer.
+        self.assertNotIn('description', self.scripts['h3-http.js'])
+
     def test_scoped_theme_and_small_modules(self):
         css = (STATIC / 'h3-studio.css').read_text()
         self.assertIn('html[data-engine="h3"]', css)

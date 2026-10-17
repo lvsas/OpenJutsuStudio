@@ -63,8 +63,9 @@ def run_h3_pipeline(job, video_path, opts):
         folder.mkdir(parents=True, exist_ok=False)
         prepared, count, padded = prepare_source(source, folder)
         prepared_audio = has_audio(prepared)
-        if prepared_audio:
-            raise ValueError('H3 normalized conditioning unexpectedly contains audio')
+        if recipe['source_frames_24fps'] is not None and recipe.get('source_audio') is not None \
+                and recipe['source_audio'] is not prepared_audio:
+            raise ValueError('Replay conditioning audio differs from the frozen recipe')
         if recipe['source_frames_24fps'] not in (None, count):
             raise ValueError('Replay normalization differs from the frozen recipe')
         if recipe['source_frames_24fps'] is None:
@@ -83,8 +84,8 @@ def run_h3_pipeline(job, video_path, opts):
         client = make_client()
         video_ref = client.assets.from_file(prepared).as_reference()
         image_ref = client.assets.from_file(reference).as_reference()
-        # Prepared clips are deliberately silent (-an); source audio is muxed
-        # locally, never regenerated or passed as a missing VHS AUDIO value.
+        # The prepared clip keeps its soundtrack so the reference node and the
+        # combine node both condition on it, matching the measured winning arm.
         graph = copy.deepcopy(recipe['graph_template'])
         graph['155']['inputs']['video'] = video_ref
         graph['137']['inputs']['image'] = image_ref

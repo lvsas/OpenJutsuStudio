@@ -30,6 +30,8 @@ class MediaTests(unittest.TestCase):
         return json.loads(result.stdout)['streams']
 
     def test_non24fps_normalized_padded_trimmed_silent_and_audio(self):
+        # The winning A/B arm conditions on the source soundtrack, so the prepared
+        # clip keeps it and the render returns it; local muxing is fallback only.
         for audio in (False, True):
             with self.subTest(audio=audio):
                 folder = self.root / str(audio)
@@ -42,7 +44,7 @@ class MediaTests(unittest.TestCase):
                 padded, count, length = prepare_source(source, folder)
                 self.assertEqual((count, length), (24, 39))
                 self.assertEqual(ffprobe(padded)['frames'], 39)
-                self.assertFalse(self.audio_streams(padded))
+                self.assertEqual(bool(self.audio_streams(padded)), audio)
                 result = finish_result(padded, source, folder / 'result.mp4', count)
                 validate_result(result, 24, 64, 64)
                 self.assertEqual(bool(self.audio_streams(result)), audio)

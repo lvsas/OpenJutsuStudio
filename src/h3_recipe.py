@@ -1,4 +1,12 @@
-"""Versioned content-neutral H3 prompt policy and frozen render configuration."""
+"""Versioned content-neutral H3 prompt policy and frozen render configuration.
+
+Prompt policy v2 adopts the structured scaffold that won the measured A/B arm
+``proven_audio``: an explicit <Subject 1> / <Picture 1> / <Video 1> role split,
+a replace-only instruction, an explicit preservation list and explicit negative
+constraints, plus source-audio conditioning. The character description and the
+edit directions are user-owned text and are never invented by a model.
+Policy v1 (one generic sentence, silent conditioning) is rejected.
+"""
 from dataclasses import asdict
 import copy
 import hashlib
@@ -6,16 +14,42 @@ import json
 from h3_graphs import H3Models, build_h3_recast, h3_frames
 
 ENGINE = 'minimax-h3'
-POLICY = 'h3-recast-v1'
+POLICY = 'h3-recast-v2'
 INPUT_LONG_EDGE = 512
 OUTPUT_SCALE = 2
-BASE_PROMPT = (
-    'Replace the main performer in <Video 1> with the character appearance from '
-    '<Picture 1>. Use <Picture 1> for appearance, clothing and identity. Use '
-    '<Video 1> for performance, motion, pose, timing and camera movement. Preserve '
-    'the source environment, framing and interactions. Keep the reference '
-    'appearance consistent throughout the single continuous shot.'
+MAX_TEXT = 2000
+SUBJECT_CLAUSE = (
+    '<Subject 1> is the replacement character whose appearance is shown in '
+    '<Picture 1>{descriptor}.'
 )
+PRESERVATION_CLAUSE = (
+    '<Video 1> supplies the source performance, scene, framing, timing and camera motion.\n'
+    'Replace only the main performer in <Video 1> with <Subject 1>. Keep the original '
+    'performance, poses, gestures, framing, environment, camera movement and lighting from '
+    "<Video 1>. Use <Picture 1> only for the replacement character's identity, build and "
+    'clothing; do not reproduce its layout, background, extra poses or props. Do not invent '
+    'actions, people, cuts or objects. Preserve the source soundtrack and keep the replacement '
+    'stable throughout the shot.'
+)
+
+
+def _text(value, name):
+    if not isinstance(value, str):
+        raise ValueError(f'{name} must be text')
+    if len(value) > MAX_TEXT:
+        raise ValueError(f'{name} must contain at most {MAX_TEXT} characters')
+    return value
+
+
+def compose_prompt(character_description='', edit_prompt=''):
+    """Build the effective prompt from deterministic, user-owned text only."""
+    descriptor = _text(character_description, 'Character description').strip()
+    clause = SUBJECT_CLAUSE.format(descriptor=f': {descriptor}' if descriptor else '')
+    parts = [clause, PRESERVATION_CLAUSE]
+    directions = _text(edit_prompt, 'Edit directions').strip()
+    if directions:
+        parts.append('Additional directions: ' + directions)
+    return '\n'.join(parts)
 
 
 def h3_dimensions(source_width, source_height):
@@ -36,16 +70,18 @@ def digest_json(value):
     return hashlib.sha256(encoded.encode('utf-8')).hexdigest()
 
 
-def make_recipe(edit_prompt='', seed=302929098223082, *, source_width, source_height):
-    if not isinstance(edit_prompt, str) or len(edit_prompt) > 2000:
-        raise ValueError('Edit directions must contain at most 2000 characters')
+def make_recipe(edit_prompt='', seed=302929098223082, *, character_description='',
+                source_width, source_height):
     width, height = h3_dimensions(source_width, source_height)
-    effective = BASE_PROMPT + ('\nAdditional directions: ' + edit_prompt if edit_prompt.strip() else '')
+    directions = _text(edit_prompt, 'Edit directions')
+    description = _text(character_description, 'Character description')
     recipe = {
-        'schema_version': 1, 'engine': ENGINE, 'prompt_policy': POLICY,
-        'user_edit_prompt': edit_prompt, 'effective_prompt': effective,
+        'schema_version': 2, 'engine': ENGINE, 'prompt_policy': POLICY,
+        'character_description': description, 'user_edit_prompt': directions,
+        'effective_prompt': compose_prompt(description, directions),
         'seed': seed, 'fps': 24, 'single_shot_only': True,
-        'preserve_source_audio': True, 'reference_size': 'match',
+        'preserve_source_audio': True, 'source_audio_conditioning': True,
+        'reference_size': 'match',
         'width': width, 'height': height,
         'output_width': width * OUTPUT_SCALE, 'output_height': height * OUTPUT_SCALE,
         'steps': 6, 'split_step': 3, 'model_files': asdict(H3Models()),
@@ -55,13 +91,18 @@ def make_recipe(edit_prompt='', seed=302929098223082, *, source_width, source_he
     return recipe
 
 
-def bind_frames(recipe, count, source_audio=False):
-    """Freeze the fully resolved graph with path-free asset placeholders."""
+def bind_frames(recipe, count, source_audio=True):
+    """Freeze the fully resolved graph with path-free asset placeholders.
+
+    ``source_audio`` is the measured fact about the prepared conditioning clip and
+    must match the frozen graph: the reference node and the combine node carry it.
+    """
     recipe = copy.deepcopy(recipe)
     padded = h3_frames(count)
-    if source_audio:
-        raise ValueError('H3 Studio requires silent normalized conditioning; original audio is muxed locally')
+    if type(source_audio) is not bool:
+        raise ValueError('source_audio must be boolean')
     recipe['source_frames_24fps'], recipe['inference_frames'] = count, padded
+    recipe['source_audio'] = source_audio
     recipe['shot_plan'] = [{'start': 0, 'end': count-1, 'fps': 24}]
     recipe['graph_template'] = build_h3_recast(
         'h3-source-placeholder', 'h3-reference-placeholder', recipe['effective_prompt'],
@@ -76,11 +117,15 @@ def graph_options(recipe):
 
 
 def validate_recipe(recipe):
-    if (recipe.get('schema_version') != 1 or recipe.get('engine') != ENGINE
+    if (recipe.get('schema_version') != 2 or recipe.get('engine') != ENGINE
             or recipe.get('prompt_policy') != POLICY or recipe.get('fps') != 24
             or recipe.get('single_shot_only') is not True
-            or recipe.get('preserve_source_audio') is not True):
+            or recipe.get('preserve_source_audio') is not True
+            or recipe.get('source_audio_conditioning') is not True):
         raise ValueError('Unsupported H3 recipe contract')
+    if recipe.get('effective_prompt') != compose_prompt(
+            recipe.get('character_description', ''), recipe.get('user_edit_prompt', '')):
+        raise ValueError('H3 effective prompt does not match the frozen policy text')
     models = recipe['model_files']
     if set(models) != set(asdict(H3Models())) or any(
             not isinstance(v, str) or not v or v.startswith(('/', '\\'))
@@ -105,9 +150,15 @@ def validate_recipe(recipe):
         if recipe.get('shot_plan') != [{'start': 0, 'end': count-1, 'fps': 24}]:
             raise ValueError('H3 Studio supports exactly one full continuous shot')
         graph = recipe.get('graph_template', {})
-        if (graph.get('155', {}).get('inputs', {}).get('frame_load_cap') != h3_frames(count)
-                or graph.get('136', {}).get('inputs', {}).get('length') != h3_frames(count)
-                or graph.get('136', {}).get('inputs', {}).get('prompt') != recipe['effective_prompt']
-                or graph.get('129', {}).get('inputs', {}).get('noise_seed') != recipe['seed']):
+        node_inputs = {key: value.get('inputs', {}) for key, value in graph.items()}
+        if (node_inputs.get('155', {}).get('frame_load_cap') != h3_frames(count)
+                or node_inputs.get('136', {}).get('length') != h3_frames(count)
+                or node_inputs.get('136', {}).get('prompt') != recipe['effective_prompt']
+                or node_inputs.get('129', {}).get('noise_seed') != recipe['seed']):
             raise ValueError('Frozen H3 graph does not match the recipe')
+        conditioning = recipe.get('source_audio')
+        if conditioning is not None and (
+                ('audio' in node_inputs.get('156', {})) is not conditioning
+                or ('ref_video_audios.ref_video_audio_0' in node_inputs.get('136', {})) is not conditioning):
+            raise ValueError('Frozen H3 graph audio conditioning does not match the recipe')
     return copy.deepcopy(recipe)

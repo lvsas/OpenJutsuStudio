@@ -39,6 +39,38 @@ class H3DimensionsTests(unittest.TestCase):
             with self.subTest(dimensions=dimensions), self.assertRaises(ValueError):
                 h3_dimensions(*dimensions)
 
+    def test_prompt_policy_v2_scaffold_and_user_owned_description(self):
+        plain = make_recipe(source_width=1920, source_height=1080)
+        self.assertEqual((plain["schema_version"], plain["prompt_policy"]), (2, "h3-recast-v2"))
+        for role in ("<Subject 1>", "<Picture 1>", "<Video 1>"):
+            self.assertIn(role, plain["effective_prompt"])
+        for rule in ("Replace only the main performer", "Do not invent", "Preserve the source soundtrack"):
+            self.assertIn(rule, plain["effective_prompt"])
+        self.assertNotIn(": .", plain["effective_prompt"])
+        described = make_recipe(source_width=1920, source_height=1080,
+                               character_description="a tall woman in a red coat")
+        self.assertIn("shown in <Picture 1>: a tall woman in a red coat.", described["effective_prompt"])
+        self.assertNotEqual(plain["effective_prompt"], described["effective_prompt"])
+        self.assertEqual(described["character_description"], "a tall woman in a red coat")
+        # Directions stay separate from the character description.
+        directed = make_recipe("keep the wooden staff", source_width=1920, source_height=1080,
+                               character_description="a tall woman in a red coat")
+        self.assertTrue(directed["effective_prompt"].endswith("Additional directions: keep the wooden staff"))
+
+    def test_legacy_policy_and_oversized_text_are_rejected(self):
+        recipe = make_recipe(source_width=1920, source_height=1080)
+        legacy = copy.deepcopy(recipe)
+        legacy["prompt_policy"] = "h3-recast-v1"
+        with self.assertRaises(ValueError):
+            validate_recipe(legacy)
+        tampered = copy.deepcopy(recipe)
+        tampered["effective_prompt"] = "Replace the main performer in <Video 1>."
+        with self.assertRaises(ValueError):
+            validate_recipe(tampered)
+        for field in ("character_description", "edit_prompt"):
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                make_recipe(source_width=1920, source_height=1080, **{field: "x" * 2001})
+
 
 if __name__ == "__main__":
     unittest.main()

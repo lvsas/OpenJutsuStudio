@@ -56,6 +56,9 @@
               <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
             </label>
             <button id="h3-remove-reference" class="btn btn-ghost btn-small remove-reference" type="button" hidden>Remove character reference</button>
+            <label class="field-label" for="h3-description">Describe the replacement character <span>Optional</span></label>
+            <input id="h3-description" name="character_description" class="text-input" maxlength="2000" placeholder="e.g. an adult man with bowl-cut light brown hair, an orange t-shirt and olive cargo pants" aria-describedby="h3-description-help">
+            <p id="h3-description-help" class="field-help">Your words are inserted verbatim into the frozen prompt scaffold. Nothing is invented for you; leaving it empty stays deterministic.</p>
             <p class="field-help">Exactly one PNG, JPEG or WebP. The reference guides identity; it is not a mask or a tracking guarantee.</p>
           </fieldset>
           <details id="h3-directions" class="advanced-settings directions-step">

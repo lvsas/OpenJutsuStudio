@@ -8,7 +8,7 @@ const take = new H3Take(() => update(), checkReadiness);
 
 function update() {
   const locked = pending || take.active;
-  for (const field of ['video', 'reference', 'seed']) byId(field).disabled = locked;
+  for (const field of ['video', 'reference', 'description', 'seed']) byId(field).disabled = locked;
   byId('edit').disabled = locked || !byId('directions').open;
   const inputs = byId('video').files.length === 1 && byId('reference').files.length === 1;
   // Readiness is advisory here: the server checks the target again and returns the exact reason.

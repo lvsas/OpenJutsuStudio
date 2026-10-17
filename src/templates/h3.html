@@ -17,7 +17,7 @@
       <a class="engine-chip" href="/">LTX <span>Studio</span></a>
       <a class="engine-chip active" href="/h3" aria-current="page">H3 <span>Studio</span></a>
     </nav>
-    <div id="h3-readiness" class="badge" role="status" aria-live="polite">Checking H3 availability…</div>
+    <div id="h3-readiness" class="badge" role="status" aria-live="polite">Checking local studio…</div>
   </header>
   <main class="studio-shell">
     <section class="studio-intro" aria-labelledby="studio-title">
@@ -29,7 +29,7 @@
       <section class="recipe-panel" aria-labelledby="recipe-title">
         <div class="panel-heading">
           <div><p class="eyebrow">Edit recipe</p><h2 id="recipe-title">Build your H3 take</h2></div>
-          <span class="badge">One shot</span>
+          <span class="badge live">Local inference</span>
         </div>
         <form id="h3-form" autocomplete="off" novalidate>
           <fieldset class="recipe-step">
@@ -138,6 +138,7 @@
             <summary>Technical provenance: frozen recipe and fingerprints</summary>
             <pre id="h3-capsule-manifest" class="capsule-manifest"></pre>
           </details>
+          <p class="microcopy">Create a local 9:16 comparison MP4 to post yourself. No public link is created in local mode.</p>
           <p class="microcopy">Source/reference files are not bundled. Replay requires the original local inputs and model setup; pixel-identical output is not guaranteed.</p>
         </div>
         <div id="h3-status" class="sr-status" role="status" aria-live="polite"></div>

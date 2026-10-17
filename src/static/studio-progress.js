@@ -42,16 +42,21 @@
 
   window.OpenGenjutsuStudio.renderProgress = (job, prefix = '') => {
     const $ = (id) => document.getElementById(prefix + id);
+    // Never let a missing element take down the caller: LTX only reveals the run
+    // overlay after this returns, so one absent node would hide the whole overlay.
+    const text = (id, value) => { const node = $(id); if (node) node.textContent = value; };
     const copy = ENGINES[job.engine] || ENGINES['ltx25-ripple'];
     const [title, detail] = humanStage(job, copy);
-    $('run-title').textContent = title;
-    $('run-detail').textContent = detail;
+    text('run-title', title);
+    text('run-detail', detail);
     const progress = Math.max(4, Math.min(100, Math.round((job.progress || 0) * 100)));
-    $('progress-fill').style.width = `${progress}%`;
-    $('progress-track').setAttribute('aria-valuenow', String(progress));
+    const fill = $('progress-fill');
+    if (fill) fill.style.width = `${progress}%`;
+    const track = $('progress-track');
+    if (track) track.setAttribute('aria-valuenow', String(progress));
     const segment = job.step?.match(/_(\d+)\/(\d+)$/);
-    $('progress-label').textContent = segment
-      ? `${progress}% · moment ${segment[1]} of ${segment[2]}` : `${progress}%`;
-    $('status').textContent = `${title}. ${detail}`;
+    text('progress-label', segment
+      ? `${progress}% · moment ${segment[1]} of ${segment[2]}` : `${progress}%`);
+    text('status', `${title}. ${detail}`);
   };
 })();

@@ -108,7 +108,8 @@ class H3StudioUITests(unittest.TestCase):
                        'class="run-progress"', 'class="toast-region"', 'class="sr-status"', 'class="export-actions"',
                        'Download MP4', 'Build comparison reel', 'Copy caption',
                        'Add a clear character image', 'class="source-summary"',
-                       'class="quality-card selected"', 'class="quality-state"', 'Quality']:
+                       'class="quality-card selected"', 'class="quality-state"', 'Quality',
+                       'class="badge live">Local inference', 'No public link is created in local mode']:
             self.assertIn(marker, self.html)
             self.assertIn(marker, ltx)
         self.assertIn('Choose one continuous shot', self.html)

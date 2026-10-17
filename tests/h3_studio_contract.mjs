@@ -143,7 +143,7 @@ handler = (url, opts) => {
 await import('../src/static/h3-studio.js');
 await settle();
 assert.equal(el('submit').disabled, true);
-assert.equal(el('readiness').textContent, 'H3 ready');
+assert.equal(el('readiness').textContent, 'Studio ready');
 // Warnings land in the panel notice line, exactly as in the LTX studio.
 assert.match(el('notices').textContent, /Queue is busy/);
 assert.equal(el('notices').hidden, false);

@@ -34,20 +34,20 @@ async function checkReadiness() {
   const badge = byId('readiness');
   const notes = byId('notices');
   badge.classList.remove('live');
-  badge.textContent = 'Checking H3 availability…';
+  badge.textContent = 'Checking local studio…';
   notes.hidden = true;
   try {
     const report = await request('/api/h3/readiness', {signal: AbortSignal.timeout(20000)});
     if (epoch !== readinessEpoch) return false;
     ready = report.ready === true;
     badge.classList.toggle('live', ready);
-    badge.textContent = ready ? 'H3 ready' : (report.issues || ['H3 unavailable']).join(' ');
+    badge.textContent = ready ? 'Studio ready' : (report.issues || ['Studio unavailable']).join(' ');
     notes.textContent = (report.warnings || []).join(' ');
     notes.hidden = !notes.textContent;
   } catch (error) {
     if (epoch !== readinessEpoch) return false;
     ready = false;
-    badge.textContent = 'H3 unavailable';
+    badge.textContent = 'Studio unavailable';
     notes.hidden = true;
   }
   take.ready = ready;

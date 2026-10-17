@@ -6,7 +6,7 @@ const html = readFileSync(new URL('../src/templates/h3.html', import.meta.url), 
 class Element {
   constructor(tag = 'DIV') {
     Object.assign(this, {tagName: tag, hidden: false, disabled: false, open: false,
-      textContent: '', value: '', files: [], events: {}, attrs: {}, children: [], validity: ''});
+      textContent: '', value: '', files: [], events: {}, attrs: {}, children: [], validity: '', style: {}});
   }
   addEventListener(name, fn) { this.events[name] = fn; }
   setAttribute(name, value) { this.attrs[name] = value; }
@@ -32,7 +32,11 @@ for (const match of html.matchAll(/<([\w-]+)\b([^>]*\bid="([^"]+)"[^>]*)>/g)) {
 elements.set('h3-advanced', new Element('DETAILS'));
 const el = id => elements.get(`h3-${id}`);
 globalThis.document = {getElementById: id => elements.get(id), createElement: tag => new Element(tag.toUpperCase())};
+const toasts = [];
 globalThis.window = {addEventListener() {}};
+globalThis.window.OpenGenjutsuStudio = {showToast: (region, message, type) => toasts.push([region && region.id, message, type])};
+// The real shared progress renderer, exercised with the H3 id prefix.
+await import('../src/static/studio-progress.js');
 const store = new Map();
 globalThis.localStorage = {getItem: key => store.get(key), setItem: (key, value) => store.set(key, value), removeItem: key => store.delete(key)};
 const tasks = new Map();
@@ -68,17 +72,22 @@ take.ready = true;
 take.watch(id);
 await settle();
 assert.equal(take.active, true);
-assert.equal(el('state').textContent, 'queued');
-assert.match(el('timer').textContent, /Queue wait:/);
+// The shared renderer drives the overlay through the H3 id prefix.
+assert.match(el('run-title').textContent, /Queued for the H3 studio/);
+assert.equal(el('run-overlay').hidden, false);
+assert.equal(el('progress-fill').style.width, '4%');
 assert.equal(store.get('opengenjutsu.h3.current-job'), id);
 assert.equal(el('reference-preview').src, `/api/h3/jobs/${id}/reference`);
-job = {...base, status: 'running', finished: null, step: 'h3_assemble'};
+job = {...base, status: 'running', finished: null, step: 'h3_assemble', progress: 0.9};
 await take.poll(take.epoch);
-assert.match(el('stage').textContent, /Assembling/);
-job = {...base, status: 'done', step: 'done'};
+assert.match(el('run-title').textContent, /Finishing your take/);
+assert.equal(el('progress-label').textContent, '90%');
+assert.equal(el('run-overlay').hidden, false);
+job = {...base, status: 'done', step: 'done', progress: 1};
 await take.poll(take.epoch);
 assert.equal(take.active, false);
-assert.equal(el('timer').textContent, 'Elapsed: 1m 0s');
+assert.equal(el('run-overlay').hidden, true);
+assert.match(el('run-title').textContent, /Your H3 take is ready/);
 assert.equal(el('result-preview').src, `/api/jobs/${id}/result`);
 assert.equal(el('result-actions').hidden, false);
 assert.match(el('capsule-manifest').textContent, /<img onerror=bad>/);
@@ -93,13 +102,14 @@ job = {...base, id: child, status: 'error', step: 'h3_error', error: 'Input deco
 handler = () => response(job);
 await take.poll(take.epoch);
 assert.equal(take.active, false);
-assert.equal(el('status').textContent, 'Input decode failed');
+assert.match(el('status').textContent, /Input decode failed/);
+assert.match(toasts.at(-1)[1], /Input decode failed/);
 assert.equal(el('result-actions').hidden, true);
 handler = () => { throw Error('offline'); };
 take.watch(id);
 await settle();
 assert.equal(take.active, true); // Disconnection is not a terminal job state.
-assert.match(el('status').textContent, /retry status/);
+assert.match(toasts.at(-1)[1], /disconnected request does not stop a job/);
 take.reset();
 store.set('opengenjutsu.ltx.current-job', child);
 store.set('opengenjutsu.h3.current-job', '../bad');
@@ -168,5 +178,5 @@ const count = calls.filter(([url]) => url === '/api/h3/jobs').length;
 await el('form').events.submit({preventDefault() {}});
 await settle();
 assert.equal(calls.filter(([url]) => url === '/api/h3/jobs').length, count + 1);
-assert.match(el('status').textContent, /timed out/);
+assert.match(toasts.at(-1)[1], /timed out/);
 console.log('H3 UI contract checks passed: form, exact prompt, description, advisory readiness, queue, terminal states, resume, replay, HTTP failures.');

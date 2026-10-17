@@ -32,15 +32,17 @@ class H3StudioUITests(unittest.TestCase):
     def test_studio_is_isolated_and_only_local_modules_are_loaded(self):
         self.assertIn(('html', {'lang': 'en', 'data-engine': 'h3'}), self.parser.tags)
         scripts = [attrs for tag, attrs in self.parser.tags if tag == 'script']
-        # The shared studio helper is the single drag/drop implementation for both studios.
+        # Both shared helpers are the single implementation used by both studios.
         self.assertEqual([s.get('src') for s in scripts],
-                         ['/static/studio-utils.js', '/static/h3-studio.js'])
-        self.assertEqual([s.get('type') for s in scripts], [None, 'module'])
+                         ['/static/studio-utils.js', '/static/studio-progress.js', '/static/h3-studio.js'])
+        self.assertEqual([s.get('type') for s in scripts], [None, None, 'module'])
         links = [attrs.get('href') for tag, attrs in self.parser.tags if tag == 'link']
         self.assertEqual(links, ['/static/design-system.css', '/static/app.css', '/static/h3-studio.css'])
         for src in self.scripts.values():
             self.assertNotRegex(src, r'innerHTML|outerHTML|insertAdjacentHTML|eval\(|https?://')
-        self.assertNotRegex(self.html, r'FLUX|Ripple|reference_images|progressbar|1024|576|56 frames')
+        # H3 must not borrow the LTX pipeline's vocabulary. The progress bar is now a
+        # shared, honest component fed by the worker's own progress, so it is allowed.
+        self.assertNotRegex(self.html, r'FLUX|Ripple|reference_images|1024|576|56 frames')
         anchors = [attrs for tag, attrs in self.parser.tags if tag == 'a']
         self.assertTrue(any(a.get('href') == '/h3' and a.get('aria-current') == 'page' for a in anchors))
         self.assertTrue(any(a.get('href') == '/' for a in anchors))
@@ -66,10 +68,6 @@ class H3StudioUITests(unittest.TestCase):
         take = self.scripts['h3-take.js']
         for literal in ['opengenjutsu.h3.current-job', 'minimax-h3', "'/replay'", "'/capsule'", "'/reference'", "'/source'", "'/result'"]:
             self.assertIn(literal, take)
-        self.assertIn('job.started', take)
-        self.assertIn('job.finished', take)
-        self.assertIn('job.created', take)
-        self.assertNotIn('job.progress', take)
         self.assertIn('report.ready === true', self.scripts['h3-studio.js'])
         self.assertIn('report.warnings', self.scripts['h3-studio.js'])
         self.assertIn('epoch !== this.epoch', take)
@@ -84,7 +82,7 @@ class H3StudioUITests(unittest.TestCase):
         self.assertNotIn("byId('submit').disabled = locked || !ready", main)
         # No client-side preflight: the server is the authoritative gate.
         self.assertNotIn("if (!await checkReadiness()) throw", main)
-        self.assertIn("byId('status').textContent = 'Uploading inputs.", main)
+        self.assertIn('byId(\'run-overlay\').hidden = false;', main)
         # The precise server refusal reason must reach the user.
         self.assertIn('HTTP ${response.status}: ${detail}', self.scripts['h3-http.js'])
 
@@ -99,68 +97,67 @@ class H3StudioUITests(unittest.TestCase):
         self.assertIn('Character Swap LoRA', self.html)
         self.assertNotIn('FLUX', self.html)
 
-    def test_media_pickers_match_the_ltx_studio_contract(self):
+    def test_shared_interface_markers_match_the_ltx_studio(self):
         ltx = (ROOT / 'src' / 'templates' / 'index.html').read_text()
-        # Both studios use the same shared picker markup, icon and drag/drop hook.
-        for shared in ['class="media-picker', 'class="picker-icon" aria-hidden="true"', 'class="picker-drop-hint"', 'data-drop-kind=', 'class="reference-thumb"']:
-            self.assertIn(shared, self.html)
-            self.assertIn(shared, ltx)
-        self.assertEqual('visually-hidden', self.ids['h3-video'][1]['class'])
-        self.assertEqual('visually-hidden', self.ids['h3-reference'][1]['class'])
-        self.assertEqual(('video', 'h3-video'), (self.ids['h3-video-picker'][1]['data-drop-kind'], self.ids['h3-video-picker'][1]['for']))
-        self.assertEqual(('image', 'h3-reference'), (self.ids['h3-reference-picker'][1]['data-drop-kind'], self.ids['h3-reference-picker'][1]['for']))
-        self.assertIn('hidden', self.ids['h3-remove-reference'][1])
+        # Everything the two studios must present identically. Only the accent token
+        # and the real engine steps are allowed to differ.
+        for marker in ['class="media-picker', 'class="picker-icon" aria-hidden="true"', 'class="picker-drop-hint"',
+                       'data-drop-kind=', 'class="reference-thumb"', '<p class="eyebrow">Preview</p>',
+                       'class="stage-frame"', 'class="stage-empty"', 'class="stage-video"', 'class="take-story"',
+                       'take-stage-card', 'class="run-overlay"', 'class="run-orb"', 'class="progress-track"',
+                       'class="run-progress"', 'class="toast-region"', 'class="sr-status"', 'class="export-actions"',
+                       'Download MP4', 'Build comparison reel', 'Copy caption',
+                       'Add a clear character image']:
+            self.assertIn(marker, self.html)
+            self.assertIn(marker, ltx)
         self.assertIn('Choose one continuous shot', self.html)
-        self.assertIn('Add a clear character image', self.html)
-        main = self.scripts['h3-studio.js']
-        self.assertIn('bindFileDropTargets', main)
-        self.assertIn("byId('remove-reference')", main)
-        self.assertIn('replaceChildren', main)
-        # The raw native file control must no longer be themed as a visible input.
-        self.assertNotIn('file-selector-button', (STATIC / 'h3-studio.css').read_text())
+        # LTX's stage contract: media are direct frame children driven by one state,
+        # and the capsule appears with the take. No wrapper panes, no second switcher.
+        for absent in ('h3-preview-switch', 'h3-pane-', 'h3-show-source', 'h3-show-reference',
+                       'h3-show-result', 'h3-run"', 'class="h3-run '):
+            self.assertNotIn(absent, self.html)
+        for removed in ('h3-stage', 'h3-timer'):
+            self.assertNotIn(removed, self.ids)
+        for stage in ('source', 'reference', 'result'):
+            self.assertIn(f'id="h3-{stage}-preview"', self.html)
+            self.assertIn(f'data-h3-stage="{stage}"', self.html)
+        self.assertIn('id="h3-stage-empty"', self.html)
+        for id_ in ('h3-take-story', 'h3-run-overlay', 'h3-remove-reference'):
+            self.assertIn('hidden', self.ids[id_][1])
+        self.assertEqual(self.ids['h3-run-overlay'][1].get('class'), 'run-overlay')
 
-    def test_shared_result_actions_use_the_generic_reel_contract(self):
-        for control in ('h3-download', 'h3-build-reel', 'h3-copy-caption', 'h3-save-capsule', 'h3-replay'):
-            self.assertIn(control, self.ids)
-        self.assertIn('disabled', self.ids['h3-build-reel'][1])
-        self.assertNotIn('disabled', self.ids['h3-copy-caption'][1])
-        ltx = (ROOT / 'src' / 'templates' / 'index.html').read_text()
-        for shared in ('class="export-actions"', 'Download MP4', 'Build comparison reel', 'Copy caption'):
-            self.assertIn(shared, self.html)
-            self.assertIn(shared, ltx)
-        take = self.scripts['h3-take.js']
-        self.assertIn('/reveal', self.scripts['h3-http.js'])
-        self.assertIn('byId(\'build-reel\').disabled = false', take)
+    def test_shared_components_are_the_only_implementations(self):
+        main, take, http = (self.scripts[name] for name in ('h3-studio.js', 'h3-take.js', 'h3-http.js'))
+        for marker in ('bindFileDropTargets', 'replaceChildren', "byId('remove-reference')"):
+            self.assertIn(marker, main)
+        for marker in ("renderProgress?.(job, 'h3-')", "byId('take-story').hidden = false",
+                       "this.onStage?.('result')", "byId('build-reel').disabled = false"):
+            self.assertIn(marker, take)
+        for marker in ('export function setStage(mode)', "byId('stage-empty').hidden",
+                       'export function loadStageMedia(kind, url)', '/reveal'):
+            self.assertIn(marker, http)
+        for gone in ('showMedia', 'description'):
+            self.assertNotIn(gone, http)
+        for gone in ('display: contents', 'file-selector-button', 'h3-run '):
+            self.assertNotIn(gone, (STATIC / 'h3-studio.css').read_text())
+        progress = (STATIC / 'studio-progress.js').read_text()
+        self.assertIn("'minimax-h3'", progress)
+        self.assertIn("prefix = ''", progress)
+        self.assertEqual('visually-hidden', self.ids['h3-video'][1]['class'])
+        for picker, kind, target in (('h3-video-picker', 'video', 'h3-video'),
+                                     ('h3-reference-picker', 'image', 'h3-reference')):
+            self.assertEqual((kind, target), (self.ids[picker][1]['data-drop-kind'], self.ids[picker][1]['for']))
         # The caption is engine-grounded: no LTX or FLUX claim inside the H3 studio.
         captions = [line for line in take.splitlines() if 'Made with OpenGenjutsu' in line]
         self.assertEqual(len(captions), 1)
         self.assertIn('MiniMax H3', captions[0])
         self.assertNotIn('LTX', captions[0])
 
-    def test_preview_frame_and_stage_match_the_ltx_contract_exactly(self):
-        ltx = (ROOT / 'src' / 'templates' / 'index.html').read_text()
-        for shared in ('<p class="eyebrow">Preview</p>', 'class="stage-frame"', 'class="stage-empty"',
-                       'class="stage-video"', 'class="take-story"', 'take-stage-card'):
-            self.assertIn(shared, self.html)
-            self.assertIn(shared, ltx)
-        # LTX's contract: media are direct frame children and one stage state
-        # drives the frame. No wrapper panes and no second switcher group.
-        self.assertIn('id="h3-stage-empty"', self.html)
-        self.assertNotIn('display: contents', (STATIC / 'h3-studio.css').read_text())
-        for absent in ('h3-preview-switch', 'h3-pane-', 'h3-show-source', 'h3-show-reference', 'h3-show-result'):
-            self.assertNotIn(absent, self.html)
-        for stage in ('source', 'reference', 'result'):
-            self.assertIn(f'id="h3-{stage}-preview"', self.html)
-            self.assertIn(f'data-h3-stage="{stage}"', self.html)
-        http = self.scripts['h3-http.js']
-        self.assertIn('export function setStage(mode)', http)
-        self.assertIn("byId('stage-empty').hidden", http)
-        self.assertIn('export function loadStageMedia(kind, url)', http)
-        self.assertNotIn('showMedia', http)
-        # The capsule describes a take, so it appears with the take, exactly as in LTX.
-        self.assertIn('hidden', self.ids['h3-take-story'][1])
-        self.assertIn("byId('take-story').hidden = false", self.scripts['h3-take.js'])
-        self.assertIn("this.onStage?.('result')", self.scripts['h3-take.js'])
+    def test_shared_result_actions_use_the_generic_reel_contract(self):
+        for control in ('h3-download', 'h3-build-reel', 'h3-copy-caption', 'h3-save-capsule', 'h3-replay'):
+            self.assertIn(control, self.ids)
+        self.assertIn('disabled', self.ids['h3-build-reel'][1])
+        self.assertNotIn('disabled', self.ids['h3-copy-caption'][1])
 
     def test_character_description_is_user_owned_and_reaches_the_payload(self):
         tag, attrs = self.ids['h3-description']

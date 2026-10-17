@@ -55,9 +55,7 @@ async function checkReadiness() {
   return ready;
 }
 function notify(message) {
-  const status = byId('status');
-  status.textContent = message;
-  status.setAttribute('role', 'alert');
+  window.OpenGenjutsuStudio?.showToast?.(byId('toast-region'), message, 'error');
 }
 function paintPickers() {
   for (const [field, fallback] of [['video', 'Choose one continuous shot'], ['reference', 'Add a clear character image']]) {
@@ -102,7 +100,7 @@ async function submit(event) {
   if (!data) return;
   pending = true;
   update();
-  byId('status').textContent = 'Uploading inputs. Keep this page open until a job identifier is returned.';
+  byId('run-overlay').hidden = false;
   try {
     const response = await request('/api/h3/jobs', {method: 'POST', body: data});
     if (!validId(response.job_id)) throw new Error('Server returned an invalid H3 job identifier. Check the service before retrying.');
@@ -110,8 +108,8 @@ async function submit(event) {
     for (const url of blobs.values()) if (url) URL.revokeObjectURL(url);
     blobs.clear();
   } catch (error) {
-    byId('status').textContent = `Submission not confirmed: ${error.message}`;
-    byId('status').setAttribute('role', 'alert');
+    notify(`Submission not confirmed: ${error.message}`);
+    byId('run-overlay').hidden = true;
   } finally {
     pending = false;
     update();

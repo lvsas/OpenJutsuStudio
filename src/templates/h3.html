@@ -92,6 +92,14 @@
           <video id="h3-source-preview" class="stage-video" controls playsinline hidden></video>
           <img id="h3-reference-preview" alt="Character reference for this H3 take" hidden>
           <video id="h3-result-preview" class="stage-video" controls playsinline hidden></video>
+          <div id="h3-run-overlay" class="run-overlay" hidden>
+            <div class="run-orb" aria-hidden="true"></div>
+            <p class="eyebrow">Generating</p>
+            <strong id="h3-run-title">Preparing your take</strong>
+            <span id="h3-run-detail">Validating media and the H3 service</span>
+            <div id="h3-progress-track" class="progress-track" role="progressbar" aria-labelledby="h3-run-title" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="h3-progress-fill"></i></div>
+            <span id="h3-progress-label" class="run-progress">Preparing</span>
+          </div>
         </div>
         <section id="h3-take-story" class="take-story" aria-labelledby="h3-take-story-title" hidden>
           <div class="take-story-heading">
@@ -107,11 +115,6 @@
           </div>
           <p id="h3-take-copy" class="microcopy">This visual chain is the recipe this take freezes. Select a stage to inspect it in the preview above.</p>
         </section>
-        <div class="h3-run" aria-live="polite" aria-atomic="true">
-          <strong id="h3-stage">Ready for your inputs</strong>
-          <p id="h3-status" role="status">No take submitted.</p>
-          <span id="h3-timer" class="muted" aria-live="off"></span>
-        </div>
         <div id="h3-result-actions" class="result-actions" hidden>
           <div class="export-actions">
             <a id="h3-download" class="btn btn-secondary btn-small" download>Download MP4</a>
@@ -129,6 +132,7 @@
           </details>
           <p class="microcopy">Source/reference files are not bundled. Replay requires the original local inputs and model setup; pixel-identical output is not guaranteed.</p>
         </div>
+        <div id="h3-status" class="sr-status" role="status" aria-live="polite"></div>
       </section>
     </div>
     <footer class="h3-license microcopy">
@@ -138,7 +142,9 @@
     </footer>
     <noscript><p role="alert">Enable JavaScript to check readiness, submit a take, and resume job status.</p></noscript>
   </main>
+  <div id="h3-toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
   <script src="/static/studio-utils.js" defer></script>
+  <script src="/static/studio-progress.js" defer></script>
   <script type="module" src="/static/h3-studio.js"></script>
 </body>
 </html>

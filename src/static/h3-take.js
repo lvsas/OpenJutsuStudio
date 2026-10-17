@@ -1,8 +1,6 @@
 import {byId, validId, jobURL, h3URL, request, revealURL, setStage, loadStageMedia} from './h3-http.js';
 const STORAGE_KEY = 'opengenjutsu.h3.current-job';
 const TERMINAL = new Set(['done', 'error', 'failed', 'cancelled']);
-const STAGES = {h3_prepare: 'Preparing source and reference', h3_submitting: 'H3 submission / inference',
-  h3_assemble: 'Assembling result and preserving audio', done: 'H3 take complete', h3_error: 'H3 take failed'};
 // Grounded in the frozen recipe: this studio runs MiniMax H3 with its Character Swap LoRA.
 const CAPTION = 'Made with OpenGenjutsu — an open-source local video transformation studio, recast with MiniMax H3 and its Character Swap LoRA.';
 
@@ -15,12 +13,8 @@ function saveCapsule(capsule, id) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function elapsedText(job) {
-  if (!job) return '';
-  const start = job.status === 'queued' ? job.created : job.started || job.created;
-  const end = TERMINAL.has(job.status) ? job.finished : Date.now() / 1000;
-  const seconds = Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, Math.floor(end - start)) : null;
-  return seconds === null ? '' : `${job.status === 'queued' ? 'Queue wait' : 'Elapsed'}: ${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+function toast(message, type = 'error') {
+  window.OpenGenjutsuStudio?.showToast?.(document.getElementById('h3-toast-region'), message, type);
 }
 
 export class H3Take {
@@ -35,7 +29,6 @@ export class H3Take {
     // Shared result actions: the same generic comparison-reel contract LTX uses.
     byId('build-reel').addEventListener('click', () => this.reel());
     byId('copy-caption').addEventListener('click', () => this.copyCaption());
-    setInterval(() => this.timer(), 1000);
   }
   storage(id) {
     try {
@@ -56,10 +49,7 @@ export class H3Take {
     this.storage(null);
     this.setActive(false);
     this.clearResult();
-    byId('state').textContent = 'Awaiting media';
-    byId('stage').textContent = 'Ready for your inputs';
-    byId('status').textContent = 'No take submitted.';
-    byId('timer').textContent = '';
+    byId('run-overlay').hidden = true;
   }
   clearResult() {
     this.capsule = null;
@@ -88,10 +78,7 @@ export class H3Take {
     this.storage(id);
     this.setActive(true);
     this.onStage?.('source');
-    byId('state').textContent = 'Checking job';
-    byId('stage').textContent = 'Checking persisted H3 status';
-    byId('timer').textContent = '';
-    byId('status').textContent = 'Reading persisted H3 job status…';
+    byId('run-overlay').hidden = false;
     this.poll(this.epoch);
   }
   async poll(epoch) {
@@ -112,16 +99,14 @@ export class H3Take {
       } else this.pollTimer = setTimeout(() => this.poll(epoch), 2000);
     } catch (error) {
       if (epoch !== this.epoch) return;
-      byId('status').textContent = `${error.message} Use “retry status”; a disconnected request does not stop a job.`;
-      byId('status').setAttribute('role', 'alert');
+      toast(`${error.message} A disconnected request does not stop a job.`);
     }
   }
   render(job) {
-    byId('state').textContent = job.status;
-    byId('stage').textContent = job.status === 'queued' ? 'Waiting in the H3 queue' : STAGES[job.step] || job.step || job.status;
-    byId('status').setAttribute('role', job.status === 'error' || job.status === 'failed' ? 'alert' : 'status');
-    byId('status').textContent = job.error || (job.status === 'running'
-      ? 'Processing. Stage labels come from the worker; no estimated progress is shown.' : `H3 job ${job.id}: ${job.status}.`);
+    window.OpenGenjutsuStudio?.renderProgress?.(job, 'h3-');
+    byId('run-overlay').hidden = TERMINAL.has(job.status);
+    // Same as LTX: a failed take is announced, not only written to the status line.
+    if (job.status === 'error' || job.status === 'failed') toast(job.error || 'This take could not finish.');
     loadStageMedia('source', h3URL(job.id, '/source'));
     loadStageMedia('reference', h3URL(job.id, '/reference'));
     if (job.status === 'done') {
@@ -133,10 +118,6 @@ export class H3Take {
       byId('take-story').hidden = false;
       this.onStage?.('result');
     }
-    this.timer();
-  }
-  timer() {
-    byId('timer').textContent = elapsedText(this.job);
   }
   async loadCapsule(epoch) {
     byId('capsule-status').textContent = 'Checking the frozen recipe…';

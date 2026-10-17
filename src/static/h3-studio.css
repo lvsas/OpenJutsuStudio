@@ -15,10 +15,6 @@ html[data-engine="h3"] {
 [data-engine="h3"] .h3-readiness ul:empty { display: none; }
 [data-engine="h3"] .h3-readiness button { margin-top: .5rem; }
 [data-engine="h3"] .stage-frame > img { background: #000; height: 100%; object-fit: contain; width: 100%; }
-[data-engine="h3"] .h3-run { background: linear-gradient(130deg, var(--accent-soft), transparent); border: 1px solid rgba(255, 79, 46, .35); border-radius: var(--radius-md); margin-top: var(--space-5); padding: var(--space-4); overflow-wrap: anywhere; }
-[data-engine="h3"] .h3-run p { color: var(--muted); font-size: .85rem; margin: .5rem 0; }
-[data-engine="h3"] .h3-run [role="alert"] { color: var(--danger); }
-[data-engine="h3"] #h3-timer { font-size: .76rem; font-variant-numeric: tabular-nums; }
 [data-engine="h3"] .advanced-settings .field-label { margin-top: var(--space-3); }
 [data-engine="h3"] .h3-license { border-top: 1px solid var(--line); margin-top: var(--space-6); padding-top: var(--space-4); }
 [data-engine="h3"] .h3-license a { color: var(--text); }

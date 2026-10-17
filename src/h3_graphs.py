@@ -6,6 +6,12 @@ Optional generic references and timestamped guides are separate test arms.
 """
 from dataclasses import dataclass
 
+# Product capacity, matching the LTX studio's two visible people. The node's own
+# collection is dynamic and larger; that is not a licence to promise more.
+REFERENCE_SLOTS = 2
+REFERENCE_NODE = 137
+GUIDE_NODE = "201"
+
 
 @dataclass(frozen=True)
 class H3Models:
@@ -44,23 +50,43 @@ def _controls(prompt, width, height, output_width, output_height, steps, split_s
     _integer(seed, "seed", 0, 2**64 - 1)
 
 
-def _guide(g, image, frame, source_frames):
+def _guide(g, image, frame, source_frames, slot):
     if frame is not None:
         _integer(frame, "guide_frame", 0, source_frames - 1)
         if image is None:
             raise ValueError("guide_frame requires guide_image")
     if image is None:
         return
-    g["201"] = {"class_type": "LoadImage", "inputs": {"image": image}}
-    g["136"]["inputs"]["ref_images.ref_image_1"] = ["201", 0]
+    g[GUIDE_NODE] = {"class_type": "LoadImage", "inputs": {"image": image}}
+    g["136"]["inputs"][f"ref_images.ref_image_{slot}"] = [GUIDE_NODE, 0]
     if frame is None:
         return  # Extra Picture reference only: no temporal constraint.
     for node_id, guider, latent in (("202", "126", ["136", 1]),
                                     ("203", "176", ["171", 0])):
         g[node_id] = {"class_type": "MiniMaxH3AddGuide", "inputs": {
             "positive": ["136", 0], "latent": latent, "frame_idx": frame,
-            "vae": ["119", 0], "image": ["201", 0]}}
+            "vae": ["119", 0], "image": [GUIDE_NODE, 0]}}
         g[guider]["inputs"]["conditioning"] = [node_id, 0]
+
+
+def _references(reference):
+    """Normalize one reference or an ordered sequence of them.
+
+    Capacity is a product decision that matches LTX (two visible people). The node
+    accepts a dynamic collection of up to nine slots, but that says nothing about
+    reliable per-person assignment, so the graph refuses to imply more than two.
+    """
+    if isinstance(reference, (str, dict)):
+        items = [reference]
+    elif isinstance(reference, (list, tuple)):
+        items = list(reference)
+    else:
+        raise ValueError("H3 references must be a filename, an asset or a sequence of them")
+    if not 1 <= len(items) <= REFERENCE_SLOTS:
+        raise ValueError(f"H3 accepts between 1 and {REFERENCE_SLOTS} character references")
+    if any(isinstance(item, (list, tuple)) for item in items):
+        raise ValueError("Each H3 character reference must be a single asset")
+    return items
 
 
 def build_h3_recast(video, reference, prompt, *, source_frames, width=512, height=288,
@@ -69,11 +95,14 @@ def build_h3_recast(video, reference, prompt, *, source_frames, width=512, heigh
                     reference_size="match", filename_prefix="OpenGenjutsu/h3-recast", source_audio=True):
     """Build an API-format H3 graph, preserving the effective prompt verbatim.
 
-    Fixed 24fps H3 input. Source audio is muxed rather than regenerated. The
-    caller pads source clips to the H3 frame grid and trims downloaded output.
+    Fixed 24fps H3 input. Character references occupy ref_image slots in the order
+    given; a guide takes the next free slot, so adding a second character never
+    displaces temporal conditioning. Source audio is muxed rather than regenerated.
+    The caller pads source clips to the H3 frame grid and trims downloaded output.
     This builder alone is not a validated Studio job adapter or replay contract.
     """
     _controls(prompt, width, height, output_width, output_height, steps, split_step, seed)
+    references = _references(reference)
     length = h3_frames(source_frames)
     if reference_size not in {"match", "max"}:
         raise ValueError("reference_size must be match or max")
@@ -90,18 +119,20 @@ def build_h3_recast(video, reference, prompt, *, source_frames, width=512, heigh
     node("128", "CLIPLoader", clip_name=m.clip, type="minimax", device="default")
     node("119", "VAELoader", vae_name=m.video_vae)
     node("120", "VAELoader", vae_name=m.audio_vae)
-    node("137", "LoadImage", image=reference)
+    for index, image in enumerate(references):
+        node(str(REFERENCE_NODE + index), "LoadImage", image=image)
     node("155", "VHS_LoadVideo", video=video, force_rate=24, custom_width=0,
          custom_height=0, frame_load_cap=source_frames, skip_first_frames=0,
          select_every_nth=1, format="AnimateDiff")
     node("161", "ResizeImageMaskNode", input=["155", 0], resize_type="scale dimensions",
          scale_method="area", **{"resize_type.width": width, "resize_type.height": height,
                                   "resize_type.crop": "center"})
+    slots = {f"ref_images.ref_image_{index}": [str(REFERENCE_NODE + index), 0]
+             for index in range(len(references))}
     node("136", "MiniMaxH3ReferenceToVideo", prompt=prompt, width=width, height=height,
          length=length, ref_image_size=reference_size, clip=["128", 0], vae=["119", 0],
-         audio_vae=["120", 0], **{"ref_images.ref_image_0": ["137", 0],
-                                "ref_videos.ref_video_0": ["161", 0],
-                                "ref_video_audios.ref_video_audio_0": ["155", 2]})
+         audio_vae=["120", 0], **slots, **{"ref_videos.ref_video_0": ["161", 0],
+                                           "ref_video_audios.ref_video_audio_0": ["155", 2]})
     node("129", "RandomNoise", noise_seed=seed)
     node("123", "KSamplerSelect", sampler_name="er_sde")
     for sched, split, model in (("124", "172", "159"), ("173", "174", "160")):
@@ -127,5 +158,5 @@ def build_h3_recast(video, reference, prompt, *, source_frames, width=512, heigh
     if not source_audio:
         g["136"]["inputs"].pop("ref_video_audios.ref_video_audio_0")
         g["156"]["inputs"].pop("audio")
-    _guide(g, guide_image, guide_frame, source_frames)
+    _guide(g, guide_image, guide_frame, source_frames, len(references))
     return g

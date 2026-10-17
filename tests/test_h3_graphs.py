@@ -45,6 +45,26 @@ class H3GraphTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             build_h3_recast("s.mp4", "r.png", "Edit")
 
+    def test_ordered_references_occupy_slots_and_a_guide_never_displaces_one(self):
+        def build(reference, **extra):
+            return build_h3_recast("source.mp4", reference, "Exact user text\n",
+                                   source_frames=56, **extra)
+        g = build(["a.png", "b.png"])
+        self.assertEqual([g["137"]["inputs"]["image"], g["138"]["inputs"]["image"]], ["a.png", "b.png"])
+        for slot, node in ((0, "137"), (1, "138")):
+            self.assertEqual(g["136"]["inputs"][f"ref_images.ref_image_{slot}"], [node, 0])
+        # A guide takes the next free slot, so two characters stay wired as given.
+        timed = build(["a.png", "b.png"], guide_image="g.png", guide_frame=12)
+        self.assertEqual(timed["136"]["inputs"]["ref_images.ref_image_2"], ["201", 0])
+        self.assertEqual(timed["136"]["inputs"]["ref_images.ref_image_0"], ["137", 0])
+        self.assertEqual(timed["136"]["inputs"]["ref_images.ref_image_1"], ["138", 0])
+        self.assertEqual(timed["202"]["inputs"]["image"], ["201", 0])
+
+    def test_reference_capacity_is_enforced(self):
+        for bad in ([], ["a.png", "b.png", "c.png"], (["a.png"],), 5, 1.5):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                build_h3_recast("s.mp4", bad, "Edit", source_frames=56)
+
     def test_silent_source_has_no_missing_audio_connections(self):
         g = self.graph(source_audio=False)
         self.assertNotIn("ref_video_audios.ref_video_audio_0", g["136"]["inputs"])

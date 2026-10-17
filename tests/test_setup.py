@@ -176,5 +176,22 @@ fi
                                 "--host", "127.0.0.1", "--port", "8123"])
 
 
+    def test_launcher_accepts_one_explicit_bind_and_refuses_wildcard(self):
+        self.existing_python()
+        self.env["OPENGENJUTSU_HOST"] = "192.0.2.10"
+        result = self.run_script("run_app.sh")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        args = [line.removeprefix("ARG=") for line in result.stdout.splitlines()
+                if line.startswith("ARG=")]
+        self.assertIn("192.0.2.10", args)
+        self.assertNotIn("127.0.0.1", args)
+        for wildcard in ("0.0.0.0", "::"):
+            self.env["OPENGENJUTSU_HOST"] = wildcard
+            refused = self.run_script("run_app.sh")
+            self.assertNotEqual(refused.returncode, 0)
+            self.assertIn("Refusing wildcard bind", refused.stderr)
+            self.assertNotIn("ARG=-m", refused.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

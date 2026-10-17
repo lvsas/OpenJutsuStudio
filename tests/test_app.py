@@ -187,18 +187,28 @@ class AppTests(unittest.TestCase):
         self.assertIn("Reference 1 applies to: the performer on the left.", observed["job"].prompt)
         self.assertIn("Reference 2 applies to: the performer on the right.", observed["job"].prompt)
 
-    def test_two_character_references_require_explicit_people_mapping(self):
-        response = self.client.post(
-            "/api/jobs",
-            files=[
-                ("video", ("sample.mp4", b"test clip", "video/mp4")),
-                ("reference_images", ("first.png", b"first", "image/png")),
-                ("reference_images", ("second.png", b"second", "image/png")),
-            ],
-            data={"edit_prompt": "Recast both performers"},
-        )
-        self.assertEqual(response.status_code, 422)
-        self.assertIn("identify both visible people", response.text)
+    def test_two_character_references_need_no_mapping(self):
+        observed = {}
+
+        def fake_runner(job, video_path, opts):
+            observed.update(job=job, opts=opts)
+            job.status = "done"
+            job.result = "test.mp4"
+            job.save()
+
+        with patch.object(app_module, "PIPELINE_RUNNER", fake_runner):
+            response = self.client.post(
+                "/api/jobs",
+                files=[
+                    ("video", ("sample.mp4", b"test clip", "video/mp4")),
+                    ("reference_images", ("first.png", b"first", "image/png")),
+                    ("reference_images", ("second.png", b"second", "image/png")),
+                ],
+                data={"edit_prompt": "Recast both performers"},
+            )
+        self.assertEqual(response.status_code, 202, response.text)
+        self.assertEqual(len(observed["opts"]["reference_images"]), 2)
+        self.assertEqual([item["target"] for item in observed["job"].meta["references"]], ["", ""])
 
     def test_rejects_unsupported_extension(self):
         response = self.client.post(

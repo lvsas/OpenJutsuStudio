@@ -23,6 +23,7 @@ class TakeCapsuleUITests(unittest.TestCase):
         self.assertIn('id="anchor-stage"', html)
         self.assertIn('id="show-anchor"', html)
         self.assertIn('id="remove-reference"', html)
+        self.assertIn('autocomplete="off"', html)
         self.assertIn('/static/take-visual-story.js', html)
         self.assertIn("Source/reference files are not bundled", html)
         self.assertIn("pixel-identical replay is not promised", html)

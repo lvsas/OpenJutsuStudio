@@ -60,10 +60,17 @@
     setSecondReference(false);
   }
 
+  function clearRestoredReferenceState() {
+    // Browsers may restore file inputs from a previous page session without firing change.
+    // Never let an invisible restored file reach FormData on a new take.
+    clearPrimaryReference();
+  }
+
   primaryInput.addEventListener('change', () => preview(primaryInput, 'primary'));
   secondaryInput.addEventListener('change', () => preview(secondaryInput, 'secondary'));
   toggle.addEventListener('click', () => setSecondReference(secondary.hidden));
   removePrimary.addEventListener('click', clearPrimaryReference);
+  window.addEventListener('pageshow', clearRestoredReferenceState);
   window.addEventListener('beforeunload', () => {
     release('primary');
     release('secondary');

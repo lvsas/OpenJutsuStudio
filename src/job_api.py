@@ -32,8 +32,6 @@ def _validate_uploads(video: UploadFile, edit_prompt: str, reference_image: Uplo
         raise HTTPException(422, "Use at most two character reference images.")
     if len(reference_targets) > len(references):
         raise HTTPException(422, "Each character target needs a reference image.")
-    if len(references) == 2 and (len(reference_targets) != 2 or any(not target.strip() for target in reference_targets)):
-        raise HTTPException(422, "With two character references, identify both visible people before generating.")
     suffixes = [Path(item.filename or "").suffix.lower() for item in references]
     if any(suffix not in ALLOWED_REFERENCE_SUFFIXES for suffix in suffixes):
         raise HTTPException(415, "Accepted image formats: PNG, JPG, JPEG, WebP")

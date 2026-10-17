@@ -38,6 +38,9 @@ class TakeCapsuleApiTests(unittest.TestCase):
         self.source.write_bytes(b"source-bytes")
         self.reference.write_bytes(b"reference-bytes")
         self.result.write_bytes(b"result-bytes")
+        self.anchor = self.root / "media" / "capsule-parent-flux-anchor-001.png"
+        self.anchor.parent.mkdir()
+        self.anchor.write_bytes(b"anchor-bytes")
         self.recipe = {
             "schema_version": 1,
             "edit_brief": "Change the jacket",
@@ -72,6 +75,8 @@ class TakeCapsuleApiTests(unittest.TestCase):
             meta={
                 "take_recipe": self.recipe,
                 "references": [{"target": "rider", "image": str(self.reference)}],
+                "anchors": [{"segment": 0, "start": 0, "end": 8, "source_frame": 0,
+                             "filename": self.anchor.name}],
                 "shots": [{"start": 0, "end": 8, "source_frames": 9}],
             },
         )
@@ -92,6 +97,7 @@ class TakeCapsuleApiTests(unittest.TestCase):
         self.assertEqual(manifest["assets"]["source"]["sha256"], hashlib.sha256(b"source-bytes").hexdigest())
         self.assertEqual(manifest["assets"]["references"][0]["sha256"], hashlib.sha256(b"reference-bytes").hexdigest())
         self.assertEqual(manifest["assets"]["result"]["sha256"], hashlib.sha256(b"result-bytes").hexdigest())
+        self.assertEqual(manifest["assets"]["anchors"][0]["sha256"], hashlib.sha256(b"anchor-bytes").hexdigest())
         self.assertNotIn(str(self.root), json.dumps(manifest))
         self.assertEqual(manifest["replay"]["model_weights_hashed"], False)
 
@@ -100,6 +106,18 @@ class TakeCapsuleApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("inline", response.headers["content-disposition"])
         self.assertEqual(response.content, b"source-bytes")
+
+    def test_anchor_is_served_inline_and_public_job_has_no_path(self):
+        response = self.client.get(f"/api/jobs/{self.parent.id}/anchors/0")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("inline", response.headers["content-disposition"])
+        self.assertEqual(response.content, b"anchor-bytes")
+        public = self.client.get(f"/api/jobs/{self.parent.id}").json()
+        self.assertEqual(public["anchor_frames"], [{
+            "segment": 0, "start": 0, "end": 8, "source_frame": 0,
+            "url": f"/api/jobs/{self.parent.id}/anchors/0",
+        }])
+        self.assertNotIn(str(self.root), json.dumps(public["anchor_frames"]))
 
     def test_capsule_download_is_json_attachment(self):
         response = self.client.get(f"/api/jobs/{self.parent.id}/capsule?download=true")

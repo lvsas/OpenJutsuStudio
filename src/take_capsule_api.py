@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 import core
+from take_artifacts import anchor_entries, anchor_path
 
 
 def _digest_file(path: Path) -> str:
@@ -46,7 +47,13 @@ def _capsule_assets(job: core.Job, result_path: Path):
         {"target": ref.get("target", ""), **_asset(Path(ref["image"]), f"reference_{i + 1}")}
         for i, ref in enumerate(job.meta.get("references", [])) if ref.get("image")
     ]
-    assets = {"source": source, "references": references, "result": _asset(result_path, "edited_video")}
+    anchors = [
+        {key: entry[key] for key in ("segment", "start", "end", "source_frame")}
+        | _asset(anchor_path(job, entry["segment"]), "flux_anchor")
+        for entry in anchor_entries(job)
+    ]
+    assets = {"source": source, "references": references, "anchors": anchors,
+              "result": _asset(result_path, "edited_video")}
     shots = job.meta.get("shots", [])
     missing = [asset["role"] for asset in [source, *references] if not asset["available"]]
     replayable = bool(job.meta.get("take_recipe") and shots and source["available"]
@@ -146,6 +153,18 @@ class TakeCapsuleAPI:
         return FileResponse(source, media_type=mimetypes.guess_type(source.name)[0] or "application/octet-stream",
                             filename=source.name, content_disposition_type="inline")
 
+    def get_anchor(self, job_id: str, segment: int):
+        try:
+            job = core.Job.load(job_id)
+        except KeyError as exc:
+            raise HTTPException(404, "Job not found") from exc
+        anchor = anchor_path(job, segment)
+        if anchor is None:
+            raise HTTPException(404, "The recorded FLUX anchor is unavailable.")
+        return FileResponse(anchor, media_type=mimetypes.guess_type(anchor.name)[0] or "image/png",
+                            filename=f"opengenjutsu-{job_id}-anchor-{segment + 1}{anchor.suffix}",
+                            content_disposition_type="inline")
+
     def get_capsule(self, job_id: str, download: bool = False):
         try:
             job = core.Job.load(job_id)
@@ -185,6 +204,7 @@ def create_router(dispatch_job: Callable[[core.Job, Path, dict[str, Any]], Any],
                   readiness_check: Callable[[], dict[str, Any]]) -> APIRouter:
     api, router = TakeCapsuleAPI(dispatch_job, readiness_check), APIRouter()
     router.add_api_route("/api/jobs/{job_id}/source", api.get_source, methods=["GET"])
+    router.add_api_route("/api/jobs/{job_id}/anchors/{segment}", api.get_anchor, methods=["GET"])
     router.add_api_route("/api/jobs/{job_id}/capsule", api.get_capsule, methods=["GET"])
     router.add_api_route("/api/jobs/{job_id}/replay", api.replay_take, methods=["POST"], status_code=202)
     return router

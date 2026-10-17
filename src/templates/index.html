@@ -62,6 +62,7 @@
               <span><strong id="reference-file-name">Add a clear character image</strong><small>PNG, JPG, or WebP · guides the first-frame edit</small></span>
               <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
             </label>
+            <button id="remove-reference" class="btn btn-ghost btn-small remove-reference" type="button" hidden>Remove character reference</button>
             <button id="add-second-reference" class="btn btn-secondary btn-small add-second-reference" type="button" aria-controls="second-reference" aria-expanded="false"><span aria-hidden="true">＋</span><span>Add a second character</span></button>
             <div id="second-reference" class="secondary-reference" hidden>
               <input id="reference-2" name="reference_images" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" disabled>
@@ -116,6 +117,10 @@
           </div>
           <video id="source-preview" class="stage-video" controls playsinline hidden></video>
           <video id="result" class="stage-video" controls playsinline hidden></video>
+          <figure id="anchor-stage" class="anchor-stage" hidden>
+            <img id="anchor-preview" alt="FLUX anchor frame for this take">
+            <figcaption><span>FLUX anchor</span><strong id="anchor-caption">The identity truth used to start this take.</strong></figcaption>
+          </figure>
           <div id="compare-stage" class="compare-stage" hidden>
             <div class="compare-pane"><span>Source</span><video id="compare-source" class="compare-video" controls playsinline></video></div>
             <div class="compare-pane"><span>Result</span><video id="compare-result" class="compare-video" controls playsinline></video></div>
@@ -138,21 +143,43 @@
         <div id="result-actions" class="result-actions" hidden>
           <div class="result-switch" role="group" aria-label="Preview mode">
             <button id="show-source" class="btn btn-secondary btn-small" type="button">Source</button>
+            <button id="show-anchor" class="btn btn-secondary btn-small" type="button" data-take-stage="anchor" disabled>FLUX anchor</button>
             <button id="show-result" class="btn btn-primary btn-small" type="button">Result</button>
             <button id="show-compare" class="btn btn-secondary btn-small" type="button">Compare</button>
           </div>
+          <section id="take-story" class="take-story" aria-labelledby="take-story-title" hidden>
+            <div class="take-story-heading">
+              <div><p class="eyebrow">Take Capsule</p><h3 id="take-story-title">Your edit, with its visual truth.</h3></div>
+              <span id="take-story-proof" class="badge">Recording take</span>
+            </div>
+            <div class="take-story-path" aria-label="Visual take stages">
+              <button class="take-stage-card" type="button" data-take-stage="source">
+                <video id="take-source-preview" muted playsinline preload="metadata"></video><span>01 · Source</span>
+              </button>
+              <span class="take-path-arrow" aria-hidden="true">→</span>
+              <button id="take-anchor-card" class="take-stage-card take-anchor-card" type="button" data-take-stage="anchor" disabled>
+                <img id="take-anchor-preview" alt=""><span>02 · FLUX anchor</span>
+              </button>
+              <span class="take-path-arrow" aria-hidden="true">→</span>
+              <button class="take-stage-card" type="button" data-take-stage="result">
+                <video id="take-result-preview" muted playsinline preload="metadata"></video><span>03 · Motion result</span>
+              </button>
+            </div>
+            <label id="anchor-select-wrap" class="anchor-select" hidden><span>View anchor</span><select id="anchor-select"></select></label>
+            <p id="take-story-copy" class="microcopy">This visual chain becomes the local recipe you can inspect or re-run.</p>
+          </section>
           <div class="export-actions">
             <a id="download-result" class="btn btn-secondary btn-small" href="#" download>Download MP4</a>
             <button id="build-reel" class="btn btn-secondary btn-small" type="button" disabled>Build comparison reel</button>
             <button id="copy-caption" class="btn btn-secondary btn-small" type="button">Copy caption</button>
           </div>
           <div class="export-actions">
-            <button id="download-capsule" class="btn btn-secondary btn-small" type="button" disabled>Download Take Capsule</button>
+            <button id="download-capsule" class="btn btn-secondary btn-small" type="button" disabled>Save Capsule JSON</button>
             <button id="replay-capsule" class="btn btn-secondary btn-small" type="button" disabled>Re-run this take</button>
           </div>
-          <p id="capsule-status" class="microcopy" role="status" aria-live="polite">Capsules keep recipe and hashes local. Source/reference files are not bundled; pixel-identical replay is not promised.</p>
+          <p id="capsule-status" class="microcopy" role="status" aria-live="polite">The visual chain above becomes a local recipe once this take completes. Source/reference files are not bundled; pixel-identical replay is not promised.</p>
           <details id="capsule-details" class="capsule-inspector" hidden>
-            <summary>Inspect recipe and local fingerprints</summary>
+            <summary>Technical provenance: recipe and local fingerprints</summary>
             <pre id="capsule-manifest" class="capsule-manifest"></pre>
           </details>
           <p class="microcopy">Create a local 9:16 comparison MP4 to post yourself. No public link is created in local mode.</p>
@@ -165,6 +192,7 @@
   <script src="/static/studio-utils.js" defer></script>
   <script src="/static/reference-controls.js" defer></script>
   <script src="/static/app.js" defer></script>
+  <script src="/static/take-visual-story.js" defer></script>
   <script src="/static/take-capsule.js" defer></script>
 </body>
 </html>

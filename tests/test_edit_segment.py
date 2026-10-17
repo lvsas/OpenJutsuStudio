@@ -131,6 +131,20 @@ class TestEditSegment(unittest.TestCase):
         refs = self.engine.edit_options["reference_images"]
         self.assertEqual([ref["info"]["file_path"] for ref in refs], [str(first), str(second)])
 
+    def test_frame_edit_is_reported_as_a_flux_anchor_before_propagation(self):
+        artifacts = []
+        core.edit_segment(
+            self.video, {"start": 0, "end": 8}, "replace object",
+            client=self.client, engine=self.engine,
+            propagate={"frames": 121, "fps": 24},
+            on_artifact=lambda kind, path, bounds: artifacts.append((kind, path, bounds)),
+        )
+        self.assertEqual(len(artifacts), 1)
+        kind, path, bounds = artifacts[0]
+        self.assertEqual(kind, "flux_anchor")
+        self.assertTrue(path.is_file())
+        self.assertEqual(bounds, {"start": 0, "end": 8})
+
     def test_reverse_segment_raises(self):
         with self.assertRaises(ValueError):
             self.render(10, 5)

@@ -5,6 +5,7 @@ Graph construction, media helpers and Comfy transport live in focused modules.
 from __future__ import annotations
 import json
 import re
+import shutil
 import uuid
 import time
 import subprocess
@@ -107,6 +108,29 @@ def _record_segment_progress(job: Job, index: int, total: int, stage: str) -> No
     job.save()
 
 
+def _record_anchor(job: Job, index: int, segment: dict, path: Path) -> None:
+    """Copy a FLUX stage artifact into the take's stable media namespace."""
+    suffix = path.suffix.lower()
+    if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
+        raise ValueError(f"Unsupported anchor image format: {suffix or 'none'}")
+    media_dir = WORK / "media"
+    media_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{job.id}-flux-anchor-{index + 1:03d}{suffix}"
+    destination = media_dir / filename
+    temporary = destination.with_suffix(destination.suffix + f".{uuid.uuid4().hex}.part")
+    try:
+        shutil.copyfile(path, temporary)
+        temporary.replace(destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+    anchors = [item for item in job.meta.get("anchors", [])
+               if isinstance(item, dict) and item.get("segment") != index]
+    anchors.append({"segment": index, "start": segment["start"], "end": segment["end"],
+                    "source_frame": segment["start"], "filename": filename})
+    job.meta["anchors"] = sorted(anchors, key=lambda item: item["segment"])
+    job.save()
+
+
 def run_pipeline(job: Job, video_path: Path, opts: dict) -> None:
     """Multi-segment pipeline: detect cuts → edit each segment → merge.
     Runs in a worker thread."""
@@ -119,6 +143,7 @@ def run_pipeline(job: Job, video_path: Path, opts: dict) -> None:
 
     client = None
     job.status, job.started, job.step = "running", time.time(), "init"
+    job.meta.pop("anchors", None)
     job.save()
 
     try:
@@ -149,6 +174,8 @@ def run_pipeline(job: Job, video_path: Path, opts: dict) -> None:
             # Remove 'prompt' from opts to avoid duplicate argument.
             seg_opts = {k: v for k, v in opts.items() if k != "prompt"}
             seg_opts["on_progress"] = lambda stage, i=i: _record_segment_progress(job, i, total, stage)
+            seg_opts["on_artifact"] = lambda kind, path, info, i=i, seg=seg: (
+                _record_anchor(job, i, seg, Path(path)) if kind == "flux_anchor" else None)
             result = edit_segment(
                 video_path=video_path,
                 segment=seg,

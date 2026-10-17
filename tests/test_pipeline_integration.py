@@ -64,7 +64,7 @@ class TestPipelineWithCuts(unittest.TestCase):
         self.make_client.assert_called_once_with()
         self.assertEqual(self.edit.call_args_list, [
             call(video_path=self.video, segment=segment, prompt=job.prompt,
-                 client=self.client, engine=self.engine, on_progress=ANY)
+                 client=self.client, engine=self.engine, on_progress=ANY, on_artifact=ANY)
             for segment in TWO_SHOTS
         ])
         self.merge.assert_called_once_with(self.segments)
@@ -74,6 +74,25 @@ class TestPipelineWithCuts(unittest.TestCase):
         self.assertEqual(job.progress, 1.0)
         self.client.close.assert_called_once_with()
         self.assert_persisted(job)
+
+    def test_pipeline_persists_anchor_as_a_stable_job_artifact(self):
+        upstream_anchor = self.root / "upstream-anchor.png"
+        upstream_anchor.write_bytes(b"flux-anchor")
+
+        def edit_with_anchor(**kwargs):
+            kwargs["on_artifact"]("flux_anchor", upstream_anchor, {"start": 0, "end": 8})
+            return self.segments[0]
+
+        self.detect.return_value = [{"start": 0, "end": 8}]
+        self.edit.side_effect = edit_with_anchor
+        job = core.Job(id="anchored", prompt="Replace with dragon")
+        core.run_pipeline(job, self.video, {"prompt": job.prompt})
+
+        self.assertEqual(job.meta["anchors"], [{
+            "segment": 0, "start": 0, "end": 8, "source_frame": 0,
+            "filename": "anchored-flux-anchor-001.png",
+        }])
+        self.assertEqual((self.root / "media" / "anchored-flux-anchor-001.png").read_bytes(), b"flux-anchor")
 
     def test_pipeline_single_segment_no_merge(self):
         job = core.Job(id="one-shot", prompt="Replace with dragon")

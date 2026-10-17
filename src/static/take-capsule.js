@@ -57,7 +57,11 @@
       const parent = payload.parent_job_id ? ` · re-run of ${payload.parent_job_id.slice(0, 8)}` : '';
       const replayNote = payload.replay.available_on_this_machine
         ? 'Ready to re-run on this device.' : `Replay unavailable: ${replayUnavailableReason(payload)}.`;
-      status.textContent = `Local Take Capsule ${shortId}${parent}. ${replayNote} Model weights are named, not hashed; pixel-identical output is not promised.`;
+      const anchors = payload.assets.anchors || [];
+      const anchorNote = anchors.length
+        ? `${anchors.length} FLUX anchor${anchors.length > 1 ? 's' : ''} fingerprinted with this take.`
+        : 'This legacy take has no recorded FLUX anchor.';
+      status.textContent = `Take ${shortId}${parent}. ${anchorNote} ${replayNote}`;
       if (inspector && manifestView) {
         manifestView.textContent = JSON.stringify({
           recipe: payload.recipe, shot_boundaries: payload.shot_boundaries,

@@ -1,6 +1,7 @@
 """Public job serialization and target sizing."""
 from typing import Any
 import core
+from take_artifacts import public_anchor_frames
 
 def _public_job(job: core.Job) -> dict[str, Any]:
     return {
@@ -17,6 +18,7 @@ def _public_job(job: core.Job) -> dict[str, Any]:
         "meta": job.meta,
         "result_url": f"/api/jobs/{job.id}/result" if job.status == "done" else None,
         "source_url": f"/api/jobs/{job.id}/source" if job.video else None,
+        "anchor_frames": public_anchor_frames(job),
     }
 
 def _target_size(width: int, height: int, target_megapixels: float = 0.9) -> tuple[int, int]:

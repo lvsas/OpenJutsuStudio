@@ -7,6 +7,9 @@ const videoInput = $('#video');
 const editInput = $('#edit');
 const sourcePreview = $('#source-preview');
 const resultVideo = $('#result');
+const anchorStage = $('#anchor-stage');
+const anchorPreview = $('#anchor-preview');
+const anchorCaption = $('#anchor-caption');
 const compareStage = $('#compare-stage');
 const compareSource = $('#compare-source');
 const compareResult = $('#compare-result');
@@ -33,8 +36,9 @@ function setStage(mode) {
   stageEmpty.hidden = mode !== 'empty';
   sourcePreview.hidden = mode !== 'source';
   resultVideo.hidden = mode !== 'result';
+  anchorStage.hidden = mode !== 'anchor';
   compareStage.hidden = mode !== 'compare';
-  const labels = { empty: 'Awaiting media', source: 'Source preview', result: 'Result ready', compare: 'Before / after' };
+  const labels = { empty: 'Awaiting media', source: 'Source preview', anchor: 'FLUX anchor', result: 'Result ready', compare: 'Before / after' };
   stageMode.textContent = labels[mode] || labels.empty;
 }
 
@@ -98,12 +102,23 @@ function updateProgress(job) {
 
 function showResult(job) {
   completedJobId = job.id;
+  if (job.source_url) sourcePreview.src = job.source_url;
   resultVideo.src = job.result_url;
   downloadResult.href = `${job.result_url}?download=true`;
   buildReelButton.disabled = false;
   runOverlay.hidden = true;
   resultActions.hidden = false;
+  window.dispatchEvent(new CustomEvent('opengenjutsu:take-ready', { detail: job }));
   setStage('result');
+}
+
+function showAnchor(anchor) {
+  if (!anchor?.url) return;
+  anchorPreview.src = anchor.url;
+  anchorCaption.textContent = anchor.start === anchor.end
+    ? `Anchor from source frame ${anchor.source_frame}.`
+    : `Anchor for source frames ${anchor.start}–${anchor.end}.`;
+  setStage('anchor');
 }
 
 function syncComparison(source, target) {
@@ -248,6 +263,11 @@ $('#show-result').addEventListener('click', () => setStage('result'));
 $('#show-compare').addEventListener('click', showComparison);
 $('#build-reel').addEventListener('click', buildComparisonReel);
 $('#copy-caption').addEventListener('click', copyCaption);
+window.addEventListener('opengenjutsu:select-stage', ({ detail }) => {
+  if (detail?.stage === 'anchor') showAnchor(detail.anchor);
+  if (detail?.stage === 'source') setStage('source');
+  if (detail?.stage === 'result') setStage('result');
+});
 window.addEventListener('beforeunload', () => {
   if (pollTimer) window.clearTimeout(pollTimer);
   if (readinessTimer) window.clearTimeout(readinessTimer);

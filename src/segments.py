@@ -61,6 +61,12 @@ def render_segment(video_path, segment, prompt, client, engine, work, **opts):
         "on_progress": lambda stage: report(f"edit_frame_{stage}"),
     }
     edited = engine.edit_frame(client, frame_ref, prompt, **edit_opts)
+    anchor_path = _media_path(edited, work)
+    if not anchor_path.is_file():
+        raise RuntimeError("Frame edit produced no local anchor image")
+    on_artifact = opts.get("on_artifact")
+    if on_artifact:
+        on_artifact("flux_anchor", anchor_path, {"start": start, "end": end})
     video_ref = client.assets.from_file(clip).as_reference()
     edited_ref = client.assets.from_file(_media_path(edited, work)).as_reference()
     propagation = {

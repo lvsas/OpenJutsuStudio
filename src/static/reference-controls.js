@@ -6,6 +6,7 @@
   const mapping = document.querySelector('#reference-mapping');
   const secondary = document.querySelector('#second-reference');
   const toggle = document.querySelector('#add-second-reference');
+  const removePrimary = document.querySelector('#remove-reference');
   const urls = { primary: null, secondary: null };
 
   function release(slot) {
@@ -31,6 +32,7 @@
     const image = Object.assign(document.createElement('img'), { src: urls[slot], alt: '' });
     document.querySelector(`#reference-thumb${suffix}`).replaceChildren(image);
     document.querySelector(`#reference-file-name${suffix}`).textContent = file.name;
+    if (slot === 'primary') removePrimary.hidden = false;
   }
 
   function setSecondReference(visible) {
@@ -50,9 +52,18 @@
     reset('secondary');
   }
 
+  function clearPrimaryReference() {
+    primaryInput.value = '';
+    release('primary');
+    reset('primary');
+    removePrimary.hidden = true;
+    setSecondReference(false);
+  }
+
   primaryInput.addEventListener('change', () => preview(primaryInput, 'primary'));
   secondaryInput.addEventListener('change', () => preview(secondaryInput, 'secondary'));
   toggle.addEventListener('click', () => setSecondReference(secondary.hidden));
+  removePrimary.addEventListener('click', clearPrimaryReference);
   window.addEventListener('beforeunload', () => {
     release('primary');
     release('secondary');

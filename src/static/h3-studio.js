@@ -11,11 +11,13 @@ function update() {
   for (const field of ['video', 'reference', 'seed']) byId(field).disabled = locked;
   byId('edit').disabled = locked || !byId('directions').open;
   const inputs = byId('video').files.length === 1 && byId('reference').files.length === 1;
-  byId('submit').disabled = locked || !ready || !inputs;
-  byId('replay').disabled = locked || !ready || !take.capsule;
+  // Readiness is advisory here: the server checks the target again and returns the exact reason.
+  byId('submit').disabled = locked || !inputs;
+  byId('replay').disabled = locked || !take.capsule;
   byId('form-help').textContent = locked ? 'A take is being submitted or tracked. Retry status if the connection is interrupted.'
-    : !ready ? 'H3 is unavailable. Check the availability notes above.'
-    : !inputs ? 'Add one source video and one character reference. No prompt needed.' : 'Ready to generate an H3 take.';
+    : !inputs ? 'Add one source video and one character reference. No prompt needed.'
+    : ready ? 'Ready to generate an H3 take.'
+    : 'H3 availability is unverified. You can still submit; the server rechecks it and reports the exact reason.';
 }
 async function checkReadiness() {
   const epoch = ++readinessEpoch;
@@ -77,10 +79,8 @@ async function submit(event) {
   if (!data) return;
   pending = true;
   update();
-  byId('status').textContent = 'Checking availability before uploading inputs…';
+  byId('status').textContent = 'Uploading inputs. Keep this page open until a job identifier is returned.';
   try {
-    if (!await checkReadiness()) throw new Error('Resolve the H3 availability notes before submitting.');
-    byId('status').textContent = 'Uploading inputs. Keep this page open until a job identifier is returned.';
     const response = await request('/api/h3/jobs', {method: 'POST', body: data});
     if (!validId(response.job_id)) throw new Error('Server returned an invalid H3 job identifier. Check the service before retrying.');
     take.watch(response.job_id);

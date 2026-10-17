@@ -153,9 +153,17 @@ assert.equal(submitted.get('edit_prompt'), '  original\n directions  ');
 ready = false;
 await el('retry').click();
 await settle();
-assert.equal(el('submit').disabled, true);
+assert.match(el('readiness').textContent, /not ready/);
+// A false-negative readiness must not lock a valid submission: the server is the authoritative gate.
+assert.equal(el('submit').disabled, false);
+handler = (url, opts) => {
+  if (url === '/api/h3/readiness') return response({ready});
+  if (url === '/api/h3/jobs') return response({detail: 'The Comfy readiness probe timed out. Retry; no generation job has been submitted.'}, 503);
+  return response({...base, id: child, status: 'error', error: 'Test failure'});
+};
 const count = calls.filter(([url]) => url === '/api/h3/jobs').length;
 await el('form').events.submit({preventDefault() {}});
-assert.equal(calls.filter(([url]) => url === '/api/h3/jobs').length, count);
-assert.match(el('readiness').textContent, /not ready/);
-console.log('H3 UI contract checks passed: form, exact prompt, readiness, queue, terminal states, resume, replay, HTTP failures.');
+await settle();
+assert.equal(calls.filter(([url]) => url === '/api/h3/jobs').length, count + 1);
+assert.match(el('status').textContent, /timed out/);
+console.log('H3 UI contract checks passed: form, exact prompt, advisory readiness, queue, terminal states, resume, replay, HTTP failures.');

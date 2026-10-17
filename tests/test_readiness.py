@@ -26,7 +26,11 @@ def node_info():
 
 
 class ReadinessTests(unittest.TestCase):
-    def responses(self, url):
+    def setUp(self):
+        with readiness._OBJECT_INFO_LOCK:
+            readiness._OBJECT_INFO_CACHE.clear()
+
+    def responses(self, url, headers=None, timeout=None):
         return {"status": "healthy", "upstream": "http://127.0.0.1:8188"} if url.endswith("health") else node_info()
 
     def test_ready_with_models_and_nodes(self):
@@ -35,6 +39,47 @@ class ReadinessTests(unittest.TestCase):
             report = readiness.check_readiness()
         self.assertTrue(report["ready"], report)
         self.assertEqual(report["missing_nodes"], [])
+
+    def test_json_get_honors_bounded_timeout_argument(self):
+        with patch.object(readiness, "urlopen") as open_request, \
+             patch.object(readiness.json, "load", return_value={"ok": True}):
+            result = readiness._json_get("https://comfy.example/object_info", timeout=15)
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(open_request.call_args.kwargs["timeout"], 15)
+
+    def test_capability_inventory_uses_extended_timeout(self):
+        with patch.object(readiness, "_json_get", return_value={}) as get:
+            self.assertEqual(readiness._object_info("https://comfy.example/object_info"), {})
+        self.assertEqual(get.call_args.kwargs["timeout"], readiness.CAPABILITY_TIMEOUT_SECONDS)
+        self.assertGreater(readiness.CAPABILITY_TIMEOUT_SECONDS, readiness.READINESS_HTTP_TIMEOUT_SECONDS)
+
+    def test_self_hosted_caches_object_info_but_checks_queue_each_time(self):
+        readiness._OBJECT_INFO_CACHE.clear()
+        counts = {"health": 0, "queue": 0, "object_info": 0}
+        def get(url, headers=None, timeout=None):
+            if url.endswith('/api/v2/health'):
+                counts['health'] += 1
+                return {"status": "healthy", "upstream": "http://127.0.0.1:8188"}
+            if url.endswith('/queue'):
+                counts['queue'] += 1
+                return {"queue_running": [[1]], "queue_pending": []} if counts['queue'] == 1 else {"queue_running": [], "queue_pending": []}
+            if url.endswith('/object_info'):
+                counts['object_info'] += 1
+                return node_info()
+            raise AssertionError(url)
+        try:
+            with patch.object(readiness, "comfy_base_url", return_value="http://127.0.0.1:8189"), \
+                 patch.object(readiness, "_json_get", side_effect=get), \
+                 patch.object(readiness.shutil, "which", return_value="/bin/tool"):
+                first = readiness.check_readiness()
+                second = readiness.check_readiness()
+            self.assertTrue(first['ready'], first)
+            self.assertTrue(second['ready'], second)
+            self.assertTrue(first['warnings'])
+            self.assertFalse(second['warnings'])
+            self.assertEqual(counts, {"health": 2, "queue": 2, "object_info": 1})
+        finally:
+            readiness._OBJECT_INFO_CACHE.clear()
 
     def test_busy_queue_warns_but_allows_sequential_submission(self):
         with patch.object(readiness, "_json_get", side_effect=[
@@ -76,7 +121,7 @@ class ReadinessTests(unittest.TestCase):
         base = "https://cloud.comfy.org"
         seen = []
 
-        def get(url, headers=None):
+        def get(url, headers=None, timeout=None):
             seen.append((url, headers or {}))
             if url.endswith("/api/object_info"):
                 return node_info()

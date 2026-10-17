@@ -3,18 +3,48 @@ import json
 import logging
 import os
 import shutil
+import socket
+import threading
+import time
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 from config import LOCAL_COMFY_PROXY_URL, comfy_base_url
 from graphs import build_frame_edit, build_ripple
 
 _LOG = logging.getLogger(__name__)
+READINESS_HTTP_TIMEOUT_SECONDS = 4
+CAPABILITY_TIMEOUT_SECONDS = 15
+OBJECT_INFO_CACHE_TTL_SECONDS = 15
+_OBJECT_INFO_CACHE = {}
+_OBJECT_INFO_LOCK = threading.Lock()
 
 
-def _json_get(url, headers=None):
+def _json_get(url, headers=None, timeout=READINESS_HTTP_TIMEOUT_SECONDS):
     request_headers = {"Accept": "application/json", **(headers or {})}
-    with urlopen(Request(url, headers=request_headers), timeout=4) as response:
+    with urlopen(Request(url, headers=request_headers), timeout=timeout) as response:
         return json.load(response)
+
+
+def _object_info(url, headers=None, *, cache=False):
+    """Give capability inventory a realistic deadline and short local single-flight cache."""
+    if not cache or headers:
+        return _json_get(url, headers, timeout=CAPABILITY_TIMEOUT_SECONDS)
+    with _OBJECT_INFO_LOCK:
+        now = time.monotonic()
+        for key, (expires, _) in list(_OBJECT_INFO_CACHE.items()):
+            if expires <= now:
+                _OBJECT_INFO_CACHE.pop(key, None)
+        cached = _OBJECT_INFO_CACHE.get(url)
+        if cached:
+            return cached[1]
+        info = _json_get(url, headers, timeout=CAPABILITY_TIMEOUT_SECONDS)
+        _OBJECT_INFO_CACHE[url] = (now + OBJECT_INFO_CACHE_TTL_SECONDS, info)
+        return info
+
+
+def _is_timeout_error(exc):
+    reason = getattr(exc, "reason", None)
+    return isinstance(exc, (TimeoutError, socket.timeout)) or isinstance(reason, (TimeoutError, socket.timeout))
 
 
 def _valid_url(value):
@@ -89,7 +119,7 @@ def check_readiness(required_graph=None):
                 queue = _json_get(upstream + "/queue")
                 if queue.get("queue_running") or queue.get("queue_pending"):
                     warnings.append("ComfyUI is busy. Your workflow can join its queue and will run after earlier jobs; waiting time is not inference time.")
-                nodes, models = _inventory(_json_get(upstream + "/object_info"), required_graph)
+                nodes, models = _inventory(_object_info(upstream + "/object_info", cache=True), required_graph)
                 report.update(missing_nodes=nodes, missing_models=models)
                 if nodes:
                     issues.append("Install missing ComfyUI nodes: " + ", ".join(nodes))
@@ -100,7 +130,7 @@ def check_readiness(required_graph=None):
             if not api_key:
                 issues.append("Set COMFY_API_KEY in the app process environment for this authenticated Comfy target; never put the key in the URL or repository.")
             else:
-                info = _json_get(base + "/api/object_info", {"X-API-Key": api_key})
+                info = _object_info(base + "/api/object_info", {"X-API-Key": api_key})
                 nodes, models = _inventory(info, required_graph)
                 report.update(missing_nodes=nodes, missing_models=models)
                 if nodes:
@@ -127,6 +157,9 @@ def check_readiness(required_graph=None):
                 warnings.append("Remote proxy API access is verified. Upstream availability and node/model inventory are not fully verified; workflow submission remains the execution check.")
     except Exception as exc:
         _LOG.warning('Configured Comfy readiness probe failed (%s)', type(exc).__name__)
-        issues.append("Cannot verify the configured Comfy target. Check its API v2 URL, authentication and service health; target details are not returned here.")
+        if _is_timeout_error(exc):
+            issues.append("The Comfy readiness probe timed out. Retry; no generation job has been submitted.")
+        else:
+            issues.append("Cannot verify the configured Comfy target. Check its API v2 URL, authentication and service health; target details are not returned here.")
     report["ready"] = not issues
     return report

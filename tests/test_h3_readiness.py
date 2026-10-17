@@ -22,6 +22,8 @@ def h3_info(graph):
 
 class H3ReadinessTests(unittest.TestCase):
     def setUp(self):
+        with readiness._OBJECT_INFO_LOCK:
+            readiness._OBJECT_INFO_CACHE.clear()
         self.graph = build_h3_recast("s.mp4", "r.png", "Edit", source_frames=5)
         self.info = h3_info(self.graph)
 
@@ -46,3 +48,16 @@ class H3ReadinessTests(unittest.TestCase):
         del self.info["MiniMaxH3ReferenceToVideo"]
         nodes, _ = readiness._inventory(self.info, self.graph)
         self.assertEqual(nodes, ["MiniMaxH3ReferenceToVideo"])
+
+    def test_timeout_is_actionable_and_not_reported_as_missing_models(self):
+        with patch.object(readiness, "comfy_base_url", return_value="http://127.0.0.1:8189"), \
+             patch.object(readiness, "_json_get", side_effect=[
+                 {"status": "healthy", "upstream": "http://127.0.0.1:8188"},
+                 {"queue_running": [], "queue_pending": []}, TimeoutError("private target detail")]), \
+             patch.object(readiness.shutil, "which", return_value="/bin/tool"):
+            report = readiness.check_readiness(required_graph=self.graph)
+        self.assertFalse(report["ready"])
+        self.assertIn("timed out", " ".join(report["issues"]).lower())
+        self.assertEqual(report["missing_nodes"], [])
+        self.assertEqual(report["missing_models"], [])
+        self.assertNotIn("private target detail", str(report))

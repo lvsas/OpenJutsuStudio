@@ -74,6 +74,17 @@ class H3StudioUITests(unittest.TestCase):
         for id_ in ['h3-result-actions', 'h3-capsule-details']:
             self.assertIn('hidden', self.ids[id_][1])
 
+    def test_readiness_stays_advisory_and_never_blocks_a_valid_input(self):
+        main = self.scripts['h3-studio.js']
+        # The submit button depends on inputs alone; a false-negative readiness must not lock it.
+        self.assertIn("byId('submit').disabled = locked || !inputs;", main)
+        self.assertNotIn("byId('submit').disabled = locked || !ready", main)
+        # No client-side preflight: the server is the authoritative gate.
+        self.assertNotIn("if (!await checkReadiness()) throw", main)
+        self.assertIn("byId('status').textContent = 'Uploading inputs.", main)
+        # The precise server refusal reason must reach the user.
+        self.assertIn('HTTP ${response.status}: ${detail}', self.scripts['h3-http.js'])
+
     def test_scoped_theme_and_small_modules(self):
         css = (STATIC / 'h3-studio.css').read_text()
         self.assertIn('html[data-engine="h3"]', css)

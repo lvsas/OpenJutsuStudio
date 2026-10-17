@@ -30,6 +30,16 @@ class ComfyTargetTests(unittest.TestCase):
             client = transport.make_client()
             self.addCleanup(client.close)
             self.assertEqual(client._low.safe_base_url, "http://127.0.0.1:9876")
+    def test_explicit_cloud_target_uses_sdk_api_key_without_logging_it(self):
+        with patch.dict(os.environ, {
+            "OPENGENJUTSU_COMFY_BASE_URL": "https://cloud.comfy.org",
+            "COMFY_API_KEY": "test-cloud-key",
+        }, clear=True):
+            client = transport.make_client()
+            self.addCleanup(client.close)
+            self.assertEqual(client._low.safe_base_url, "https://cloud.comfy.org")
+            self.assertTrue(client._low.authenticated)
+            self.assertNotIn("test-cloud-key", repr(client))
 
 
 class SDKTransportTests(unittest.TestCase):

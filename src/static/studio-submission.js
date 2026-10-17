@@ -9,6 +9,11 @@
     const directions = document.querySelector('#optional-directions');
     const help = document.querySelector('#generate-help');
     const indicator = document.querySelector('#readiness');
+    const notices = document.createElement('p');
+    notices.className = 'field-help';
+    notices.setAttribute('role', 'status');
+    notices.hidden = true;
+    help.after(notices);
     let ready = false;
     let submitting = false;
     let timer = null;
@@ -50,10 +55,14 @@
         const report = await response.json();
         ready = response.ok && report.ready;
         indicator.classList.toggle('live', ready);
-        indicator.textContent = ready ? 'Local studio ready' : (report.issues || ['Studio unavailable']).join(' ');
+        indicator.textContent = ready ? 'Studio ready' : (report.issues || ['Studio unavailable']).join(' ');
+        notices.textContent = (report.warnings || []).join(' ');
+        notices.hidden = !notices.textContent;
       } catch {
         ready = false;
-        indicator.textContent = 'Local studio unavailable';
+        indicator.textContent = 'Studio unavailable';
+        notices.textContent = '';
+        notices.hidden = true;
       }
       refresh();
       if (!ready && !timer) {

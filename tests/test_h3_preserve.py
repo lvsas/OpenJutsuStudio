@@ -65,6 +65,12 @@ class PreserveContractTests(unittest.TestCase):
             build_preserve_graph([])
         with self.assertRaises(ValueError):
             build_preserve_graph(['a.png'], instruction='   ')
+        # One image is the normal character case: no batch node, wired straight in.
+        single = build_preserve_graph(['only.png'])
+        self.assertNotIn('10', single)
+        self.assertEqual(single['30']['inputs']['image'], 'only.png')
+        self.assertEqual(single['40']['inputs']['image'], ['30', 0])
+        self.assertEqual(single['50']['inputs']['text'], ['40', 0])
 
     def test_saved_text_is_read_from_a_file_output(self):
         job = FakeJob([FakeOutput('preserve_00001.txt', 'text/plain', b'a staff and snow')])

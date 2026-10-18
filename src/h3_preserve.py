@@ -30,11 +30,10 @@ INSTRUCTION = (
 )
 
 CHARACTER_INSTRUCTION = (
-    'This is a character reference. Describe only the visible appearance of the person in it: '
-    'build, hair, clothing and anything they wear. Answer with one short English sentence that '
-    'can be used as a replacement character description. Do not describe the layout, the '
-    'background, other panels, poses or the image style, and do not mention that it is a '
-    'reference or a picture.'
+    'This is a character reference. Describe only the person\'s own appearance, as a short '
+    'phrase that could replace a character description: body build, hair and what they wear. '
+    'Do not mention poses, actions, props, animals, other people, the background, the image '
+    'layout or the image style. Answer with one short English sentence.'
 )
 
 
@@ -82,23 +81,32 @@ def sample_frames(video, folder, count=FRAME_COUNT):
 
 def build_preserve_graph(frames, *, model=VISION_MODEL, quantization=VISION_QUANTIZATION,
                          instruction=INSTRUCTION, filename_prefix='opengenjutsu/preserve'):
-    """API-format graph: frame assets -> local vision node -> saved text file."""
+    """API-format graph: frame assets -> local vision node -> saved text file.
+
+    A single image is wired straight into the vision node: ImageBatchMulti requires at
+    least two inputs, and one reference image is the normal character case.
+    """
     if not frames:
         raise ValueError('Preserved description needs at least one frame')
     if not isinstance(instruction, str) or not instruction.strip():
         raise ValueError('Preserved description needs a non-empty instruction')
     graph = {}
-    image_inputs = {}
-    for position, frame in enumerate(frames):
-        node_id = str(30 + position)
-        graph[node_id] = {'class_type': 'LoadImage', 'inputs': {'image': frame}}
-        image_inputs[f'image_{position + 1}'] = [node_id, 0]
-    graph['10'] = {'class_type': 'ImageBatchMulti',
-                   'inputs': {'inputcount': len(frames), **image_inputs}}
+    if len(frames) == 1:
+        graph['30'] = {'class_type': 'LoadImage', 'inputs': {'image': frames[0]}}
+        image_source = ['30', 0]
+    else:
+        image_inputs = {}
+        for position, frame in enumerate(frames):
+            node_id = str(30 + position)
+            graph[node_id] = {'class_type': 'LoadImage', 'inputs': {'image': frame}}
+            image_inputs[f'image_{position + 1}'] = [node_id, 0]
+        graph['10'] = {'class_type': 'ImageBatchMulti',
+                       'inputs': {'inputcount': len(frames), **image_inputs}}
+        image_source = ['10', 0]
     graph['40'] = {'class_type': VISION_NODE, 'inputs': {
         'model_name': model, 'quantization': quantization, 'attention_mode': 'auto',
         'preset_prompt': '🖼️ Simple Description', 'custom_prompt': instruction,
-        'max_tokens': 512, 'keep_model_loaded': True, 'seed': 1, 'image': ['10', 0]}}
+        'max_tokens': 512, 'keep_model_loaded': True, 'seed': 1, 'image': image_source}}
     graph['50'] = {'class_type': SAVE_NODE, 'inputs': {
         'text': ['40', 0], 'filename_prefix': filename_prefix, 'format': 'txt'}}
     return graph

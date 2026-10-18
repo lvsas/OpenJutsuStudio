@@ -32,7 +32,7 @@ what the product **is now**. Where an older file contradicts a newer one, the ne
 | [Product reflection](plans/product-reflection-three-modes.md) | where the character creator and the timeline editor belong, and what makes the three modes one product |
 | [H3 license gate](validation/h3-license-gate.md) | contest eligibility is not a commercial or territorial licence — read before deploying or sharing output |
 | [Prompt profiles](architecture/prompt-profiles.md) | how a prompt policy is versioned and frozen per engine |
-| [H3 and the continuity capsule](architecture/h3-continuity-capsule.md) | what was explored for H3 continuity, and what was deliberately not adopted |
+| [H3 and the continuity capsule](architecture/h3-continuity-capsule.md) | the capsule is **live** in both studios; this records which H3 mechanisms that document proposed and we did not adopt |
 
 ## Evidence — what has been measured
 
@@ -60,15 +60,24 @@ what the product **is now**. Where an older file contradicts a newer one, the ne
 | [Competition UX gap](audits/2026-10-16-competition-ux-gap.md) | what a judge would have found missing |
 | [Genjutsu parity audit](audits/2026-10-16-genjutsu-parity-audit.md) | where this rebuild stands against the product it rebuilds |
 
-## Historical plans
+## Plans that built what exists
 
-Superseded, kept as the record of the decisions that led here: [local reliability](plans/2026-10-15-local-reliability.md),
-[local app and competition plan](plans/2026-10-15-opengenjutsu-general-product-plan.md),
-[creative studio UX](plans/2026-10-16-creative-studio-ux.md),
-[multi-reference FLUX conditioning](plans/2026-10-16-multi-reference-object-swap.md),
-[reference intelligence](plans/2026-10-16-reference-intelligence.md),
-[share reel](plans/2026-10-16-share-reel.md),
-[H3 studio consolidation](plans/h3-studio-consolidation.md).
+Delivered, kept because they explain why the current architecture looks the way it does:
+
+| Document | What it delivered |
+| --- | --- |
+| [H3 studio consolidation](plans/h3-studio-consolidation.md) | the two-studio architecture: the isolated H3 graph, the H3 runner and route, the frozen H3 recipe with source/reference/result lineage, and the H3 Capsule |
+| [Creative studio UX](plans/2026-10-16-creative-studio-ux.md) | the studio interface as it stands (its own status: substantially implemented) |
+| [Share reel](plans/2026-10-16-share-reel.md) | the local 1080×1920 before/after reel a creator downloads |
+| [Multi-reference FLUX conditioning](plans/2026-10-16-multi-reference-object-swap.md) | the two-reference first-frame path, in use in LTX today |
+| [Local reliability](plans/2026-10-15-local-reliability.md) | the local-first reliability pass |
+
+## Earlier plans, superseded or not adopted
+
+| Document | Why it is not the current plan |
+| --- | --- |
+| [Local app and competition plan](plans/2026-10-15-opengenjutsu-general-product-plan.md) | superseded by the [competition roadmap](plans/competition-roadmap.md) |
+| [Reference intelligence](plans/2026-10-16-reference-intelligence.md) | the opt-in vision preflight it planned was measured and rejected; the measurements are in [Qwen preflight](validation/qwen-local-preflight.md) |
 
 ## Architecture brief
 

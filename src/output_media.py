@@ -7,10 +7,23 @@ _REEL_FONT = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
 
 # One reel theme per studio, so a shared clip carries the colour of the engine that made it.
 REEL_THEMES = {
-    "ltx25-ripple": {"accent": "0xD8FF3E", "engine": "LTX 2.5 + Ripple"},
-    "minimax-h3": {"accent": "0xFF4F2E", "engine": "MiniMax H3"},
+    "ltx25-ripple": {
+        "accent": "0xD8FF3E",
+        "engine": "Character Swap · FLUX 2 Klein + LTX 2.5 + Ripple",
+    },
+    "minimax-h3": {
+        "accent": "0xFF4F2E",
+        "engine": "Character Swap · MiniMax H3 + Character Swap LoRA",
+    },
 }
 DEFAULT_REEL_ENGINE = "ltx25-ripple"
+
+# Vertical layout for a 1080x1920 frame. Platforms draw their caption, account and buttons
+# over the bottom of a vertical video, so nothing that matters may sit below this line.
+SAFE_BOTTOM = 1560
+BRAND = {"font_size": 46, "y": 132, "open_x": 334, "name_x": 485, "rule_y": 192, "rule_w": 408}
+PANELS = {"x": 60, "width": 960, "height": 540, "source_y": 272, "result_y": 896}
+LABEL = {"font_size": 44, "x": 84, "offset": 22, "box_border": 14}
 
 
 def reel_theme(engine):
@@ -32,32 +45,51 @@ def restore_source_audio(rendered: str, source: str, output: Path) -> str:
 def reel_filters(duration, font, engine=DEFAULT_REEL_ENGINE):
     """The filtergraph for the 9:16 comparison reel.
 
-    Kept separate from the render so the labelling and the engine colour can be asserted
-    without encoding a video. A shared clip has to read correctly at a glance, so the
-    labels say what the two panels are and the accent says which studio produced it.
+    Kept separate from the render so the layout can be asserted without encoding a video.
+    Three constraints drive it: the panels are labelled in place so the reading is instant,
+    the brand sits where a feed does not cover it, and everything stays above SAFE_BOTTOM.
     """
     theme = reel_theme(engine)
     accent = theme["accent"]
-    panel = ("scale=960:540:force_original_aspect_ratio=decrease,"
-             "pad=960:540:(ow-iw)/2:(oh-ih)/2:black,setsar=1")
+    brand, panels, label = BRAND, PANELS, LABEL
+    panel = (f"scale={panels['width']}:{panels['height']}:force_original_aspect_ratio=decrease,"
+             f"pad={panels['width']}:{panels['height']}:(ow-iw)/2:(oh-ih)/2:black,setsar=1")
+    label_y = {key: panels[key] + label["offset"] for key in ("source_y", "result_y")}
+    label_box = f"box=1:boxcolor=black@0.55:boxborderw={label['box_border']}"
+    arrow_y = panels["source_y"] + panels["height"] + 18
+
+    def cap(text, y, colour, size, extra=""):
+        return (f"drawtext=fontfile={font}:text={text}:fontcolor={colour}:fontsize={size}:"
+                f"x=(w-text_w)/2:y={y}{extra}")
+
+    tail = [
+        # Frames keep the two halves distinguishable on any footage.
+        f"drawbox=x={panels['x']}:y={panels['source_y']}:w={panels['width']}:"
+        f"h={panels['height']}:color={accent}@0.35:t=2",
+        f"drawbox=x={panels['x']}:y={panels['result_y']}:w={panels['width']}:"
+        f"h={panels['height']}:color={accent}@0.35:t=2",
+        # Brand, in the two tones of the application header.
+        f"drawtext=fontfile={font}:text=OPEN:fontcolor=white:fontsize={brand['font_size']}:"
+        f"x={brand['open_x']}:y={brand['y']}",
+        f"drawtext=fontfile={font}:text=GENJUTSU:fontcolor={accent}:"
+        f"fontsize={brand['font_size']}:x={brand['name_x']}:y={brand['y']}",
+        f"drawbox=x={brand['open_x']}:y={brand['rule_y']}:w={brand['rule_w']}:h=3:"
+        f"color={accent}@0.7:t=fill",
+        cap(theme["engine"], 212, "white@0.78", 24),
+        # Panel labels sit on the image itself, large enough to read in a feed.
+        f"drawtext=fontfile={font}:text=SOURCE:fontcolor={accent}:fontsize={label['font_size']}:"
+        f"x={label['x']}:y={label_y['source_y']}:{label_box}",
+        f"drawtext=fontfile={font}:text=SWAP:fontcolor={accent}:fontsize={label['font_size']}:"
+        f"x={label['x']}:y={label_y['result_y']}:{label_box}",
+        # What separates the two panels, so the before/after reads at a glance.
+        cap("▼", arrow_y, accent, 52),
+        cap("OpenGenjutsu · local comparison", 1470, "white@0.6", 26),
+    ]
     return (
         f"[0:v]{panel}[source];[1:v]{panel}[result];"
         f"color=c=0x101014:s=1080x1920:d={duration}[canvas];"
-        "[canvas][source]overlay=60:300[stacked];[stacked][result]overlay=60:1120,"
-        # Panels framed in the studio accent.
-        f"drawbox=x=60:y=240:w=960:h=600:color={accent}@0.35:t=2,"
-        f"drawbox=x=60:y=1060:w=960:h=600:color={accent}@0.35:t=2,"
-        # Header: what this is, then which studio made it.
-        f"drawtext=fontfile={font}:text=CHARACTER SWAP:fontcolor={accent}:fontsize=30:"
-        "x=(w-text_w)/2:y=92,"
-        f"drawbox=x=440:y=140:w=200:h=3:color={accent}@0.7:t=fill,"
-        f"drawtext=fontfile={font}:text={theme['engine']}:fontcolor=white@0.72:fontsize=26:"
-        "x=(w-text_w)/2:y=168,"
-        # Panel labels.
-        f"drawtext=fontfile={font}:text=SOURCE:fontcolor={accent}:fontsize=36:x=72:y=252,"
-        f"drawtext=fontfile={font}:text=SWAP:fontcolor={accent}:fontsize=36:x=72:y=1072,"
-        f"drawtext=fontfile={font}:text=OpenGenjutsu - local comparison:"
-        "fontcolor=white@0.6:fontsize=24:x=(w-text_w)/2:y=1770[out]"
+        f"[canvas][source]overlay={panels['x']}:{panels['source_y']}[stacked];"
+        f"[stacked][result]overlay={panels['x']}:{panels['result_y']}," + ",".join(tail) + "[out]"
     )
 
 

@@ -1,6 +1,7 @@
 """Real CPU media checks for supported containers and source audio."""
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -8,8 +9,8 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from media import ffprobe
-from output_media import (DEFAULT_REEL_ENGINE, build_comparison_reel, reel_filters,
-                          restore_source_audio)
+from output_media import (DEFAULT_REEL_ENGINE, PANELS, SAFE_BOTTOM, build_comparison_reel,
+                          reel_filters, restore_source_audio)
 from scenes import detect_scenes
 
 
@@ -50,21 +51,43 @@ class MediaProbeTests(unittest.TestCase):
         self.assertEqual(ffprobe(result)["frames"], 24)
 
     def test_the_reel_labels_the_swap_and_carries_the_studio_colour(self):
-        for engine, accent, name in (("ltx25-ripple", "0xD8FF3E", "LTX 2.5 + Ripple"),
-                                     ("minimax-h3", "0xFF4F2E", "MiniMax H3")):
+        for engine, accent, stack in (("ltx25-ripple", "0xD8FF3E", "FLUX 2 Klein + LTX 2.5 + Ripple"),
+                                      ("minimax-h3", "0xFF4F2E", "MiniMax H3 + Character Swap LoRA")):
             with self.subTest(engine=engine):
                 graph = reel_filters(1.0, "Sans", engine)
                 self.assertIn("text=SWAP", graph)
                 self.assertNotIn("RECAST", graph)
                 self.assertIn("text=SOURCE", graph)
-                self.assertIn("CHARACTER SWAP", graph)
-                self.assertIn(name, graph)
+                self.assertIn("CHARACTER SWAP", graph.upper())
+                self.assertIn(stack, graph)
                 self.assertIn(accent, graph)
+        # The brand is the application wordmark, in its two tones.
+        brand = reel_filters(1.0, "Sans")
+        self.assertIn("text=OPEN:fontcolor=white", brand)
+        self.assertIn("text=GENJUTSU:fontcolor=0xD8FF3E", brand)
         # The two studios must not share a colour, and an unknown engine falls back.
         self.assertNotEqual(reel_filters(1.0, "Sans", "ltx25-ripple"),
                             reel_filters(1.0, "Sans", "minimax-h3"))
         self.assertEqual(reel_filters(1.0, "Sans", "unknown-engine"),
                          reel_filters(1.0, "Sans", DEFAULT_REEL_ENGINE))
+
+    def test_the_reel_keeps_its_content_out_of_the_platform_bottom_zone(self):
+        """Reels, Shorts and TikTok draw their caption and buttons over the bottom of the frame."""
+        bottoms = []
+        for fragment in reel_filters(2.0, "Sans").split(","):
+            overlay = re.search(r"overlay=\d+:(\d+)", fragment)
+            y = re.search(r"(?:^|:)y=(\d+)", fragment)
+            size = re.search(r"fontsize=(\d+)", fragment)
+            height = re.search(r"h=(\d+)", fragment)
+            if overlay:
+                bottoms.append(int(overlay.group(1)) + PANELS["height"])
+            elif y and size:
+                bottoms.append(int(y.group(1)) + int(size.group(1)))
+            elif y and height:
+                bottoms.append(int(y.group(1)) + int(height.group(1)))
+        self.assertTrue(bottoms, "no positioned element was found to check")
+        self.assertLessEqual(max(bottoms), SAFE_BOTTOM,
+                             "reel content would be covered by the platform interface")
 
     def test_comparison_reel_is_portrait_h264_with_result_duration(self):
         source, result, reel = [self.root / name for name in ("source.mp4", "result.mp4", "reel.mp4")]

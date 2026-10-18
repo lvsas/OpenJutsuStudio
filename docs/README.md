@@ -34,6 +34,7 @@ what the product **is now**. Where an older file contradicts a newer one, the ne
 | [Viral Character plan](plans/2026-10-18-viral-character-phase.md) | the character module, task by task: trend library, recipe, graph, capsule, page |
 | [Timeline plan](plans/2026-10-18-timeline-latent-phase.md) | extend, prepend and bridge from the latent capsules, with the pack's traps as test assertions |
 | [Dependencies](dependencies.md) | every node class and model file this repository needs, verified against a live ComfyUI |
+| [Character reference probe](validation/character-reference-probe.md) | whether an installed model can produce a usable character reference, and what remains unverified |
 | [H3 license gate](validation/h3-license-gate.md) | contest eligibility is not a commercial or territorial licence — read before deploying or sharing output |
 | [Prompt profiles](architecture/prompt-profiles.md) | how a prompt policy is versioned and frozen per engine |
 | [H3 and the continuity capsule](architecture/h3-continuity-capsule.md) | the capsule is **live** in both studios; this records which H3 mechanisms that document proposed and we did not adopt |

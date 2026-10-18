@@ -92,7 +92,8 @@ class ManifestShapeTests(unittest.TestCase):
         self.assertTrue(planned["gated_repository"])
         roles = {role["role"] for role in planned["roles"]}
         self.assertIn("diffusion model", roles)
-        self.assertIn("vision encoder", roles)
+        self.assertTrue(any("encoder" in name for name in roles),
+                        "a conditioning encoder must be declared")
         for role in planned["roles"]:
             with self.subTest(role=role["role"]):
                 self.assertTrue(role["alternatives"], "a role must say what could satisfy it")
@@ -104,6 +105,24 @@ class ManifestShapeTests(unittest.TestCase):
             with self.subTest(role=role["role"]):
                 if role["installed"] is not None:
                     self.assertIn(role["installed"], role["alternatives"])
+
+    def test_the_upsampler_is_not_declared_as_the_conditioning_encoder(self):
+        """The name says upsampler, so it was wired to the sampler and failed on tensor shapes."""
+        named = [r for r in self.manifest["character_generator"]["roles"]
+                 if "upsampler" in r["role"]]
+        self.assertTrue(named, "the upsampler is installed and worth recording")
+        for role in named:
+            with self.subTest(role=role["role"]):
+                self.assertFalse(role["required"],
+                                 "an upsampler writes text; a graph can sample without it")
+                self.assertIn("NOT the conditioning encoder", role["note"],
+                              "the note must say what it is not, or the next reader repeats it")
+
+    def test_the_verified_combination_names_every_part_it_exercised(self):
+        verified = self.manifest["character_generator"]["verified_combination"]
+        for part in ("diffusion", "encoder", "encoder_type", "vae", "evidence"):
+            with self.subTest(part=part):
+                self.assertTrue(verified[part])
 
 
 class CheckerTests(unittest.TestCase):

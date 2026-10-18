@@ -117,6 +117,24 @@ class CompetitionRequirementsTests(unittest.TestCase):
                 self.assertEqual(tracked.returncode, 0,
                                  f'{target} is referenced by the README but not tracked by git')
 
+    def test_documentation_links_resolve_to_tracked_files(self):
+        """A documentation index with dead links is worse than no index."""
+        import subprocess
+        for name in ('README.md', 'docs/README.md'):
+            page = ROOT / name
+            self.assertTrue(page.is_file(), f'{name} must exist')
+            for target in re.findall(r'\]\(([^)#]+)\)', page.read_text()):
+                if target.startswith(('http://', 'https://', 'mailto:')):
+                    continue
+                with self.subTest(page=name, target=target):
+                    resolved = (page.parent / target).resolve()
+                    self.assertTrue(resolved.is_file(), f'{name} links to a missing file: {target}')
+                    relative = str(resolved.relative_to(ROOT))
+                    tracked = subprocess.run(['git', 'ls-files', '--error-unmatch', relative],
+                                             cwd=ROOT, capture_output=True)
+                    self.assertEqual(tracked.returncode, 0,
+                                     f'{name} links to an untracked file: {target}')
+
     def test_no_local_paths_ship_in_the_workflows(self):
         for name in WORKFLOW_FILES:
             text = (ROOT / 'workflows' / name).read_text()

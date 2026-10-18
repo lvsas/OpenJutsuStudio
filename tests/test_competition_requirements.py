@@ -101,6 +101,22 @@ class CompetitionRequirementsTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertEqual(json.loads((ROOT / 'workflows' / name).read_text()), graph)
 
+    def test_readme_images_exist_and_are_tracked(self):
+        """A README that points at an untracked image shows a broken repository."""
+        import subprocess
+        readme = (ROOT / 'README.md').read_text()
+        referenced = re.findall(r'!\[[^\]]*\]\(([^)]+)\)', readme)
+        self.assertTrue(referenced, 'the README must show the running app')
+        for target in referenced:
+            if target.startswith(('http://', 'https://')):
+                continue
+            with self.subTest(target=target):
+                self.assertTrue((ROOT / target).is_file(), f'{target} is referenced but missing')
+                tracked = subprocess.run(['git', 'ls-files', '--error-unmatch', target],
+                                         cwd=ROOT, capture_output=True)
+                self.assertEqual(tracked.returncode, 0,
+                                 f'{target} is referenced by the README but not tracked by git')
+
     def test_no_local_paths_ship_in_the_workflows(self):
         for name in WORKFLOW_FILES:
             text = (ROOT / 'workflows' / name).read_text()

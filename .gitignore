@@ -5,6 +5,8 @@ __pycache__/
 work/
 *.mp4
 *.png
+# Screenshots the README shows are part of the submission.
+!docs/readme/*.png
 assets/
 .pytest_cache/
 node_modules/

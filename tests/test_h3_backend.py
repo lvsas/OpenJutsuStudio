@@ -73,6 +73,30 @@ class BackendTests(unittest.TestCase):
         self.assertIsNone(warning)
         self.assertEqual(same['preserve_clip'], 'keep the scarf')
 
+    def test_reference_description_is_generated_and_never_overwrites_the_operator(self):
+        blank = make_recipe(source_width=640, source_height=360)
+        with patch.object(pipeline, 'describe_character',
+                          return_value={'text': 'a tall woman in a red coat', 'model': 'm',
+                                        'frames': 1, 'job_id': 'j'}):
+            completed, warning = pipeline._complete_reference_descriptions(
+                None, blank, [self.reference], self.root)
+        self.assertIsNone(warning)
+        self.assertEqual(completed['reference_descriptions'], ['a tall woman in a red coat'])
+        self.assertEqual(completed['reference_description_sources'], ['generated'])
+        self.assertIn('<Picture 1>: a tall woman in a red coat.', completed['effective_prompt'])
+        authored = make_recipe(preserve_clip='keep the scarf', source_width=640, source_height=360,
+                               reference_descriptions=('already described',))
+        with patch.object(pipeline, 'describe_character', side_effect=AssertionError('must not run')):
+            same, warning = pipeline._complete_reference_descriptions(
+                None, authored, [self.reference], self.root)
+        self.assertIsNone(warning)
+        self.assertEqual(same['reference_descriptions'], ['already described'])
+        with patch.object(pipeline, 'describe_character', side_effect=RuntimeError('no vision node')):
+            kept, warning = pipeline._complete_reference_descriptions(
+                None, blank, [self.reference], self.root)
+        self.assertEqual(kept['reference_descriptions'], [''])
+        self.assertIn('Character 1 was not described', warning)
+
     def test_success_is_h3_only_and_selects_mp4(self):
         with patch.object(core, 'edit_segment', side_effect=AssertionError('LTX forbidden')):
             job = self.run_job()

@@ -29,6 +29,14 @@ INSTRUCTION = (
     'listing those elements. Do not describe actions, camera movement, shot lists or timings.'
 )
 
+CHARACTER_INSTRUCTION = (
+    'This is a character reference. Describe only the visible appearance of the person in it: '
+    'build, hair, clothing and anything they wear. Answer with one short English sentence that '
+    'can be used as a replacement character description. Do not describe the layout, the '
+    'background, other panels, poses or the image style, and do not mention that it is a '
+    'reference or a picture.'
+)
+
 
 def validate_preserved(text):
     """Accept one short visible-content sentence, refuse anything else."""
@@ -116,3 +124,20 @@ def describe_preserved(client, source, folder, *, count=FRAME_COUNT, model=VISIO
     job.wait(timeout=timeout)
     text = validate_preserved(_saved_text(job))
     return {'text': text, 'model': model, 'frames': len(frames), 'job_id': str(job.id)}
+
+
+def describe_character(client, reference, *, model=VISION_MODEL,
+                       quantization=VISION_QUANTIZATION, timeout=1200):
+    """Describe the replacement character from its reference image alone.
+
+    Same mechanism as the clip description, one image instead of a sampled clip: the text
+    can only name what is visible in the reference the operator actually supplied.
+    """
+    asset = client.assets.from_file(reference).as_reference()
+    graph = build_preserve_graph([asset], model=model, quantization=quantization,
+                                 instruction=CHARACTER_INSTRUCTION,
+                                 filename_prefix='opengenjutsu/character')
+    job = client.submit(client.workflows.from_json(graph))
+    job.wait(timeout=timeout)
+    text = validate_preserved(_saved_text(job))
+    return {'text': text, 'model': model, 'frames': 1, 'job_id': str(job.id)}

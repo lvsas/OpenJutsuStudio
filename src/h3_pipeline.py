@@ -10,9 +10,30 @@ import core
 from comfy_transport import make_client
 from h3_media import prepare_source, finish_result, validate_result, has_audio
 from h3_capsule import contained, digest_file, freeze_capsule
-from h3_preserve import describe_preserved
-from h3_recipe import ENGINE, bind_frames, validate_recipe, with_preserve_clip
+from h3_preserve import describe_character, describe_preserved
+from h3_recipe import ENGINE, bind_frames, validate_recipe, with_preserve_clip, with_reference_description
 from media import ffprobe
+
+
+def _complete_reference_descriptions(client, recipe, references, folder):
+    """Name each replacement character from its own reference image.
+
+    Called before the graph is frozen so the frozen template and the capsule both carry the
+    text and its provenance. An operator's own description is never sent to the model and
+    never overwritten; a reference the model cannot describe is left empty and reported.
+    """
+    updated = recipe
+    warnings = []
+    for index, reference in enumerate(references):
+        if updated['reference_descriptions'][index].strip():
+            continue
+        try:
+            described = describe_character(client, reference)
+        except Exception as exc:
+            warnings.append(f'Character {index + 1} was not described ({type(exc).__name__}).')
+            continue
+        updated = with_reference_description(updated, index, described['text'], 'generated')
+    return updated, ' '.join(warnings) or None
 
 
 def _complete_preserve_clip(client, recipe, prepared, folder):
@@ -88,6 +109,10 @@ def run_h3_pipeline(job, video_path, opts):
             raise ValueError('Replay normalization differs from the frozen recipe')
         client = make_client()
         if recipe['source_frames_24fps'] is None:
+            recipe, reference_warning = _complete_reference_descriptions(
+                client, recipe, [reference], folder)
+            if reference_warning:
+                job.meta['h3_reference_warning'] = reference_warning
             recipe, preserve_warning = _complete_preserve_clip(client, recipe, prepared, folder)
             if preserve_warning:
                 job.meta['h3_preserve_warning'] = preserve_warning

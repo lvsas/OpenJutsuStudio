@@ -157,6 +157,25 @@ def make_recipe(preserve_clip='', seed=302929098223082, *, reference_description
     return recipe
 
 
+def with_reference_description(recipe, index, text, source='generated'):
+    """Fill one reference's description from its reference image, before freezing."""
+    if source not in DESCRIPTION_SOURCES:
+        raise ValueError('Reference description provenance must be user or generated')
+    updated = copy.deepcopy(recipe)
+    descriptions = list(updated['reference_descriptions'])
+    sources = list(updated['reference_description_sources'])
+    if not 0 <= index < len(descriptions):
+        raise ValueError('Reference index is out of range')
+    if sources[index] == 'user' and descriptions[index].strip():
+        raise ValueError('An operator description is never overwritten')
+    descriptions[index] = _text(text, 'Reference description')
+    sources[index] = source
+    updated['reference_descriptions'] = descriptions
+    updated['reference_description_sources'] = sources
+    updated['effective_prompt'] = compose_prompt(descriptions, updated['preserve_clip'])
+    return validate_recipe(updated)
+
+
 def with_preserve_clip(recipe, text, source='generated'):
     """Complete a recipe with a preserved-content description produced from the clip.
 

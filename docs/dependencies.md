@@ -15,6 +15,58 @@ memory. Read this before writing an install guide or opening the repository to a
 The instance is a **workstation**, not a minimal install: it carries 57 packs for unrelated
 work. What matters for this repository is far smaller, and is enumerated below.
 
+## The list, by category
+
+Machine-readable in **`dependencies.json`** at the repository root; verify a machine with:
+
+```bash
+python3 scripts/check_dependencies.py --host http://127.0.0.1:8188
+python3 scripts/check_dependencies.py --host <url> --include-planned   # also the character generator
+```
+
+It reports what is missing per category, names the pack that owns a missing node, distinguishes an
+out-of-date ComfyUI from an incomplete one, and exits non-zero so it can gate a deployment.
+
+### Custom nodes — 5 packs
+
+| Pack | Nodes we need | Needed by |
+|---|---|---|
+| **ComfyUI-VideoHelperSuite** | `VHS_LoadVideo`, `VHS_VideoCombine` | all three workflows |
+| **ComfyUI-LTXVideo** | `LTXAddVideoICLoRAGuide` | LTX / Ripple |
+| **ComfyUI-KJNodes** | `ImageResizeKJv2`, `PathchSageAttentionKJ`, `VAELoaderKJ`, `LTX2MemoryEfficientSageAttentionPatch` | LTX / Ripple |
+| **ComfyUI_Res4lyf** | `Frames Slice` | LTX / Ripple |
+| **MiniMaxH3-LatentUpscaler** | `MinimaxH3LatentUpscaler3D` | H3 |
+
+Plus **34 nodes from ComfyUI core** itself — 23 from `comfy_extras` and 11 from the base — listed in
+`dependencies.json` so a version floor can be checked rather than guessed.
+
+### Models — 12 files, in ComfyUI's own folders
+
+| Folder | File | Role |
+|---|---|---|
+| `diffusion_models` | `minimax_h3_fl2va_pruned_int8_convrot.safetensors` | H3 base |
+| `vae` | `minimax_h3_video_vae_fp16.safetensors` | H3 video decode |
+| `vae` | `minimax_h3_audio_vae_fp32.safetensors` | H3 audio decode |
+| `text_encoders` | `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | H3 text encoder |
+| `upscale_models` | `minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors` | H3 latent upscaler |
+| `diffusion_models` | `ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors` | LTX transformer |
+| `vae` | `ltx-2.5-video-vae-conv-bf16.safetensors` | LTX video decode |
+| `vae` | `ltx-2.5-audio-vae-bf16.safetensors` | LTX audio decode |
+| `text_encoders` | `gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors` | LTX text encoder |
+| `diffusion_models` | `flux-2-klein-9b-fp8.safetensors` | first-frame editor |
+| `vae` | `full_encoder_small_decoder.safetensors` | first-frame editor VAE |
+| `text_encoders` | `qwen_3_8b_fp8mixed.safetensors` | first-frame editor text encoder |
+
+### LoRAs — 3 files
+
+| File | Role | Author |
+|---|---|---|
+| `H3/h3_character_swap_v1.5.safetensors` | the character-swap adapter the H3 studio is built on | akatz-ai |
+| `minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors` | step distillation, H3 speed | — |
+| `LTX25_Ripple_v11.safetensors` | carries an approved edit through motion | WepeNerd |
+
+The H3 LoRA keeps its `H3/` subfolder, because the workflow names it that way.
+
 ## 1. Python
 
 `requirements.txt` is the whole list; the application has no other Python dependency.

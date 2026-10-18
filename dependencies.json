@@ -1,0 +1,209 @@
+{
+  "schema": 1,
+  "note": "What this application needs on a ComfyUI machine. Verified against a live /object_info rather than assembled from memory. Folders are ComfyUI's own model directories.",
+  "verified_against": {
+    "comfyui": "0.40.0",
+    "date": "2026-10-18"
+  },
+  "comfyui_packs": [
+    {
+      "name": "ComfyUI-VideoHelperSuite",
+      "source": "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite",
+      "nodes": ["VHS_LoadVideo", "VHS_VideoCombine"],
+      "used_by": ["ltx-ripple", "ltx-frame-edit", "h3-recast"],
+      "required": true
+    },
+    {
+      "name": "ComfyUI-LTXVideo",
+      "source": "https://github.com/Lightricks/ComfyUI-LTXVideo",
+      "nodes": ["LTXAddVideoICLoRAGuide"],
+      "used_by": ["ltx-ripple"],
+      "required": true
+    },
+    {
+      "name": "ComfyUI-KJNodes",
+      "source": "https://github.com/kijai/ComfyUI-KJNodes",
+      "nodes": ["ImageResizeKJv2", "PathchSageAttentionKJ", "VAELoaderKJ", "LTX2MemoryEfficientSageAttentionPatch"],
+      "used_by": ["ltx-ripple"],
+      "required": true,
+      "warning": "On the reference machine these arrive from a locally bundled folder named comfyui-workflow-encrypt. Install KJNodes upstream; the bundled name is not installable."
+    },
+    {
+      "name": "ComfyUI_Res4lyf",
+      "source": "https://github.com/ClownsharkBatwing/RES4LYF",
+      "nodes": ["Frames Slice"],
+      "used_by": ["ltx-ripple"],
+      "required": true
+    },
+    {
+      "name": "MiniMaxH3-LatentUpscaler",
+      "source": "https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler",
+      "nodes": ["MinimaxH3LatentUpscaler3D"],
+      "used_by": ["h3-recast"],
+      "required": true,
+      "warning": "Two packs of this name are installed on the reference machine. Pin one and assert the resolved python_module at startup."
+    }
+  ],
+  "core_nodes": {
+    "note": "Provided by ComfyUI itself; nothing to install. Listed so a version floor can be checked.",
+    "from_comfy_extras": [
+      "MiniMaxH3ReferenceToVideo", "MiniMaxH3AddGuide",
+      "SamplerCustomAdvanced", "BasicGuider", "CFGGuider", "BasicScheduler",
+      "KSamplerSelect", "RandomNoise", "SplitSigmas",
+      "EmptyLTXVLatentVideo", "LTXVConditioning", "LTXVCropGuides",
+      "LTXVConcatAVLatent", "LTXVSeparateAVLatent", "LTXVEmptyLatentAudio",
+      "EmptyFlux2LatentImage", "Flux2Scheduler", "ReferenceLatent",
+      "VAEDecodeAudio", "BatchImagesNode", "ResizeImageMaskNode",
+      "GetImageSize", "ModelAttentionBackend"
+    ],
+    "from_core": [
+      "LoadImage", "UNETLoader", "VAELoader", "CLIPLoader", "CLIPTextEncode",
+      "LoraLoaderModelOnly", "VAEDecode", "VAEEncode", "ConditioningZeroOut",
+      "ImageScaleToTotalPixels", "SaveImage"
+    ]
+  },
+  "models": [
+    {
+      "file": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+      "folder": "diffusion_models",
+      "loader": "UNETLoader",
+      "role": "MiniMax H3 base, character recast",
+      "engines": ["h3-recast"]
+    },
+    {
+      "file": "minimax_h3_video_vae_fp16.safetensors",
+      "folder": "vae",
+      "loader": "VAELoader",
+      "role": "H3 video decode",
+      "engines": ["h3-recast"]
+    },
+    {
+      "file": "minimax_h3_audio_vae_fp32.safetensors",
+      "folder": "vae",
+      "loader": "VAELoader",
+      "role": "H3 audio decode, keeps the source soundtrack",
+      "engines": ["h3-recast"]
+    },
+    {
+      "file": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "folder": "text_encoders",
+      "loader": "CLIPLoader",
+      "role": "H3 text encoder",
+      "engines": ["h3-recast"]
+    },
+    {
+      "file": "minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors",
+      "folder": "upscale_models",
+      "loader": "MinimaxH3LatentUpscaler3D",
+      "role": "H3 latent upscaler, used by the two-pass runtime",
+      "engines": ["h3-recast"]
+    },
+    {
+      "file": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+      "folder": "diffusion_models",
+      "loader": "UNETLoader",
+      "role": "LTX 2.5 transformer",
+      "engines": ["ltx-ripple"]
+    },
+    {
+      "file": "ltx-2.5-video-vae-conv-bf16.safetensors",
+      "folder": "vae",
+      "loader": "VAELoader",
+      "role": "LTX video decode",
+      "engines": ["ltx-ripple"]
+    },
+    {
+      "file": "ltx-2.5-audio-vae-bf16.safetensors",
+      "folder": "vae",
+      "loader": "VAELoader",
+      "role": "LTX audio decode",
+      "engines": ["ltx-ripple"]
+    },
+    {
+      "file": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+      "folder": "text_encoders",
+      "loader": "CLIPLoader",
+      "role": "LTX text encoder",
+      "engines": ["ltx-ripple"]
+    },
+    {
+      "file": "flux-2-klein-9b-fp8.safetensors",
+      "folder": "diffusion_models",
+      "loader": "UNETLoader",
+      "role": "first-frame editor of the LTX path",
+      "engines": ["ltx-frame-edit"]
+    },
+    {
+      "file": "full_encoder_small_decoder.safetensors",
+      "folder": "vae",
+      "loader": "VAELoader",
+      "role": "VAE for the first-frame editor",
+      "engines": ["ltx-frame-edit"]
+    },
+    {
+      "file": "qwen_3_8b_fp8mixed.safetensors",
+      "folder": "text_encoders",
+      "loader": "CLIPLoader",
+      "role": "text encoder for the first-frame editor",
+      "engines": ["ltx-frame-edit"]
+    }
+  ],
+  "loras": [
+    {
+      "file": "H3/h3_character_swap_v1.5.safetensors",
+      "folder": "loras",
+      "role": "the character-swap adapter the H3 studio is built on",
+      "author": "akatz-ai",
+      "engines": ["h3-recast"]
+    },
+    {
+      "file": "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+      "folder": "loras",
+      "role": "step-distillation adapter, H3 speed",
+      "engines": ["h3-recast"]
+    },
+    {
+      "file": "LTX25_Ripple_v11.safetensors",
+      "folder": "loras",
+      "role": "the Ripple IC-LoRA that carries an edit through motion",
+      "author": "WepeNerd",
+      "engines": ["ltx-ripple"]
+    }
+  ],
+  "character_generator": {
+    "note": "Planned target for the character reference generator. Not used by any shipped workflow yet. The repository on Hugging Face is access-gated, so downloads need an authenticated client.",
+    "status": "planned",
+    "gated_repository": "black-forest-labs/flux-3-image-klein-comfy",
+    "diffusion_models": [
+      {"file": "flux3-image-klein-int8-convrot.safetensors", "size_gb": 5.83, "note": "distilled, int8 — matches the quantisation the rest of this stack uses"},
+      {"file": "flux3-image-klein-bf16.safetensors", "size_gb": 11.1, "note": "distilled, full precision"},
+      {"file": "flux3-image-klein-base-int8-convrot.safetensors", "size_gb": 5.81, "note": "base, int8"},
+      {"file": "flux3-image-klein-base-bf16.safetensors", "size_gb": 11.08, "note": "base, full precision"},
+      {"file": "flux3-image-klein-nvfp4.safetensors", "size_gb": 5.28, "note": "distilled, nvfp4"},
+      {"file": "flux3-image-klein-base-nvfp4.safetensors", "size_gb": 5.26, "note": "base, nvfp4"}
+    ],
+    "text_encoders": [
+      {"file": "qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors", "size_gb": 6.72, "note": "smallest prompt upsampler"},
+      {"file": "qwen3.5_9b_flux3_prompt_upsampler_int8_convrot.safetensors", "size_gb": 9.75},
+      {"file": "qwen3.5_9b_flux3_prompt_upsampler_bf16.safetensors", "size_gb": 18.82},
+      {"file": "qwen3vl_4b_int8_convrot.safetensors", "size_gb": 4.86, "note": "vision-language encoder, for reading reference images"},
+      {"file": "qwen3vl_4b_bf16.safetensors", "size_gb": 8.88}
+    ],
+    "vae": [
+      {"file": "flux2-vae.safetensors", "size_gb": 0.34}
+    ],
+    "upstream_workflows": [
+      "flux3_klein_int8_t2i.json",
+      "flux3_klein_int8_i2i.json",
+      "flux3_klein_int8_mi2i.json",
+      "flux3_klein_base_int8_t2i.json",
+      "flux3_klein_base_int8_i2i.json",
+      "flux3_klein_base_int8_mi2i.json"
+    ],
+    "why_this_model": [
+      "multi-reference generation is native: it takes several references and keeps characters recognisable across inputs, which is the character-sheet gesture",
+      "5.6B parameters, so a reference costs seconds rather than minutes",
+      "the same model does text-to-image, single-reference edit and multi-reference composition, so one graph covers the three things the character page needs"
+    ]
+  }
+}

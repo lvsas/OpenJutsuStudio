@@ -171,6 +171,20 @@ Open `http://127.0.0.1:8000`. Both services bind to loopback only. The launcher 
 
 The image-edit stage additionally requires the ComfyUI-compatible FLUX.2 Klein 9B checkpoint, text encoder, and VAE named in `src/core.py`. Those editor files are not auto-downloaded by this script yet; install them through the relevant official/ComfyUI model source and review their license terms. The gated LTX in/outpainting IC-LoRA is **not** required by this Ripple-based MVP.
 
+### Check what a ComfyUI machine is missing
+
+The complete list — custom node packs, models, LoRAs and the core nodes we depend on — is
+[`dependencies.json`](dependencies.json), and the same list is readable in
+[docs/dependencies.md](docs/dependencies.md). Verify a machine against it:
+
+```bash
+python3 scripts/check_dependencies.py --host http://127.0.0.1:8188
+python3 scripts/check_dependencies.py --host <url> --include-planned   # + the character generator
+```
+
+It names the pack that owns a missing node, tells an out-of-date ComfyUI apart from an incomplete
+one, and exits non-zero so it can gate a deployment.
+
 
 ---
 

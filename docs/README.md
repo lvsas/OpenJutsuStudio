@@ -34,6 +34,7 @@ what the product **is now**. Where an older file contradicts a newer one, the ne
 | [Viral Character plan](plans/2026-10-18-viral-character-phase.md) | the character module, task by task: trend library, recipe, graph, capsule, page |
 | [Timeline plan](plans/2026-10-18-timeline-latent-phase.md) | extend, prepend and bridge from the latent capsules, with the pack's traps as test assertions |
 | [Dependencies](dependencies.md) | every node class and model file this repository needs, verified against a live ComfyUI |
+| [`dependencies.json`](../dependencies.json) | the same list machine-readably, with `scripts/check_dependencies.py` to verify a machine |
 | [Character reference probe](validation/character-reference-probe.md) | whether an installed model can produce a usable character reference, and what remains unverified |
 | [Model licences](validation/model-licences.md) | which model may be used for paid work: the LTX path is licensed, the FLUX step and MiniMax H3 are not |
 | [H3 license gate](validation/h3-license-gate.md) | contest eligibility is not a commercial or territorial licence — read before deploying or sharing output |

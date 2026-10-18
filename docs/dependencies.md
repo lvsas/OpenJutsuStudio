@@ -167,13 +167,17 @@ right default.
 ## 7. Licence status
 
 Model **files are not redistributed** by this repository — only their names appear, inside the
-workflow JSON. A user must obtain them separately, which puts the licence question on the user,
-but this project still has to answer it for two reasons: the competition requires lawful
-submissions, and the stated goal is selling work produced with these models.
+workflow JSON. A user must obtain them separately, which puts the licence question on the user, but
+this project still has to answer it for two reasons: the competition requires lawful submissions, and
+the stated goal is selling work produced with these models.
 
-`docs/validation/h3-license-gate.md` holds the H3 analysis. A licence and commercial-use table
-for the full model list is being assembled separately and will be added here; until it lands,
-treat every entry above as **not yet verified for commercial use**.
+**The full position is in [`validation/model-licences.md`](validation/model-licences.md)**, verified
+against the publishers' own pages. Read it before invoicing anything. In one line: the LTX 2.5 +
+Ripple path is licensed for commercial work below the revenue threshold, the FLUX.2 Klein first-frame
+step is under a non-commercial licence, and the MiniMax H3 licence excludes the European Union.
+
+`docs/validation/h3-license-gate.md` holds the H3 analysis, including the organizer guidance that
+permits contest validation — which is a different question from commercial use.
 
 ## 8. What a third party installs
 

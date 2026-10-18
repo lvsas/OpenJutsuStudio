@@ -61,6 +61,24 @@ The competition requires the combined techniques to be explained in the demo vid
 - **MiniMax H3**, two-pass sampling, with the **Character Swap LoRA `h3_character_swap_v1.5` by akatz-ai** in H3 Studio
 - a **local vision model** (`Qwen3-VL-4B`) that reads the source clip and each reference image to write the descriptions the studio freezes into the take
 
+> **Commercial use needs separate model licences.** The weights this project runs are not all
+> licensed for paid work, and two of them are the reason to read carefully:
+>
+> - **FLUX.2 Klein 9B** (the first-frame editor) is under the **FLUX Non-Commercial License** —
+>   commercial use requires a licence from Black Forest Labs.
+> - **MiniMax H3** (the H3 studio) is under the **MiniMax H3 Community License**, whose Applicable
+>   Territory **excludes the European Union**, the United Kingdom, the Republic of Korea and the
+>   United States, and which extends that restriction to the outputs. Operating from the EU, the H3
+>   studio is not covered.
+>
+> The **LTX 2.5 + Ripple** path is the one licensed for commercial work here: Lightricks grants
+> royalty-free commercial use below 10 M$ of annual revenue.
+>
+> Contest eligibility is a different question: the organizers confirmed that non-commercial weights
+> qualify, because what matters is that the models can be downloaded and run locally. Read
+> [Model licences](docs/validation/model-licences.md) before selling anything produced with this
+> tool, and [the H3 license gate](docs/validation/h3-license-gate.md) for the H3 specifics.
+
 
 ## Current MVP: Character Recast with LTX 2.5 + Ripple
 

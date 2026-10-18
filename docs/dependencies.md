@@ -37,7 +37,7 @@ out-of-date ComfyUI from an incomplete one, and exits non-zero so it can gate a 
 | **ComfyUI_Res4lyf** | `Frames Slice` | LTX / Ripple |
 | **MiniMaxH3-LatentUpscaler** | `MinimaxH3LatentUpscaler3D` | H3 |
 
-Plus **34 nodes from ComfyUI core** itself — 23 from `comfy_extras` and 11 from the base — listed in
+Plus **42 nodes from ComfyUI core** itself — 30 from `comfy_extras` and 12 from the base — listed in
 `dependencies.json` so a version floor can be checked rather than guessed.
 
 ### Models — 12 files, in ComfyUI's own folders
@@ -104,11 +104,16 @@ MiniMax H3 support only landed in core recently:
 | `nodes_minimax_h3` | `MiniMaxH3ReferenceToVideo`, `MiniMaxH3AddGuide` |
 | `nodes_custom_sampler` | `SamplerCustomAdvanced`, `BasicGuider`, `CFGGuider`, `BasicScheduler`, `KSamplerSelect`, `RandomNoise`, `SplitSigmas` |
 | `nodes_lt`, `nodes_lt_audio` | `EmptyLTXVLatentVideo`, `LTXVConditioning`, `LTXVCropGuides`, `LTXVConcatAVLatent`, `LTXVSeparateAVLatent`, `LTXVEmptyLatentAudio` |
-| `nodes_flux`, `nodes_edit_model` | `EmptyFlux2LatentImage`, `Flux2Scheduler`, `ReferenceLatent` |
+| `nodes_flux`, `nodes_edit_model` | `EmptyFlux2LatentImage`, `Flux2Scheduler`, `ReferenceLatent`, `Flux3LayoutPrompt` |
 | `nodes_audio` | `VAEDecodeAudio` |
 | `nodes_post_processing` | `BatchImagesNode`, `ResizeImageMaskNode` |
 | `nodes_images`, `nodes_model_advanced` | `GetImageSize`, `ModelAttentionBackend` |
-| `nodes` | `LoadImage`, `UNETLoader`, `VAELoader`, `CLIPLoader`, `CLIPTextEncode`, `LoraLoaderModelOnly`, `VAEDecode`, `VAEEncode`, `ConditioningZeroOut`, `ImageScaleToTotalPixels`, `SaveImage` |
+| `nodes` | `LoadImage`, `UNETLoader`, `VAELoader`, `CLIPLoader`, `CLIPTextEncode`, `LoraLoaderModelOnly`, `KSampler`, `VAEDecode`, `VAEEncode`, `ConditioningZeroOut`, `ImageScaleToTotalPixels`, `SaveImage` |
+| `nodes_textgen` | `TextGenerate` — this is what runs the character generator's prompt upsampler |
+| `nodes_resolution` | `ResolutionSelector` |
+| `nodes_bounding_boxes` | `CreateBoundingBoxes` |
+| `nodes_logic` | `ComfySwitchNode` |
+| `nodes_preview_any`, `nodes_primitive` | `PreviewAny`, `PrimitiveStringMultiline` |
 
 **Finding.** MiniMax H3 is core. An earlier assumption that H3 needed a companion pack is wrong
 as of this version, and no H3 node has to be installed.
@@ -183,6 +188,24 @@ options on the reference instance.
 | character-swap LoRA | `H3/h3_character_swap_v1.5.safetensors` |
 | speed LoRA | `minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors` |
 | latent upscaler | `minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors` |
+
+### Character generator path (FLUX 3 Image Klein)
+
+The upstream workflow for this path is kept in the repository at
+`workflows/flux3-klein-official-t2i.json`, so the contract covers the vendor's own graph as well as
+ours. Every file below is confirmed present on the reference instance.
+
+| Role | File |
+|---|---|
+| `unet_name` | `flux3-image-klein-base-int8-convrot.safetensors` (in the `flux/` subfolder here) |
+| `clip_name` | `qwen3vl_4b_int8_convrot.safetensors`, `CLIPLoader` type `flux3` — this is what feeds the sampler |
+| `clip_name` | `qwen3.5_9b_flux3_prompt_upsampler_int8_convrot.safetensors` — writes the caption, via `TextGenerate` |
+| `vae_name` | `flux2-vae.safetensors` |
+
+Two notes that cost time to establish. The prompt upsampler is **not** the conditioning encoder:
+wiring it to the sampler fails with `mat1 and mat2 shapes cannot be multiplied`. And the upstream
+workflow names the diffusion model **without** a folder prefix, which an install that keeps the file
+in a subfolder must add, or the audit refuses the name with `value_not_in_list`.
 
 ### Deliberately not required
 

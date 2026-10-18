@@ -68,9 +68,27 @@ class ManifestShapeTests(unittest.TestCase):
     def test_the_manifest_declares_every_model_a_workflow_names(self):
         declared = {entry["file"] for entry in self.manifest["models"]}
         declared |= {entry["file"] for entry in self.manifest["loras"]}
+        # the character generator's files are dependencies too, and the upstream workflow names
+        # them, so the contract has to accept any of the alternatives that could satisfy a role
+        for role in self.manifest["character_generator"]["roles"]:
+            declared |= set(role["alternatives"])
         for name in sorted(workflow_model_files()):
             with self.subTest(model=name):
                 self.assertIn(name, declared, f"{name} is named but absent from dependencies.json")
+
+    def test_the_official_upstream_workflow_is_part_of_the_contract(self):
+        """The vendor's own graph is the reference the manifest has to cover, node for node."""
+        official = ROOT / "workflows" / "flux3-klein-official-t2i.json"
+        self.assertTrue(official.is_file(), "the upstream workflow must be kept in the repository")
+        graph = json.loads(official.read_text())
+        used = {node["class_type"] for node in graph.values() if "class_type" in node}
+        self.assertIn("TextGenerate", used, "this is the node that runs the prompt upsampler")
+        declared = {x for pack in self.manifest["comfyui_packs"] for x in pack["nodes"]}
+        declared |= set(self.manifest["core_nodes"]["from_comfy_extras"])
+        declared |= set(self.manifest["core_nodes"]["from_core"])
+        for node in sorted(used):
+            with self.subTest(node=node):
+                self.assertIn(node, declared)
 
     def test_every_pack_says_which_workflow_needs_it(self):
         for pack in self.manifest["comfyui_packs"]:

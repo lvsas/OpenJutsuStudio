@@ -54,13 +54,16 @@
       "LTXVConcatAVLatent", "LTXVSeparateAVLatent", "LTXVEmptyLatentAudio",
       "EmptyFlux2LatentImage", "Flux2Scheduler", "ReferenceLatent",
       "VAEDecodeAudio", "BatchImagesNode", "ResizeImageMaskNode",
-      "GetImageSize", "ModelAttentionBackend"
+      "GetImageSize", "ModelAttentionBackend",
+      "ComfySwitchNode", "PreviewAny", "PrimitiveStringMultiline",
+      "ResolutionSelector", "TextGenerate", "CreateBoundingBoxes", "Flux3LayoutPrompt"
     ],
     "from_core": [
       "LoadImage", "UNETLoader", "VAELoader", "CLIPLoader", "CLIPTextEncode",
-      "LoraLoaderModelOnly", "VAEDecode", "VAEEncode", "ConditioningZeroOut",
+      "LoraLoaderModelOnly", "KSampler", "VAEDecode", "VAEEncode", "ConditioningZeroOut",
       "ImageScaleToTotalPixels", "SaveImage"
-    ]
+    ],
+    "note_on_flux3": "TextGenerate is what runs the prompt upsampler: it takes the upsampler loaded through CLIPLoader and produces the caption that CLIPTextEncode receives. None of the FLUX 3 nodes is a custom pack, which is why an installed FLUX 3 can look incomplete when it is not."
   },
   "models": [
     {
@@ -181,13 +184,14 @@
         "installed": "flux/flux3-image-klein-base-int8-convrot.safetensors",
         "alternatives": [
           "flux/flux3-image-klein-base-int8-convrot.safetensors",
+          "flux3-image-klein-base-int8-convrot.safetensors",
           "flux3-image-klein-base-bf16.safetensors",
           "flux3-image-klein-base-nvfp4.safetensors",
           "flux3-image-klein-int8-convrot.safetensors",
           "flux3-image-klein-bf16.safetensors",
           "flux3-image-klein-nvfp4.safetensors"
         ],
-        "note": "Quantisation variants of two checkpoints, base and step-distilled. One is enough. Grouped as alternatives on purpose: listing them flat made the checker report five files as missing when none were."
+        "note": "Quantisation variants of two checkpoints, base and step-distilled. One is enough. Grouped as alternatives on purpose: listing them flat made the checker report five files as missing when none were. Both spellings of the base int8 are listed because the upstream workflow omits the folder prefix while an install that keeps the file in a subfolder needs it -- the audit refuses the wrong one with value_not_in_list."
       },
       {
         "role": "prompt upsampler",

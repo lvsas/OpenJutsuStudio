@@ -30,6 +30,10 @@ what the product **is now**. Where an older file contradicts a newer one, the ne
 | [H3 multi-reference plan](plans/h3-multi-reference-phase3.md) | the ordered steps that gave H3 two character references |
 | [H3/LTX UX parity plan](plans/2026-10-17-h3-ltx-ux-parity.md) | the atomic plan behind the interface work, phase by phase |
 | [Product reflection](plans/product-reflection-three-modes.md) | where the character creator and the timeline editor belong, and what makes the three modes one product |
+| [Post-MVP roadmap](plans/2026-10-18-post-mvp-roadmap.md) | the three-step product, the order of work, and the risks it accepts |
+| [Viral Character plan](plans/2026-10-18-viral-character-phase.md) | the character module, task by task: trend library, recipe, graph, capsule, page |
+| [Timeline plan](plans/2026-10-18-timeline-latent-phase.md) | extend, prepend and bridge from the latent capsules, with the pack's traps as test assertions |
+| [Dependencies](dependencies.md) | every node class and model file this repository needs, verified against a live ComfyUI |
 | [H3 license gate](validation/h3-license-gate.md) | contest eligibility is not a commercial or territorial licence — read before deploying or sharing output |
 | [Prompt profiles](architecture/prompt-profiles.md) | how a prompt policy is versioned and frozen per engine |
 | [H3 and the continuity capsule](architecture/h3-continuity-capsule.md) | the capsule is **live** in both studios; this records which H3 mechanisms that document proposed and we did not adopt |

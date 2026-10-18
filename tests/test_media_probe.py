@@ -9,9 +9,10 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from media import ffprobe
-from output_media import (DEFAULT_REEL_ENGINE, HOOK, LAYOUTS, PANELS, SAFE_BOTTOM, WIPE,
-                          build_comparison_reel, reel_filters, restore_source_audio,
-                          wipe_filters, wipe_timing)
+from output_media import (ASSET_ORDER, CHIP, DEFAULT_REEL_ENGINE, EYEBROW, HOOK, LABELS, LAYOUTS,
+                          MICRO, SAFE_BOTTOM, STACKED, WIPE, build_comparison_reel, fonts,
+                          reel_filters, restore_source_audio, wipe_filters, wipe_timing)
+from reel_design import BASE, ENGINES, ensure_assets
 from scenes import detect_scenes
 
 
@@ -59,12 +60,12 @@ class MediaProbeTests(unittest.TestCase):
                 self.assertIn("text=SWAP", graph)
                 self.assertNotIn("RECAST", graph)
                 self.assertIn("text=SOURCE", graph)
-                self.assertIn("CHARACTER SWAP", graph.upper())
+                self.assertIn(EYEBROW, graph)
                 self.assertIn(stack, graph)
                 self.assertIn(accent, graph)
-        # The brand is the application wordmark, in its two tones.
+        # The brand is the application wordmark, in its two tones and its own display face.
         brand = reel_filters(1.0, "Sans")
-        self.assertIn("text=OPEN:fontcolor=white", brand)
+        self.assertIn("text=OPEN:fontcolor=0xF7F5F1", brand)
         self.assertIn("text=GENJUTSU:fontcolor=0xD8FF3E", brand)
         # The two studios must not share a colour, and an unknown engine falls back.
         self.assertNotEqual(reel_filters(1.0, "Sans", "ltx25-ripple"),
@@ -75,8 +76,10 @@ class MediaProbeTests(unittest.TestCase):
     def test_the_reel_keeps_its_content_out_of_the_platform_bottom_zone(self):
         """Reels, Shorts and TikTok draw their caption and buttons over the bottom of the frame."""
         # The moving parts of each layout: overlays and bands, whose extent lives in the constants.
-        bands = {"stacked": PANELS["result_y"] + PANELS["height"],
-                 "wipe": WIPE["band"]["y"] + WIPE["band"]["height"]}
+        bands = {"stacked": max(STACKED["panel"]["result_y"] + STACKED["panel"]["height"],
+                                STACKED["micro"]["second_y"] + STACKED["micro"]["second_size"]),
+                 "wipe": max(WIPE["band"]["y"] + WIPE["band"]["height"],
+                             WIPE["micro"]["second_y"] + WIPE["micro"]["second_size"])}
         self.assertEqual(set(bands), set(LAYOUTS))
         for layout, graph in (("stacked", reel_filters(2.0, "Sans")),
                               ("wipe", wipe_filters(2.0, "Sans"))):
@@ -94,8 +97,10 @@ class MediaProbeTests(unittest.TestCase):
                 self.assertLessEqual(max(bottoms), SAFE_BOTTOM,
                                      f"{layout} content would be covered by the platform interface")
         # The graphs must actually reuse those constants rather than a stray literal.
-        self.assertIn(f"overlay=60:{PANELS['result_y']}", reel_filters(2.0, "Sans"))
-        self.assertIn(f":y={WIPE['band']['y']}", wipe_filters(2.0, "Sans"))
+        self.assertIn(f"overlay={STACKED['panel']['x']}:{STACKED['panel']['result_y']}",
+                      reel_filters(2.0, "Sans"))
+        self.assertIn(f"overlay={WIPE['band']['x']}:{WIPE['band']['y']}",
+                      wipe_filters(2.0, "Sans"))
 
     def test_the_wipe_sweeps_the_result_over_one_band(self):
         graph = wipe_filters(2.4, "Sans", "minimax-h3")
@@ -106,10 +111,23 @@ class MediaProbeTests(unittest.TestCase):
         self.assertNotIn("RECAST", graph)
         self.assertIn("MiniMax H3 + Character Swap LoRA", graph)
         # A real wipe, not a slide: a growing alpha mask over a result that never moves.
+        band = WIPE["band"]
         self.assertIn("alphamerge[revealed]", graph)
-        self.assertIn("color=c=white:s=1080x608", graph)
-        self.assertIn("color=c=0xFF4F2E:s=5x608", graph)
-        self.assertRegex(graph, r"\[blank\]\[white\]overlay=x='\(1080-\(2\*floor\(540\*max\(0,min\(1,")
+        # Both halves carry the rounded frame: leaving the source unmasked paints square
+        # corners over the radius, which is invisible until you look at a corner pixel.
+        mask_input = 2 + ASSET_ORDER.index("band_mask")
+        self.assertIn(f"[src][{mask_input}:v]alphamerge[src_r]", graph)
+        # The radius must survive the reveal: the two masks are applied one after the other
+        # rather than replacing the alpha.
+        self.assertIn("alphamerge[revealed]", graph)
+        self.assertIn(f"[revealed][{mask_input}:v]alphamerge[revealed_rounded]", graph)
+        # The edge travels inside the band, so the same mask clips it.
+        inside_x_pattern = f"({band['width']}-(2*floor({band['width'] // 2}*max(0,min(1,"
+        self.assertIn(f"overlay=x='{inside_x_pattern}", graph)
+        self.assertIn(f"color=c=white:s={band['width']}x{band['height']}", graph)
+        self.assertIn(f"color=c=0xFF4F2E:s=5x{band['height']}", graph)
+        self.assertRegex(graph, rf"\[blank\]\[white\]overlay=x='\({band['width']}-"
+                                 rf"\(2\*floor\({band['width'] // 2}\*max\(0,min\(1,")
         # drawbox cannot animate its position: such an expression silently draws nothing, so
         # no animated drawbox may creep back into this layout.
         self.assertNotIn("drawbox=x='", graph)
@@ -117,6 +135,50 @@ class MediaProbeTests(unittest.TestCase):
         # The second label waits for the result instead of announcing it early.
         hold, sweep = wipe_timing(2.4)
         self.assertIn(f"enable='gte(t,{round(hold + sweep, 3)})'", graph)
+
+    @staticmethod
+    def _size(path):
+        out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0",
+                              "-show_entries", "stream=width,height", "-of", "csv=p=0", str(path)],
+                             capture_output=True, text=True).stdout.strip()
+        return tuple(int(value) for value in out.split(","))
+
+    @staticmethod
+    def _pixel(path, x, y, width=1080):
+        raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-f", "rawvideo",
+                              "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
+        index = (y * width + x) * 3
+        return raw[index], raw[index + 1], raw[index + 2]
+
+    def test_the_static_design_artwork_is_generated_to_measure(self):
+        """The look comes from the application's tokens, and the artwork follows them."""
+        assets = ensure_assets(self.root / "assets", "ltx25-ripple", labels=LABELS,
+                               label_ink=CHIP["ink"], label_size=CHIP["size"],
+                               band=(WIPE["band"]["width"], WIPE["band"]["height"]))
+        for name in ("background", "band_mask", "band_outline", "chip_source", "chip_swap"):
+            self.assertTrue(Path(assets[name]).is_file(), f"{name} was not generated")
+        self.assertEqual(self._size(assets["background"]), (1080, 1920))
+        self.assertEqual(self._size(assets["band_mask"]),
+                         (WIPE["band"]["width"], WIPE["band"]["height"]))
+        # A chip hugs its text: its width comes from the measured ink, not from a guess.
+        self.assertEqual(self._size(assets["chip_source"]),
+                         (CHIP["ink"][0] + CHIP["pad"], CHIP["size"] + 26))
+        # The ambient glow carries the studio's colour, so the two reels are not one image.
+        for engine, palette in ENGINES.items():
+            background = ensure_assets(self.root / f"assets-{engine}", engine,
+                                       band=(2, 2))["background"]
+            centre = self._pixel(background, int(1080 * 0.76), int(1920 * 0.10))
+            corner = self._pixel(background, 30, 1890)
+            self.assertNotEqual(centre, BASE["bg"], "the glow was not drawn at all")
+            # body::before puts it at 76% across, 10% down; the far corner stays flat.
+            self.assertGreater(sum(abs(c - b) for c, b in zip(centre, BASE["bg"])),
+                               sum(abs(c - b) for c, b in zip(corner, BASE["bg"])),
+                               f"{engine}: the glow is not where the stylesheet puts it")
+            # And it leans towards the studio's own accent, not towards the other's.
+            red, green = centre[0], centre[1]
+            self.assertGreater(red if palette["accent"][0] > palette["accent"][1] else green,
+                               green if palette["accent"][0] > palette["accent"][1] else red,
+                               f"{engine}: the glow does not carry the studio colour")
 
     def test_wipe_timing_always_holds_sweeps_and_settles_inside_the_clip(self):
         for duration in (0.6, 1.0, 2.334, 5.0, 12.0):

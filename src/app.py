@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import core
 from api_schema import _public_job, _target_size
 from readiness import check_readiness
-from output_media import build_comparison_reel
+from output_media import LAYOUTS, build_comparison_reel
 from job_api import create_router as create_job_router
 from take_capsule_api import create_router as create_take_capsule_router
 from runtime_inventory import declared_runtime_inventory
@@ -210,12 +210,19 @@ def _completed_job_media(job_id: str) -> tuple[core.Job, Path, Path]:
 
 
 @app.post("/api/jobs/{job_id}/reveal")
-def create_reveal(job_id: str) -> dict[str, str]:
-    """Create a local 9:16 source/result comparison reel for one completed job."""
+def create_reveal(job_id: str, layout: str = "wipe") -> dict[str, str]:
+    """Create a local 9:16 source/result comparison reel for one completed job.
+
+    The wipe is the default because it is the format meant for sharing: one image is replaced by
+    the other in a single movement. The stacked layout stays available for documentation, where
+    two frames are read side by side rather than watched.
+    """
+    if layout not in LAYOUTS:
+        raise HTTPException(status_code=400, detail=f"Unknown reel layout: {layout}")
     job, source, result = _completed_job_media(job_id)
     output = _reveal_path(job_id)
     try:
-        build_comparison_reel(source, result, output, engine=job.engine)
+        build_comparison_reel(source, result, output, engine=job.engine, layout=layout)
     except (OSError, ValueError, subprocess.CalledProcessError) as exc:
         raise HTTPException(status_code=500, detail=f"Could not build comparison reel: {exc}") from exc
     return {"reveal_url": f"/api/jobs/{job_id}/reveal"}

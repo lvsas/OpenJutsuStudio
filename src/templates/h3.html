@@ -43,14 +43,23 @@
           </fieldset>
           <fieldset class="recipe-step">
             <legend><span>02</span> Character reference <small>No prompt needed</small></legend>
-            <input id="h3-reference" name="reference_image" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" required>
+            <input id="h3-reference" name="reference_images" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" required>
             <label class="media-picker reference-picker" for="h3-reference" id="h3-reference-picker" data-drop-kind="image">
               <span class="reference-thumb" id="h3-reference-thumb" aria-hidden="true">＋</span>
               <span><strong id="h3-reference-name">Add a clear character image</strong><small>PNG, JPG or WebP · guides identity for the swap</small></span>
               <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
             </label>
             <button id="h3-remove-reference" class="btn btn-ghost btn-small remove-reference" type="button" hidden>Remove character reference</button>
-            <p class="field-help">Exactly one PNG, JPEG or WebP. The reference guides identity; it is not a mask or a tracking guarantee.</p>
+            <button id="h3-add-second-reference" class="btn btn-secondary btn-small add-second-reference" type="button" aria-controls="h3-second-reference" aria-expanded="false"><span aria-hidden="true">＋</span><span>Add a second character</span></button>
+            <div id="h3-second-reference" class="secondary-reference" hidden>
+              <input id="h3-reference-2" name="reference_images" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" disabled>
+              <label class="media-picker reference-picker" for="h3-reference-2" id="h3-reference-picker-2" data-drop-kind="image">
+                <span class="reference-thumb" id="h3-reference-thumb-2" aria-hidden="true">＋</span>
+                <span><strong id="h3-reference-name-2">Add the second character</strong><small>Use only when two visible people need swapping</small></span>
+                <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
+              </label>
+            </div>
+            <p class="field-help">Each reference is described by the studio from its own image unless you describe it yourself. References guide identity; they are not masks or a tracking guarantee.</p>
           </fieldset>
           <details id="h3-directions" class="advanced-settings directions-step">
             <summary>Add directions <span>Optional</span></summary>
@@ -114,11 +123,13 @@
               <span id="h3-take-proof" class="badge">Recording take</span>
             </div>
             <div class="take-story-path" aria-label="Visual take stages">
-              <button class="take-stage-card" type="button" data-h3-stage="source"><video id="h3-take-source-preview" muted playsinline preload="metadata"></video><span>01 · Source</span></button>
+              <button id="h3-take-source-card" class="take-stage-card" type="button" data-h3-stage="source"><video id="h3-take-source-preview" muted playsinline preload="metadata"></video><span>01 · Source</span></button>
               <span class="take-path-arrow" aria-hidden="true">+</span>
-              <button class="take-stage-card" type="button" data-h3-stage="reference"><img id="h3-take-reference-preview" alt=""><span>02 · Reference</span></button>
+              <button id="h3-take-reference-card" class="take-stage-card" type="button" data-h3-stage="reference"><img id="h3-take-reference-preview" alt=""><span>02 · Reference</span></button>
+              <span id="h3-take-second-arrow" class="take-path-arrow" aria-hidden="true" hidden>+</span>
+              <button id="h3-take-reference-2-card" class="take-stage-card" type="button" data-h3-stage="reference" hidden><img id="h3-take-reference-2-preview" alt=""><span>03 · Reference 2</span></button>
               <span class="take-path-arrow" aria-hidden="true">→</span>
-              <button class="take-stage-card" type="button" data-h3-stage="result"><video id="h3-take-result-preview" muted playsinline preload="metadata"></video><span>03 · H3 result</span></button>
+              <button id="h3-take-result-card" class="take-stage-card" type="button" data-h3-stage="result"><video id="h3-take-result-preview" muted playsinline preload="metadata"></video><span>03 · H3 result</span></button>
             </div>
             <p id="h3-take-copy" class="microcopy">This visual chain is the recipe this take freezes. Select a stage to inspect it in the preview above.</p>
           </section>

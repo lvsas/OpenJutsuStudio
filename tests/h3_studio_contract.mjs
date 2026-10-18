@@ -15,6 +15,10 @@ class Element {
   removeAttribute(name) { if (name === 'src') this.src = ''; else delete this.attrs[name]; }
   append(node) { this.children.push(node); }
   replaceChildren() { this.children = []; }
+  // The studio writes through these when it shows the second reference.
+  querySelector() { return new Element('SPAN'); }
+  get firstElementChild() { return new Element('SPAN'); }
+  get lastElementChild() { return new Element('SPAN'); }
   get childElementCount() { return this.children.length; }
   pause() {}
   load() {}
@@ -134,7 +138,7 @@ const NativeFormData = globalThis.FormData;
 globalThis.FormData = class extends NativeFormData {
   constructor(form) {
     super();
-    if (form) for (const [field, name] of [['video', 'video'], ['reference', 'reference_image'], ['edit', 'edit_prompt'], ['description', 'character_description'], ['seed', 'seed']]) {
+    if (form) for (const [field, name] of [['video', 'video'], ['reference', 'reference_images'], ['edit', 'edit_prompt'], ['description', 'character_description'], ['seed', 'seed']]) {
       if (!el(field).disabled) this.append(name, el(field).files[0] || el(field).value);
     }
   }
@@ -161,7 +165,7 @@ await el('form').events.submit({preventDefault() {}});
 await settle();
 assert.equal(submitted.has('edit_prompt'), false);
 assert.equal(submitted.get('seed'), '302929098223082');
-assert.equal(submitted.get('reference_image').name, 'character.png');
+assert.equal(submitted.get('reference_images').name, 'character.png');
 handler = url => response(url === '/api/h3/readiness' ? {ready} : {...base, status: 'done'});
 el('video').events.change();
 el('directions').open = true;

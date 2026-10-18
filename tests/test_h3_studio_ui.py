@@ -42,7 +42,8 @@ class H3StudioUITests(unittest.TestCase):
             self.assertNotRegex(src, r'innerHTML|outerHTML|insertAdjacentHTML|eval\(|https?://')
         # H3 must not borrow the LTX pipeline's vocabulary. The progress bar is now a
         # shared, honest component fed by the worker's own progress, so it is allowed.
-        self.assertNotRegex(self.html, r'FLUX|Ripple|reference_images|1024|576|56 frames')
+        # Multi-reference is now a real H3 capability, so its field name is allowed.
+        self.assertNotRegex(self.html, r'FLUX|Ripple|1024|576|56 frames')
         anchors = [attrs for tag, attrs in self.parser.tags if tag == 'a']
         self.assertTrue(any(a.get('href') == '/h3' and a.get('aria-current') == 'page' for a in anchors))
         self.assertTrue(any(a.get('href') == '/' for a in anchors))
@@ -51,11 +52,15 @@ class H3StudioUITests(unittest.TestCase):
         self.assertIn('does not override', self.html)
 
     def test_source_and_exactly_one_reference_are_required(self):
-        for id_, name in [('h3-video', 'video'), ('h3-reference', 'reference_image')]:
+        for id_, name in [('h3-video', 'video'), ('h3-reference', 'reference_images')]:
             tag, attrs = self.ids[id_]
             self.assertEqual((tag, attrs['type'], attrs['name']), ('input', 'file', name))
             self.assertIn('required', attrs)
             self.assertNotIn('multiple', attrs)
+        # A second reference is optional and off until the operator asks for it.
+        second = self.ids['h3-reference-2'][1]
+        self.assertEqual(second['name'], 'reference_images')
+        self.assertIn('disabled', second)
         self.assertNotIn('open', self.ids['h3-directions'][1])
         self.assertIn('disabled', self.ids['h3-edit'][1])
         main = self.scripts['h3-studio.js']
@@ -124,37 +129,33 @@ class H3StudioUITests(unittest.TestCase):
             self.assertIn(f'id="h3-{stage}-preview"', self.html)
             self.assertIn(f'data-h3-stage="{stage}"', self.html)
         self.assertIn('id="h3-stage-empty"', self.html)
-        for id_ in ('h3-take-story', 'h3-run-overlay', 'h3-remove-reference'):
-            self.assertIn('hidden', self.ids[id_][1])
+        for id_ in ('h3-take-story', 'h3-run-overlay', 'h3-remove-reference'): self.assertIn('hidden', self.ids[id_][1])
         self.assertEqual(self.ids['h3-run-overlay'][1].get('class'), 'run-overlay')
         self.assertEqual(self.ids['h3-readiness'][1].get('class'), 'badge')
         for gone in ('h3-retry', 'h3-readiness-notes'): self.assertNotIn(gone, self.ids)
         for page in (self.html, ltx): self.assertIn('<span>Generate swap</span>', page)
+        for picker, kind, target in [('h3-video-picker', 'video', 'h3-video'),
+                                     ('h3-reference-picker', 'image', 'h3-reference')]:
+            self.assertEqual((kind, target), (self.ids[picker][1]['data-drop-kind'], self.ids[picker][1]['for']))
 
     def test_shared_components_are_the_only_implementations(self):
         main, take, http = (self.scripts[name] for name in ('h3-studio.js', 'h3-take.js', 'h3-http.js'))
         for control in ('h3-download', 'h3-build-reel', 'h3-copy-caption', 'h3-save-capsule', 'h3-replay'): self.assertIn(control, self.ids)
         self.assertIn('disabled', self.ids['h3-build-reel'][1])
         self.assertNotIn('disabled', self.ids['h3-copy-caption'][1])
-        for marker in ('bindFileDropTargets', 'replaceChildren', "byId('remove-reference')"):
-            self.assertIn(marker, main)
+        for marker in ('bindFileDropTargets', 'replaceChildren', "byId('remove-reference')"): self.assertIn(marker, main)
         for marker in ("renderProgress?.(job, 'h3-')", "byId('take-story').hidden = false",
                        "this.onStage?.('result')", "byId('build-reel').disabled = false"):
             self.assertIn(marker, take)
         for marker in ('export function setStage(mode)', "byId('stage-empty').hidden",
-                       'export function loadStageMedia(kind, url)', '/reveal'):
-            self.assertIn(marker, http)
+                       'export function loadStageMedia(kind, url)', '/reveal'): self.assertIn(marker, http)
         for gone in ('showMedia', 'description'):
             self.assertNotIn(gone, http)
-        for gone in ('display: contents', 'file-selector-button', 'h3-run '):
-            self.assertNotIn(gone, (STATIC / 'h3-studio.css').read_text())
+        for gone in ('display: contents', 'file-selector-button', 'h3-run '): self.assertNotIn(gone, (STATIC / 'h3-studio.css').read_text())
         progress = (STATIC / 'studio-progress.js').read_text()
         self.assertIn("'minimax-h3'", progress)
         self.assertIn("prefix = ''", progress)
         self.assertEqual('visually-hidden', self.ids['h3-video'][1]['class'])
-        for picker, kind, target in (('h3-video-picker', 'video', 'h3-video'),
-                                     ('h3-reference-picker', 'image', 'h3-reference')):
-            self.assertEqual((kind, target), (self.ids[picker][1]['data-drop-kind'], self.ids[picker][1]['for']))
         # The caption is engine-grounded: no LTX or FLUX claim inside the H3 studio.
         captions = [line for line in take.splitlines() if 'Made with OpenGenjutsu' in line]
         self.assertEqual(len(captions), 1)

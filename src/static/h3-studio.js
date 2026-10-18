@@ -58,17 +58,33 @@ function notify(message) {
   window.OpenGenjutsuStudio?.showToast?.(byId('toast-region'), message, 'error');
 }
 function paintPickers() {
-  for (const [field, fallback] of [['video', 'Choose a video'], ['reference', 'Add a clear character image']]) {
+  byId('video-name').textContent = byId('video').files[0] ? byId('video').files[0].name : 'Choose a video';
+  for (const [field, suffix, fallback] of [['reference', '', 'Add a clear character image'],
+                                           ['reference-2', '-2', 'Add the second character']]) {
     const file = byId(field).files[0];
-    byId(`${field}-name`).textContent = file ? file.name : fallback;
+    byId(`reference-name${suffix}`).textContent = file ? file.name : fallback;
+    const url = blobs.get(field);
+    byId(`reference-thumb${suffix}`).replaceChildren(
+      url ? Object.assign(document.createElement('img'), {src: url, alt: ''}) : '＋');
   }
-  const url = blobs.get('reference');
-  byId('reference-thumb').replaceChildren(url ? Object.assign(document.createElement('img'), {src: url, alt: ''}) : '＋');
   byId('remove-reference').hidden = !byId('reference').files[0];
+  byId('add-second-reference').hidden = !byId('reference').files[0];
+}
+function setSecondReference(visible) {
+  byId('second-reference').hidden = !visible;
+  byId('reference-2').disabled = !visible;
+  const toggle = byId('add-second-reference');
+  toggle.setAttribute('aria-expanded', String(visible));
+  toggle.lastElementChild.textContent = visible ? 'Remove second character' : 'Add a second character';
+  toggle.firstElementChild.textContent = visible ? '−' : '＋';
+  if (visible) return;
+  byId('reference-2').value = '';
+  previewInputs();
 }
 function previewInputs() {
   take.reset();
-  for (const [kind, field] of [['source', 'video'], ['reference', 'reference']]) {
+  for (const [kind, field] of [['source', 'video'], ['reference', 'reference'],
+                               ['reference-2', 'reference-2']]) {
     const old = blobs.get(kind);
     const file = byId(field).files[0];
     const url = file ? URL.createObjectURL(file) : '';
@@ -77,9 +93,18 @@ function previewInputs() {
     blobs.set(kind, url);
   }
   paintPickers();
+  paintChain();
   paintSourceSummary();
   syncStage();
   update();
+}
+// One reference or two: the chain shows a card per reference and renumbers itself.
+function paintChain() {
+  const second = byId('reference-2').files.length === 1 && !byId('reference-2').disabled;
+  byId('take-reference-2-card').hidden = !second;
+  byId('take-second-arrow').hidden = !second;
+  byId('take-result-card').querySelector('span').textContent = second
+    ? '04 · H3 result' : '03 · H3 result';
 }
 // Mirrors LTX: the frame is followed by the selected source's own summary block.
 function paintSourceSummary() {
@@ -133,14 +158,20 @@ async function submit(event) {
 }
 form.addEventListener('submit', submit);
 byId('directions').addEventListener('toggle', update);
-for (const [field, kind] of [['video', 'source'], ['reference', 'reference']]) {
+for (const [field, kind] of [['video', 'source'], ['reference', 'reference'],
+                             ['reference-2', 'reference']]) {
   byId(field).addEventListener('change', () => { previewInputs(); setStage(kind); });
 }
+byId('add-second-reference').addEventListener('click', () => {
+  setSecondReference(byId('second-reference').hidden);
+});
 // The capsule marks each take stage and selects it in the preview frame.
 for (const card of document.querySelectorAll?.('[data-h3-stage]') || []) {
   card.addEventListener('click', () => setStage(card.dataset.h3Stage));
 }
 byId('remove-reference').addEventListener('click', () => {
+  byId('reference').value = '';
+  if (!byId('second-reference').hidden) setSecondReference(false);
   byId('reference').value = '';
   previewInputs();
 });

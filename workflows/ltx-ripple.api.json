@@ -1,0 +1,378 @@
+{
+  "821": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "1318": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+      "type": "ltxv",
+      "device": "default"
+    }
+  },
+  "822": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "ltx-2.5-video-vae-conv-bf16.safetensors"
+    }
+  },
+  "448": {
+    "class_type": "VAELoaderKJ",
+    "inputs": {
+      "vae_name": "ltx-2.5-audio-vae-bf16.safetensors",
+      "device": "main_device",
+      "weight_dtype": "bf16"
+    }
+  },
+  "1312": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": [
+        "821",
+        0
+      ],
+      "lora_name": "LTX25_Ripple_v11.safetensors",
+      "strength_model": 1.35
+    }
+  },
+  "1320": {
+    "class_type": "PathchSageAttentionKJ",
+    "inputs": {
+      "model": [
+        "1312",
+        0
+      ],
+      "sage_attention": "auto",
+      "allow_compile": false
+    }
+  },
+  "1321": {
+    "class_type": "LTX2MemoryEfficientSageAttentionPatch",
+    "inputs": {
+      "model": [
+        "1320",
+        0
+      ],
+      "triton_kernels": true
+    }
+  },
+  "790": {
+    "class_type": "VHS_LoadVideo",
+    "inputs": {
+      "video": "og-source-video-placeholder.mp4",
+      "force_rate": 24.0,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 121,
+      "skip_first_frames": 0,
+      "select_every_nth": 1,
+      "format": "LTXV"
+    }
+  },
+  "782": {
+    "class_type": "ImageResizeKJv2",
+    "inputs": {
+      "image": [
+        "790",
+        0
+      ],
+      "width": 1280,
+      "height": 704,
+      "upscale_method": "lanczos",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 2,
+      "device": "cpu"
+    }
+  },
+  "1304": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "og-edited-frame-placeholder.png"
+    }
+  },
+  "1294": {
+    "class_type": "ImageResizeKJv2",
+    "inputs": {
+      "image": [
+        "1304",
+        0
+      ],
+      "width": 1280,
+      "height": 704,
+      "upscale_method": "lanczos",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 2,
+      "device": "cpu"
+    }
+  },
+  "1288": {
+    "class_type": "BatchImagesNode",
+    "inputs": {
+      "images.image0": [
+        "1294",
+        0
+      ],
+      "images.image1": [
+        "782",
+        0
+      ]
+    }
+  },
+  "1289": {
+    "class_type": "Frames Slice",
+    "inputs": {
+      "frames": [
+        "1288",
+        0
+      ],
+      "start": 0,
+      "stop": 121
+    }
+  },
+  "567": {
+    "class_type": "EmptyLTXVLatentVideo",
+    "inputs": {
+      "width": 1280,
+      "height": 704,
+      "length": 121,
+      "batch_size": 1
+    }
+  },
+  "1257": {
+    "class_type": "LTXVEmptyLatentAudio",
+    "inputs": {
+      "frames_number": 121,
+      "frame_rate": 24.0,
+      "batch_size": 1,
+      "audio_vae": [
+        "448",
+        0
+      ]
+    }
+  },
+  "814": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "Use the reference video for motion, timing, camera movement, composition, and unchanged scene content, while consistently propagating the visual edit established in the first frame throughout the video.",
+      "clip": [
+        "1318",
+        0
+      ]
+    }
+  },
+  "388": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "blurry, low resolution, ugly, garbled mess, compression artifacts, glitch, stop motion, still image, pixelated, robotic voice, oversaturated",
+      "clip": [
+        "1318",
+        0
+      ]
+    }
+  },
+  "563": {
+    "class_type": "LTXVConditioning",
+    "inputs": {
+      "positive": [
+        "814",
+        0
+      ],
+      "negative": [
+        "388",
+        0
+      ],
+      "frame_rate": 24.0
+    }
+  },
+  "1330": {
+    "class_type": "LTXAddVideoICLoRAGuide",
+    "inputs": {
+      "positive": [
+        "563",
+        0
+      ],
+      "negative": [
+        "563",
+        1
+      ],
+      "vae": [
+        "822",
+        0
+      ],
+      "latent": [
+        "567",
+        0
+      ],
+      "image": [
+        "1289",
+        0
+      ],
+      "frame_idx": 0,
+      "strength": 1.0,
+      "latent_downscale_factor": 1.0,
+      "crop": "disabled",
+      "use_tiled_encode": false,
+      "tile_size": 256,
+      "tile_overlap": 64
+    }
+  },
+  "1259": {
+    "class_type": "LTXVConcatAVLatent",
+    "inputs": {
+      "video_latent": [
+        "1330",
+        2
+      ],
+      "audio_latent": [
+        "1257",
+        0
+      ]
+    }
+  },
+  "1266": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 125348341465200
+    }
+  },
+  "1265": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "euler"
+    }
+  },
+  "1319": {
+    "class_type": "BasicScheduler",
+    "inputs": {
+      "model": [
+        "1321",
+        0
+      ],
+      "scheduler": "simple",
+      "steps": 16,
+      "denoise": 1.0
+    }
+  },
+  "1267": {
+    "class_type": "CFGGuider",
+    "inputs": {
+      "model": [
+        "1321",
+        0
+      ],
+      "positive": [
+        "1330",
+        0
+      ],
+      "negative": [
+        "1330",
+        1
+      ],
+      "cfg": 1.0
+    }
+  },
+  "1269": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": [
+        "1266",
+        0
+      ],
+      "guider": [
+        "1267",
+        0
+      ],
+      "sampler": [
+        "1265",
+        0
+      ],
+      "sigmas": [
+        "1319",
+        0
+      ],
+      "latent_image": [
+        "1259",
+        0
+      ]
+    }
+  },
+  "423": {
+    "class_type": "LTXVSeparateAVLatent",
+    "inputs": {
+      "av_latent": [
+        "1269",
+        0
+      ]
+    }
+  },
+  "571": {
+    "class_type": "LTXVCropGuides",
+    "inputs": {
+      "positive": [
+        "1330",
+        0
+      ],
+      "negative": [
+        "1330",
+        1
+      ],
+      "latent": [
+        "423",
+        0
+      ]
+    }
+  },
+  "445": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "571",
+        2
+      ],
+      "vae": [
+        "822",
+        0
+      ]
+    }
+  },
+  "815": {
+    "class_type": "VAEDecodeAudio",
+    "inputs": {
+      "samples": [
+        "423",
+        1
+      ],
+      "vae": [
+        "448",
+        0
+      ]
+    }
+  },
+  "425": {
+    "class_type": "VHS_VideoCombine",
+    "inputs": {
+      "images": [
+        "445",
+        0
+      ],
+      "audio": [
+        "815",
+        0
+      ],
+      "frame_rate": 24.0,
+      "loop_count": 0,
+      "filename_prefix": "og_ripple",
+      "format": "video/h264-mp4",
+      "pingpong": false,
+      "save_output": true
+    }
+  }
+}

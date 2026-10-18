@@ -140,6 +140,7 @@ The CLI in `src/genjutsu.py` is a legacy LTX 2.3 prototype and is not the curren
 ## Documentation
 
 - [Local setup and troubleshooting](docs/local-setup.md) — Python 3.12, FFmpeg, opt-in proxy, remote upstream and readiness
+- [Workflow files](workflows/README.md) — the exported API-format graphs the app submits, and how their asset placeholders are substituted
 - [Creative Studio UI architecture](docs/ui-architecture.md) — product workflow, engine visual identity and honest local-sharing boundary
 - [Reference intelligence plan](docs/plans/2026-10-16-reference-intelligence.md) — opt-in Qwen-VL preflight, review gate and target-visibility scope
 - [Open Weights runtime evidence contract](docs/validation/open-weights-runtime-contract.md) — declared models/nodes/transport, live readiness gate and submission-proof boundaries

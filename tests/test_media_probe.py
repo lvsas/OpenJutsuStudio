@@ -9,8 +9,9 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from media import ffprobe
-from output_media import (DEFAULT_REEL_ENGINE, PANELS, SAFE_BOTTOM, build_comparison_reel,
-                          reel_filters, restore_source_audio)
+from output_media import (DEFAULT_REEL_ENGINE, HOOK, LAYOUTS, PANELS, SAFE_BOTTOM, WIPE,
+                          build_comparison_reel, reel_filters, restore_source_audio,
+                          wipe_filters, wipe_timing)
 from scenes import detect_scenes
 
 
@@ -73,21 +74,61 @@ class MediaProbeTests(unittest.TestCase):
 
     def test_the_reel_keeps_its_content_out_of_the_platform_bottom_zone(self):
         """Reels, Shorts and TikTok draw their caption and buttons over the bottom of the frame."""
-        bottoms = []
-        for fragment in reel_filters(2.0, "Sans").split(","):
-            overlay = re.search(r"overlay=\d+:(\d+)", fragment)
-            y = re.search(r"(?:^|:)y=(\d+)", fragment)
-            size = re.search(r"fontsize=(\d+)", fragment)
-            height = re.search(r"h=(\d+)", fragment)
-            if overlay:
-                bottoms.append(int(overlay.group(1)) + PANELS["height"])
-            elif y and size:
-                bottoms.append(int(y.group(1)) + int(size.group(1)))
-            elif y and height:
-                bottoms.append(int(y.group(1)) + int(height.group(1)))
-        self.assertTrue(bottoms, "no positioned element was found to check")
-        self.assertLessEqual(max(bottoms), SAFE_BOTTOM,
-                             "reel content would be covered by the platform interface")
+        # The moving parts of each layout: overlays and bands, whose extent lives in the constants.
+        bands = {"stacked": PANELS["result_y"] + PANELS["height"],
+                 "wipe": WIPE["band"]["y"] + WIPE["band"]["height"]}
+        self.assertEqual(set(bands), set(LAYOUTS))
+        for layout, graph in (("stacked", reel_filters(2.0, "Sans")),
+                              ("wipe", wipe_filters(2.0, "Sans"))):
+            with self.subTest(layout=layout):
+                bottoms = [bands[layout]]
+                for fragment in graph.split(","):
+                    y = re.search(r"(?:^|:)y=(\d+)", fragment)
+                    size = re.search(r"fontsize=(\d+)", fragment)
+                    height = re.search(r"h=(\d+)", fragment)
+                    if y and size:
+                        bottoms.append(int(y.group(1)) + int(size.group(1)))
+                    elif y and height:
+                        bottoms.append(int(y.group(1)) + int(height.group(1)))
+                self.assertTrue(len(bottoms) > 3, f"too few positioned elements in {layout}")
+                self.assertLessEqual(max(bottoms), SAFE_BOTTOM,
+                                     f"{layout} content would be covered by the platform interface")
+        # The graphs must actually reuse those constants rather than a stray literal.
+        self.assertIn(f"overlay=60:{PANELS['result_y']}", reel_filters(2.0, "Sans"))
+        self.assertIn(f":y={WIPE['band']['y']}", wipe_filters(2.0, "Sans"))
+
+    def test_the_wipe_sweeps_the_result_over_one_band(self):
+        graph = wipe_filters(2.4, "Sans", "minimax-h3")
+        self.assertIn(HOOK[0], graph)
+        self.assertIn(HOOK[1], graph)
+        self.assertIn("text=SOURCE", graph)
+        self.assertIn("text=SWAP", graph)
+        self.assertNotIn("RECAST", graph)
+        self.assertIn("MiniMax H3 + Character Swap LoRA", graph)
+        # A real wipe, not a slide: a growing alpha mask over a result that never moves.
+        self.assertIn("alphamerge[revealed]", graph)
+        self.assertIn("color=c=white:s=1080x608", graph)
+        self.assertIn("color=c=0xFF4F2E:s=5x608", graph)
+        self.assertRegex(graph, r"\[blank\]\[white\]overlay=x='\(1080-\(2\*floor\(540\*max\(0,min\(1,")
+        # drawbox cannot animate its position: such an expression silently draws nothing, so
+        # no animated drawbox may creep back into this layout.
+        self.assertNotIn("drawbox=x='", graph)
+        self.assertNotIn("crop=", graph)
+        # The second label waits for the result instead of announcing it early.
+        hold, sweep = wipe_timing(2.4)
+        self.assertIn(f"enable='gte(t,{round(hold + sweep, 3)})'", graph)
+
+    def test_wipe_timing_always_holds_sweeps_and_settles_inside_the_clip(self):
+        for duration in (0.6, 1.0, 2.334, 5.0, 12.0):
+            with self.subTest(duration=duration):
+                hold, sweep = wipe_timing(duration)
+                self.assertGreater(hold, 0.0)
+                self.assertGreater(sweep, 0.0)
+                self.assertLess(hold + sweep, duration, "the result would never be seen alone")
+
+    def test_an_unknown_layout_is_refused_before_any_render(self):
+        with self.assertRaises(ValueError):
+            build_comparison_reel("missing.mp4", "missing.mp4", Path("out.mp4"), layout="diagonal")
 
     def test_comparison_reel_is_portrait_h264_with_result_duration(self):
         source, result, reel = [self.root / name for name in ("source.mp4", "result.mp4", "reel.mp4")]

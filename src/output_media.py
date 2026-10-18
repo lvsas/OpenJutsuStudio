@@ -25,6 +25,34 @@ BRAND = {"font_size": 46, "y": 132, "open_x": 334, "name_x": 485, "rule_y": 192,
 PANELS = {"x": 60, "width": 960, "height": 540, "source_y": 272, "result_y": 896}
 LABEL = {"font_size": 44, "x": 84, "offset": 22, "box_border": 14}
 
+# The wipe layout: one full-width band where the result replaces the source, so the change
+# reads as a single movement rather than as two pictures to compare. The y values are already
+# shifted down so the card sits balanced inside the area a feed leaves free; the brand is moved
+# by the same amount through brand_dy.
+WIPE = {
+    "brand_dy": 100,
+    "engine_y": 312,
+    "band": {"x": 0, "y": 670, "width": 1080, "height": 608},
+    "hook1": {"y": 480, "size": 46},
+    "hook2": {"y": 540, "size": 62},
+    "label": {"y": 692, "size": 40, "margin": 36},
+    "caption": {"y": 1318, "size": 28},
+    "edge": 5,
+}
+HOOK = ("SAME MOMENT.", "NEW CHARACTER.")
+LAYOUTS = ("stacked", "wipe")
+WIPE_HOLD_RATIO, WIPE_MAX_HOLD = 0.2, 0.5
+WIPE_SWEEP_RATIO, WIPE_MAX_SWEEP, WIPE_MIN_SWEEP = 0.4, 1.2, 0.3
+
+
+def wipe_timing(duration):
+    """Hold the source for a beat, then sweep. Bounded so a short clip still has both."""
+    hold = min(WIPE_MAX_HOLD, max(0.0, duration) * WIPE_HOLD_RATIO)
+    sweep = min(WIPE_MAX_SWEEP, max(WIPE_MIN_SWEEP, max(0.0, duration) * WIPE_SWEEP_RATIO))
+    if hold + sweep >= duration:
+        sweep = max(WIPE_MIN_SWEEP, duration - hold - 0.05)
+    return round(hold, 3), round(sweep, 3)
+
 
 def reel_theme(engine):
     """Theme for an engine, falling back to the default rather than failing a share."""
@@ -42,25 +70,33 @@ def restore_source_audio(rendered: str, source: str, output: Path) -> str:
     return str(output.resolve())
 
 
-def reel_filters(duration, font, engine=DEFAULT_REEL_ENGINE):
-    """The filtergraph for the 9:16 comparison reel.
+def _centred(font, text, y, colour, size, extra=""):
+    return (f"drawtext=fontfile={font}:text={text}:fontcolor={colour}:fontsize={size}:"
+            f"x=(w-text_w)/2:y={y}{extra}")
 
-    Kept separate from the render so the layout can be asserted without encoding a video.
-    Three constraints drive it: the panels are labelled in place so the reading is instant,
-    the brand sits where a feed does not cover it, and everything stays above SAFE_BOTTOM.
-    """
+
+def _brand_parts(font, accent, dy=0):
+    """The application wordmark in its two tones, then its accent rule."""
+    return [
+        f"drawtext=fontfile={font}:text=OPEN:fontcolor=white:fontsize={BRAND['font_size']}:"
+        f"x={BRAND['open_x']}:y={BRAND['y'] + dy}",
+        f"drawtext=fontfile={font}:text=GENJUTSU:fontcolor={accent}:"
+        f"fontsize={BRAND['font_size']}:x={BRAND['name_x']}:y={BRAND['y'] + dy}",
+        f"drawbox=x={BRAND['open_x']}:y={BRAND['rule_y'] + dy}:w={BRAND['rule_w']}:h=3:"
+        f"color={accent}@0.7:t=fill",
+    ]
+
+
+def reel_filters(duration, font, engine=DEFAULT_REEL_ENGINE):
+    """The stacked layout: both halves visible at once, for reading rather than watching."""
     theme = reel_theme(engine)
     accent = theme["accent"]
-    brand, panels, label = BRAND, PANELS, LABEL
+    panels, label = PANELS, LABEL
     panel = (f"scale={panels['width']}:{panels['height']}:force_original_aspect_ratio=decrease,"
              f"pad={panels['width']}:{panels['height']}:(ow-iw)/2:(oh-ih)/2:black,setsar=1")
     label_y = {key: panels[key] + label["offset"] for key in ("source_y", "result_y")}
     label_box = f"box=1:boxcolor=black@0.55:boxborderw={label['box_border']}"
     arrow_y = panels["source_y"] + panels["height"] + 18
-
-    def cap(text, y, colour, size, extra=""):
-        return (f"drawtext=fontfile={font}:text={text}:fontcolor={colour}:fontsize={size}:"
-                f"x=(w-text_w)/2:y={y}{extra}")
 
     tail = [
         # Frames keep the two halves distinguishable on any footage.
@@ -68,22 +104,16 @@ def reel_filters(duration, font, engine=DEFAULT_REEL_ENGINE):
         f"h={panels['height']}:color={accent}@0.35:t=2",
         f"drawbox=x={panels['x']}:y={panels['result_y']}:w={panels['width']}:"
         f"h={panels['height']}:color={accent}@0.35:t=2",
-        # Brand, in the two tones of the application header.
-        f"drawtext=fontfile={font}:text=OPEN:fontcolor=white:fontsize={brand['font_size']}:"
-        f"x={brand['open_x']}:y={brand['y']}",
-        f"drawtext=fontfile={font}:text=GENJUTSU:fontcolor={accent}:"
-        f"fontsize={brand['font_size']}:x={brand['name_x']}:y={brand['y']}",
-        f"drawbox=x={brand['open_x']}:y={brand['rule_y']}:w={brand['rule_w']}:h=3:"
-        f"color={accent}@0.7:t=fill",
-        cap(theme["engine"], 212, "white@0.78", 24),
+        *_brand_parts(font, accent),
+        _centred(font, theme["engine"], 212, "white@0.78", 24),
         # Panel labels sit on the image itself, large enough to read in a feed.
         f"drawtext=fontfile={font}:text=SOURCE:fontcolor={accent}:fontsize={label['font_size']}:"
         f"x={label['x']}:y={label_y['source_y']}:{label_box}",
         f"drawtext=fontfile={font}:text=SWAP:fontcolor={accent}:fontsize={label['font_size']}:"
         f"x={label['x']}:y={label_y['result_y']}:{label_box}",
         # What separates the two panels, so the before/after reads at a glance.
-        cap("▼", arrow_y, accent, 52),
-        cap("OpenGenjutsu · local comparison", 1470, "white@0.6", 26),
+        _centred(font, "▼", arrow_y, accent, 52),
+        _centred(font, "OpenGenjutsu · local comparison", 1470, "white@0.6", 26),
     ]
     return (
         f"[0:v]{panel}[source];[1:v]{panel}[result];"
@@ -93,19 +123,77 @@ def reel_filters(duration, font, engine=DEFAULT_REEL_ENGINE):
     )
 
 
+def wipe_filters(duration, font, engine=DEFAULT_REEL_ENGINE, fps=24):
+    """The wipe layout: one band where the result replaces the source in a single movement.
+
+    The result stays still and is revealed under a growing alpha mask, so the change reads as
+    one image being replaced rather than as two pictures to compare. crop() cannot do this: its
+    width is evaluated once at init, where t is unavailable, so an animated mask is the only way
+    to get a real wipe instead of a slide. Everything derives from the clip's own duration.
+    """
+    theme = reel_theme(engine)
+    accent = theme["accent"]
+    band, label, caption = WIPE["band"], WIPE["label"], WIPE["caption"]
+    hook1, hook2 = WIPE["hook1"], WIPE["hook2"]
+    hold, sweep = wipe_timing(duration)
+    # Even widths, because the masked frame reaches an encoder and yuv420p needs them.
+    progress = f"max(0,min(1,(t-{hold})/{sweep}))"
+    swept = f"2*floor({band['width'] // 2}*{progress})"
+    edge_x = f"({band['width']}-({swept}))"
+    panel = (f"scale={band['width']}:{band['height']}:force_original_aspect_ratio=decrease,"
+             f"pad={band['width']}:{band['height']}:(ow-iw)/2:(oh-ih)/2:black,setsar=1")
+    label_box = "box=1:boxcolor=black@0.6:boxborderw=12"
+    tail = [
+        *_brand_parts(font, accent, WIPE["brand_dy"]),
+        _centred(font, theme["engine"], WIPE["engine_y"], "white@0.78", 24),
+        _centred(font, HOOK[0], hook1["y"], "white", hook1["size"]),
+        _centred(font, HOOK[1], hook2["y"], accent, hook2["size"]),
+        f"drawtext=fontfile={font}:text=SOURCE:fontcolor={accent}:fontsize={label['size']}:"
+        f"x={label['margin']}:y={label['y']}:{label_box}",
+        # The second label arrives with the result rather than before it.
+        f"drawtext=fontfile={font}:text=SWAP:fontcolor={accent}:fontsize={label['size']}:"
+        f"x=w-text_w-{label['margin']}:y={label['y']}:{label_box}:"
+        f"enable='gte(t,{round(hold + sweep, 3)})'",
+        _centred(font, "OpenGenjutsu · local swap comparison",
+                 caption["y"], "white@0.6", caption["size"]),
+    ]
+    return (
+        f"[0:v]{panel}[source];[1:v]{panel}[result];"
+        # The mask grows leftwards from the right edge, built by overlaying a full-width white
+        # band whose visible part is what fits in the frame. drawbox cannot animate: an
+        # expression using t draws nothing at all in this build, so overlay is the only way.
+        f"color=c=black:s={band['width']}x{band['height']}:r={fps},format=gray[blank];"
+        f"color=c=white:s={band['width']}x{band['height']}:r={fps},format=gray[white];"
+        f"[blank][white]overlay=x='{edge_x}':y=0[mask];"
+        f"[result][mask]alphamerge[revealed];"
+        f"color=c={accent}:s={WIPE['edge']}x{band['height']}:r={fps}[mark];"
+        f"color=c=0x101014:s=1080x1920:d={duration}[canvas];"
+        f"[canvas][source]overlay={band['x']}:{band['y']}[banded];"
+        f"[banded][revealed]overlay={band['x']}:{band['y']}[merged];"
+        # The moving edge, what makes the change read as a movement.
+        f"[merged][mark]overlay=x='{edge_x}':y={band['y']},"
+        + ",".join(tail) + "[out]"
+    )
+
+
 def build_comparison_reel(source: str | Path, result: str | Path, output: Path,
-                          engine: str = DEFAULT_REEL_ENGINE) -> str:
+                          engine: str = DEFAULT_REEL_ENGINE,
+                          layout: str = "stacked") -> str:
     """Render a truthful 9:16 local comparison MP4 from synchronized source/result clips."""
     source, result, output = Path(source), Path(result), Path(output)
+    if layout not in LAYOUTS:
+        raise ValueError(f"Unknown reel layout: {layout}")
     result_info = ffprobe(result)
     duration, fps = result_info["duration"], result_info["fps"]
     if duration <= 0:
         raise ValueError("Result video must have a positive duration")
     output.parent.mkdir(parents=True, exist_ok=True)
     font = str(_REEL_FONT) if _REEL_FONT.is_file() else "Sans"
+    filters = ((lambda d, f, e: wipe_filters(d, f, e, fps=fps)) if layout == "wipe"
+               else reel_filters)(duration, font, engine)
     subprocess.run([
         "ffmpeg", "-y", "-v", "error", "-i", str(source), "-i", str(result),
-        "-filter_complex", reel_filters(duration, font, engine), "-map", "[out]", "-map", "1:a:0?",
+        "-filter_complex", filters, "-map", "[out]", "-map", "1:a:0?",
         "-t", str(duration), "-r", str(fps), "-c:v", "libx264", "-preset", "medium", "-crf", "18",
         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(output),
     ], capture_output=True, check=True, timeout=300)

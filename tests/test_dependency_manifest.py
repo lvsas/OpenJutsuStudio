@@ -85,13 +85,23 @@ class ManifestShapeTests(unittest.TestCase):
                 self.assertIn(entry["folder"], allowed)
                 self.assertIn("role", entry)
 
-    def test_the_planned_character_generator_names_a_gated_repository(self):
+    def test_the_character_generator_names_a_gated_repository_and_its_roles(self):
         """Downloads need an authenticated client, so an installer has to be told."""
         planned = self.manifest["character_generator"]
-        self.assertEqual(planned["status"], "planned")
+        self.assertEqual(planned["status"], "partially_installed")
         self.assertTrue(planned["gated_repository"])
-        self.assertTrue(planned["diffusion_models"])
-        self.assertTrue(planned["text_encoders"])
+        roles = {role["role"] for role in planned["roles"]}
+        self.assertIn("diffusion model", roles)
+        self.assertIn("vision encoder", roles)
+        for role in planned["roles"]:
+            with self.subTest(role=role["role"]):
+                self.assertTrue(role["alternatives"], "a role must say what could satisfy it")
+
+    def test_a_role_may_be_unsatisfied_and_that_is_recorded_not_hidden(self):
+        vision = [r for r in self.manifest["character_generator"]["roles"]
+                  if r["role"] == "vision encoder"][0]
+        self.assertIsNone(vision["installed"], "an uninstalled role must not claim a file")
+        self.assertTrue(vision["note"], "and it must say what it is for")
 
 
 class CheckerTests(unittest.TestCase):
@@ -111,6 +121,10 @@ class CheckerTests(unittest.TestCase):
         for entry in self.manifest["models"] + self.manifest["loras"]:
             node, field = checker.LOADER_FIELD[entry["folder"]]
             by_folder.setdefault((node, field), set()).add(entry["file"])
+        # the character generator's installed files, so its roles can be evaluated too
+        for role in self.manifest["character_generator"]["roles"]:
+            if role.get("installed"):
+                by_folder.setdefault(("UNETLoader", "unet_name"), set()).add(role["installed"])
         for (node, field), files in by_folder.items():
             self.complete.setdefault(node, {})["input"] = {
                 "required": {field: [sorted(files), {}]}}
@@ -147,15 +161,32 @@ class CheckerTests(unittest.TestCase):
         self.assertEqual(report["missing_nodes"], {},
                          "a core node must not be blamed on a custom pack")
 
-    def test_the_planned_models_are_opt_in_and_marked(self):
-        without = checker.check(self.complete, self.manifest)
-        self.assertNotIn("flux3-image-klein-int8-convrot.safetensors",
-                         {item["file"] for item in without["missing_models"]})
-        with_planned = checker.check(self.complete, self.manifest, include_planned=True)
-        planned = {item["file"] for item in with_planned["missing_models"] if item.get("planned")}
-        self.assertIn("flux3-image-klein-int8-convrot.safetensors", planned)
-        # and a planned miss must not be treated as a deployment failure
-        self.assertTrue(all(item.get("planned") for item in with_planned["missing_models"]))
+    def test_the_character_roles_report_what_is_actually_installed(self):
+        report = checker.check(self.complete, self.manifest, include_planned=True)
+        roles = {entry["role"]: entry for entry in report["planned_roles"]}
+        self.assertTrue(roles["diffusion model"]["satisfied"])
+        self.assertTrue(roles["prompt upsampler"]["satisfied"])
+        self.assertTrue(roles["vae"]["satisfied"])
+        self.assertFalse(roles["vision encoder"]["satisfied"],
+                         "a role with no installed file must be reported as unmet")
+
+    def test_quantisation_variants_are_not_reported_as_separate_missing_files(self):
+        """Listing the variants flat made the checker cry wolf on a ready machine."""
+        report = checker.check(self.complete, self.manifest, include_planned=True)
+        self.assertEqual({item["file"] for item in report["missing_models"]}, set())
+        self.assertEqual(checker.check(self.complete, self.manifest)["planned_roles"], [],
+                         "the roles are opt-in")
+
+    def test_any_one_alternative_satisfies_a_role(self):
+        for name in ("qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors",
+                     "qwen3.5_9b_flux3_prompt_upsampler_bf16.safetensors"):
+            with self.subTest(alternative=name):
+                inventory = json.loads(json.dumps(self.complete))
+                inventory["UNETLoader"]["input"]["required"]["unet_name"] = [[name], {}]
+                report = checker.check(inventory, self.manifest, include_planned=True)
+                roles = {e["role"]: e for e in report["planned_roles"]}
+                self.assertTrue(roles["prompt upsampler"]["satisfied"])
+                self.assertEqual(roles["prompt upsampler"]["matched"], [name])
 
     def test_every_combo_shape_comfyui_has_used_is_read(self):
         """Reading only the old shapes reported a present file as missing, on a live instance."""

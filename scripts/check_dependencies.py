@@ -61,9 +61,18 @@ def loader_options(object_info, node, field):
     return []
 
 
+def all_model_files(object_info):
+    """Every model file the machine reports, across the loaders we know how to read."""
+    files = set()
+    for node, field in set(LOADER_FIELD.values()):
+        files.update(loader_options(object_info, node, field))
+    return files
+
+
 def check(object_info, manifest, include_planned=False):
     """Return a report dict. Pure, so a test can drive it with a synthetic inventory."""
-    report = {"missing_nodes": {}, "present_packs": [], "missing_models": [], "checked_models": 0}
+    report = {"missing_nodes": {}, "present_packs": [], "missing_models": [],
+              "missing_core_nodes": [], "planned_roles": [], "checked_models": 0}
 
     for pack in manifest.get("comfyui_packs", []):
         present = [node for node in pack["nodes"] if node in object_info]
@@ -82,12 +91,6 @@ def check(object_info, manifest, include_planned=False):
     report["missing_core_nodes"] = core_missing
 
     entries = list(manifest.get("models", [])) + list(manifest.get("loras", []))
-    if include_planned:
-        planned = manifest.get("character_generator", {})
-        for folder in ("diffusion_models", "text_encoders", "vae"):
-            for item in planned.get(folder, []):
-                entries.append({"file": item["file"], "folder": folder,
-                                "role": item.get("note", "planned"), "planned": True})
 
     for entry in entries:
         folder = entry["folder"]
@@ -99,8 +102,19 @@ def check(object_info, manifest, include_planned=False):
         report["checked_models"] += 1
         if entry["file"] not in loader_options(object_info, node, field):
             report["missing_models"].append(
-                {"file": entry["file"], "folder": folder, "loader": f"{node}.{field}",
-                 "planned": entry.get("planned", False)})
+                {"file": entry["file"], "folder": folder, "loader": f"{node}.{field}"})
+
+    # The character generator's files are alternatives, not a set: the quantisation variants of one
+    # checkpoint must be satisfied by whichever one is installed, or the checker reports five files
+    # missing on a machine that is ready.
+    if include_planned:
+        machine_files = all_model_files(object_info)
+        for role in manifest.get("character_generator", {}).get("roles", []):
+            alternatives = role.get("alternatives", [])
+            found = [name for name in alternatives if name in machine_files]
+            report["planned_roles"].append({
+                "role": role["role"], "satisfied": bool(found), "matched": found,
+                "alternatives": alternatives, "note": role.get("note", "")})
     return report
 
 
@@ -128,6 +142,12 @@ def print_report(report, as_json=False):
     for item in report["missing_models"]:
         marker = " (planned)" if item.get("planned") else ""
         print(f"  MISSING {item['file']}{marker}")
+    for entry in report.get("planned_roles", []):
+        if entry["satisfied"]:
+            print(f"  role {entry['role']:<18} ok — {entry['matched'][0]}")
+        else:
+            print(f"  role {entry['role']:<18} MISSING — needs one of: "
+                  f"{', '.join(entry['alternatives'])}")
     if not report["missing_nodes"] and not report["missing_models"] \
             and not report["missing_core_nodes"]:
         print("everything required is present")

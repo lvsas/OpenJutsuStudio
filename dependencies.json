@@ -171,27 +171,60 @@
     }
   ],
   "character_generator": {
-    "note": "Planned target for the character reference generator. Not used by any shipped workflow yet. The repository on Hugging Face is access-gated, so downloads need an authenticated client.",
-    "status": "planned",
+    "note": "Target for the character reference generator. Checked against a live instance on 2026-10-18: every role is installed, so the graph can be built and measured now. The repository on Hugging Face is access-gated, so downloads of anything else need an authenticated client.",
+    "status": "installed",
     "gated_repository": "black-forest-labs/flux-3-image-klein-comfy",
-    "diffusion_models": [
-      {"file": "flux3-image-klein-int8-convrot.safetensors", "size_gb": 5.83, "note": "distilled, int8 — matches the quantisation the rest of this stack uses"},
-      {"file": "flux3-image-klein-bf16.safetensors", "size_gb": 11.1, "note": "distilled, full precision"},
-      {"file": "flux3-image-klein-base-int8-convrot.safetensors", "size_gb": 5.81, "note": "base, int8"},
-      {"file": "flux3-image-klein-base-bf16.safetensors", "size_gb": 11.08, "note": "base, full precision"},
-      {"file": "flux3-image-klein-nvfp4.safetensors", "size_gb": 5.28, "note": "distilled, nvfp4"},
-      {"file": "flux3-image-klein-base-nvfp4.safetensors", "size_gb": 5.26, "note": "base, nvfp4"}
+    "roles": [
+      {
+        "role": "diffusion model",
+        "required": true,
+        "installed": "flux/flux3-image-klein-base-int8-convrot.safetensors",
+        "alternatives": [
+          "flux/flux3-image-klein-base-int8-convrot.safetensors",
+          "flux3-image-klein-base-bf16.safetensors",
+          "flux3-image-klein-base-nvfp4.safetensors",
+          "flux3-image-klein-int8-convrot.safetensors",
+          "flux3-image-klein-bf16.safetensors",
+          "flux3-image-klein-nvfp4.safetensors"
+        ],
+        "note": "Quantisation variants of two checkpoints, base and step-distilled. One is enough. Grouped as alternatives on purpose: listing them flat made the checker report five files as missing when none were."
+      },
+      {
+        "role": "prompt upsampler",
+        "required": true,
+        "installed": "qwen3.5_9b_flux3_prompt_upsampler_int8_convrot.safetensors",
+        "alternatives": [
+          "qwen3.5_9b_flux3_prompt_upsampler_int8_convrot.safetensors",
+          "qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors",
+          "qwen3.5_9b_flux3_prompt_upsampler_bf16.safetensors"
+        ],
+        "note": "FLUX 3 ships its own upsampler and the graph uses it in box mode: it re-plans the layout, then Flux3BoxReconcileKJ puts our ids back on the boxes. This is the refine step -- nothing needs to be invented for it."
+      },
+      {
+        "role": "vision encoder",
+        "required": true,
+        "installed": "qwen3vl_4b_int8_convrot.safetensors",
+        "alternatives": [
+          "qwen3vl_4b_int8_convrot.safetensors",
+          "qwen3vl_4b_bf16.safetensors"
+        ],
+        "note": "Reading the reference images is what turns multi-reference into a character sheet. Assumed missing at first because a name filter looked for 'flux' or 'klein'; the checker found it by asking the machine instead."
+      },
+      {
+        "role": "vae",
+        "required": true,
+        "installed": "flux2-vae.safetensors",
+        "alternatives": ["flux2-vae.safetensors"],
+        "note": "Shared with the FLUX 2 path; already there for the first-frame editor."
+      }
     ],
-    "text_encoders": [
-      {"file": "qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors", "size_gb": 6.72, "note": "smallest prompt upsampler"},
-      {"file": "qwen3.5_9b_flux3_prompt_upsampler_int8_convrot.safetensors", "size_gb": 9.75},
-      {"file": "qwen3.5_9b_flux3_prompt_upsampler_bf16.safetensors", "size_gb": 18.82},
-      {"file": "qwen3vl_4b_int8_convrot.safetensors", "size_gb": 4.86, "note": "vision-language encoder, for reading reference images"},
-      {"file": "qwen3vl_4b_bf16.safetensors", "size_gb": 8.88}
+    "local_nodes_already_present": [
+      "Flux3PromptBuilderKJ",
+      "Flux3BoxReconcileKJ",
+      "CreateBoundingBoxes",
+      "Flux3LayoutPrompt"
     ],
-    "vae": [
-      {"file": "flux2-vae.safetensors", "size_gb": 0.34}
-    ],
+    "graph_note": "The character sheet comes from Flux3PromptBuilderKJ: draw boxes on the output canvas, give each an id and a description, cite the id in the prompt, and it appends the boxes as a JSON table on a 0-1000 grid. Its references input grows with the number of references, so the count is not fixed. No latent trick is needed, unlike the FLUX 2 path, which required the enhancer pack to inject reference latents.",
     "upstream_workflows": [
       "flux3_klein_int8_t2i.json",
       "flux3_klein_int8_i2i.json",
@@ -200,10 +233,12 @@
       "flux3_klein_base_int8_i2i.json",
       "flux3_klein_base_int8_mi2i.json"
     ],
+    "upstream_workflows_note": "Listed from the repository's file browser, which answers even on a gated repository. Their contents have not been read: an unauthenticated fetch returns the restriction notice instead of the file.",
     "why_this_model": [
       "multi-reference generation is native: it takes several references and keeps characters recognisable across inputs, which is the character-sheet gesture",
       "5.6B parameters, so a reference costs seconds rather than minutes",
-      "the same model does text-to-image, single-reference edit and multi-reference composition, so one graph covers the three things the character page needs"
+      "the same model does text-to-image, single-reference edit and multi-reference composition, so one graph covers the three things the character page needs",
+      "the layout builder that ships with it is a visual box editor, which is the interaction the character page wants anyway"
     ]
   }
 }

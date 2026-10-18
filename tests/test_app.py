@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import tempfile
+import time
 import unittest
 import sys
 from pathlib import Path
@@ -45,6 +47,19 @@ class AppTests(unittest.TestCase):
             self.addCleanup(p.stop)
         app_module.MEDIA_DIR.mkdir(parents=True, exist_ok=True)
         self.client = TestClient(app_module.app)
+
+    def test_an_edited_template_is_served_without_a_restart(self):
+        # Reading the page once at import meant a shipped fix could silently not appear.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'index.html').write_text('first')
+            with patch.object(app_module, 'TEMPLATES', root), \
+                 patch.dict(app_module._PAGE_CACHE, clear=True):
+                self.assertEqual(self.client.get('/').text, 'first')
+                (root / 'index.html').write_text('second')
+                stamp = time.time_ns() + 1_000_000
+                os.utime(root / 'index.html', ns=(stamp, stamp))
+                self.assertEqual(self.client.get('/').text, 'second')
 
     def test_static_assets_revalidate_so_a_stale_stylesheet_cannot_hide_a_fix(self):
         asset = self.client.get("/static/app.css")

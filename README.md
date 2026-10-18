@@ -11,6 +11,57 @@ Built for the **Open Source Higgsfield Competition** (ComfyUI · NVIDIA · Runpo
 
 ## What it does
 
+You bring footage you already shot and a character reference; the studio returns the same
+moment with a different character in it, and a **take capsule** that records exactly what was
+consumed so the take can be inspected, exported or re-run.
+
+Two studios share one pipeline, one interface language and one capsule:
+
+| Studio | Chain | State |
+| --- | --- | --- |
+| **LTX Studio** | source + reference(s) → FLUX 2 Klein first-frame edit → LTX 2.5 + Ripple propagation | working |
+| **H3 Studio** | source + 1–2 ordered character references → MiniMax H3 two-pass character swap at 0.9 MP | working |
+
+![LTX Studio](docs/readme/ltx-swap.png)
+
+*LTX Studio: the source and the character references are chosen with the same picker both
+studios use, and the take capsule records what the render consumed.*
+
+![H3 Studio with two character references and a completed take](docs/readme/h3-swap-two-references.png)
+
+*H3 Studio with two ordered character references and a completed take. The capsule chain
+shows one card per reference, and every description the studio wrote is frozen in the take
+alongside its provenance — `user` when you typed it, `generated` when the local vision model
+read it from your image.*
+
+Type nothing at all and the studio still works: it reads the clip to name what must stay
+unchanged, reads each reference image to name the replacement character, writes both into a
+frozen prompt and renders. You can override any of it; nothing is ever invented silently.
+
+
+## Competition requirements, met
+
+| Requirement | Where |
+| --- | --- |
+| Built on the **Comfy Developer Platform** (Comfy Router and/or Comfy SDK) | every graph is submitted through the official `comfy_sdk`; the local proxy bridges that API to a self-hosted ComfyUI, and an authenticated deployment target is supported |
+| Open-source licence and enough setup detail to run it elsewhere | [Apache-2.0](LICENSE), [local setup guide](docs/local-setup.md), `bash scripts/setup.sh --with-proxy` |
+| Workflow files | [`workflows/`](workflows/README.md) — the exported API-format graphs, held in step with the code that runs by a test |
+| Other tools, models and techniques explained in the demo video | listed under *Techniques the demo explains* below |
+| Lawful, SFW, no unlicensed IP or likenesses | model weights and fixtures are user-supplied; nothing copyrighted is bundled |
+| One submission per person | ✔ |
+
+
+## Techniques the demo explains
+
+The competition requires the combined techniques to be explained in the demo video:
+
+- **Comfy SDK** for every submission, plus the `comfy-api-proxy` bridge to self-hosted ComfyUI
+- **FLUX 2 Klein** (Black Forest Labs) as the first-frame image editor in LTX Studio
+- **LTX 2.5 + Ripple FFAF IC-LoRA** as the motion stage in LTX Studio
+- **MiniMax H3**, two-pass sampling, with the **Character Swap LoRA `h3_character_swap_v1.5` by akatz-ai** in H3 Studio
+- a **local vision model** (`Qwen3-VL-4B`) that reads the source clip and each reference image to write the descriptions the studio freezes into the take
+
+
 ## Current MVP: Character Recast with LTX 2.5 + Ripple
 
 The first working product path is a local-first **visible-character recast**. Its first-frame editor is FLUX.2 Klein from **Black Forest Labs**; LTX 2.5 + Ripple carries that approved image edit through motion.
@@ -141,6 +192,7 @@ The CLI in `src/genjutsu.py` is a legacy LTX 2.3 prototype and is not the curren
 
 - [Local setup and troubleshooting](docs/local-setup.md) — Python 3.12, FFmpeg, opt-in proxy, remote upstream and readiness
 - [Workflow files](workflows/README.md) — the exported API-format graphs the app submits, and how their asset placeholders are substituted
+- [Competition roadmap](docs/plans/competition-roadmap.md) — the requirements checklist, what is done, and the decisions still open
 - [Creative Studio UI architecture](docs/ui-architecture.md) — product workflow, engine visual identity and honest local-sharing boundary
 - [Reference intelligence plan](docs/plans/2026-10-16-reference-intelligence.md) — opt-in Qwen-VL preflight, review gate and target-visibility scope
 - [Open Weights runtime evidence contract](docs/validation/open-weights-runtime-contract.md) — declared models/nodes/transport, live readiness gate and submission-proof boundaries

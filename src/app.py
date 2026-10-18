@@ -86,9 +86,29 @@ def runtime_inventory() -> dict[str, Any]:
     return declared_runtime_inventory()
 
 
+TEMPLATES = Path(__file__).parent / "templates"
+_PAGE_CACHE: dict[str, tuple[int, str]] = {}
+
+
+def _page(name: str) -> str:
+    """Read a template, reloading it when it changes on disk.
+
+    The page used to be read once at import, so an edited template silently did not
+    appear until the process restarted: a shipped fix could look like a broken change.
+    Keyed on the file's modification stamp, so a request stays cheap.
+    """
+    path = TEMPLATES / name
+    stamp = path.stat().st_mtime_ns
+    cached = _PAGE_CACHE.get(name)
+    if cached is None or cached[0] != stamp:
+        cached = (stamp, path.read_text())
+        _PAGE_CACHE[name] = cached
+    return cached[1]
+
+
 @app.get("/", response_class=HTMLResponse)
 def home() -> str:
-    return PAGE
+    return _page("index.html")
 
 
 @app.post("/api/upload-character")
@@ -211,4 +231,4 @@ def get_reveal(job_id: str, download: bool = False) -> FileResponse:
                         content_disposition_type="attachment" if download else "inline")
 
 
-PAGE = (Path(__file__).parent / "templates" / "index.html").read_text()
+# Templates are read per change rather than once at import: see `_page`.

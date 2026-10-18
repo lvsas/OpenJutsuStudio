@@ -129,6 +129,10 @@ export class H3Take {
       if (epoch !== this.epoch) return;
       if (capsule.engine !== 'minimax-h3' || capsule.job_id !== this.id) throw new Error('Capsule identity mismatch.');
       this.capsule = capsule;
+      // A reopened take shows every reference it consumed, not just the first.
+      if (capsule.recipe.reference_count > 1) {
+        loadStageMedia('reference-2', h3URL(this.id, '/reference/1'));
+      }
       byId('capsule-manifest').textContent = JSON.stringify(capsule, null, 2);
       byId('capsule-details').hidden = false;
       byId('save-capsule').disabled = false;

@@ -5,7 +5,9 @@ const form = byId('form');
 let pending = false, ready = false, readinessEpoch = 0;
 const blobs = new Map();
 const H3_STAGES = ['source', 'reference', 'result'];
-const take = new H3Take(() => update(), checkReadiness, stage => setStage(stage));
+// The chain follows both the form and the restored take, so a reopened take shows the
+// references it actually consumed.
+const take = new H3Take(() => { paintChain(); update(); }, checkReadiness, stage => setStage(stage));
 
 // One stage state, exactly like the LTX studio: whichever media exists wins.
 function syncStage() {
@@ -100,7 +102,9 @@ function previewInputs() {
 }
 // One reference or two: the chain shows a card per reference and renumbers itself.
 function paintChain() {
-  const second = byId('reference-2').files.length === 1 && !byId('reference-2').disabled;
+  const fromForm = byId('reference-2').files.length === 1 && !byId('reference-2').disabled;
+  const fromTake = (take.capsule?.recipe?.reference_count || 0) > 1;
+  const second = fromForm || fromTake;
   byId('take-reference-2-card').hidden = !second;
   byId('take-second-arrow').hidden = !second;
   byId('take-result-card').querySelector('span').textContent = second

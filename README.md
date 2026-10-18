@@ -39,16 +39,20 @@ unchanged, reads each reference image to name the replacement character, writes 
 frozen prompt and renders. You can override any of it; nothing is ever invented silently.
 
 
-## Competition requirements, met
+## Competition requirements — repository guardrails ready, submission pending
 
-| Requirement | Where |
+The repository guardrails below are verified continuously. The actual contest submission, demo video,
+try-it link, social-post link and feature-credit consent are **pending** until they exist as real
+artifacts; this table does not claim an entry has been submitted.
+
+| Requirement | Current evidence / submission state |
 | --- | --- |
 | Built on the **Comfy Developer Platform** (Comfy Router and/or Comfy SDK) | every graph is submitted through the official `comfy_sdk`; the local proxy bridges that API to a self-hosted ComfyUI, and an authenticated deployment target is supported |
 | Open-source licence and enough setup detail to run it elsewhere | [Apache-2.0](LICENSE), [local setup guide](docs/local-setup.md), `bash scripts/setup.sh --with-proxy` |
-| Workflow files | [`workflows/`](workflows/README.md) — the exported API-format graphs, held in step with the code that runs by a test |
-| Other tools, models and techniques explained in the demo video | listed under *Techniques the demo explains* below |
-| Lawful, SFW, no unlicensed IP or likenesses | model weights and fixtures are user-supplied; nothing copyrighted is bundled |
-| One submission per person | ✔ |
+| Workflow files | [`workflows/`](workflows/README.md) — API-format app graphs plus the pinned vendor FLUX 3 source, checked by tests |
+| Other tools, models and techniques explained in the demo video | script/content: pending; the current list is under *Techniques the demo explains* |
+| Lawful, SFW, no unlicensed IP or likenesses | public demo fixtures and prompts: pending human review; nothing copyrighted is bundled |
+| One submission per person | one final entry will be prepared; **not submitted** |
 
 
 ## Techniques the demo explains

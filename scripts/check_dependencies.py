@@ -38,16 +38,26 @@ def load_manifest(path=MANIFEST):
 
 
 def loader_options(object_info, node, field):
-    """The COMBO choices of a loader field, i.e. the files the machine actually has."""
+    """The COMBO choices of a loader field, i.e. the files the machine actually has.
+
+    ComfyUI has used three shapes for this: a list of strings first, then a list whose first
+    element is that list, and now `["COMBO", {"options": [...]}]`. Reading only the old shapes
+    reports a file as missing when it is present, so all three are handled and each is tested.
+    """
     node_info = object_info.get(node) or {}
     for section in ("required", "optional"):
         spec = (node_info.get("input") or {}).get(section, {}).get(field)
-        if isinstance(spec, list) and spec and isinstance(spec[0], list):
-            return [value for value in spec[0] if isinstance(value, str)]
-        if isinstance(spec, list) and spec and isinstance(spec[0], dict):
-            options = spec[0].get("options")
-            if isinstance(options, list):
-                return [value for value in options if isinstance(value, str)]
+        if not isinstance(spec, list) or not spec:
+            continue
+        first = spec[0]
+        if isinstance(first, list):
+            return [value for value in first if isinstance(value, str)]
+        if isinstance(first, str) and first.upper() == "COMBO":
+            second = spec[1] if len(spec) > 1 else {}
+            if isinstance(second, dict) and isinstance(second.get("options"), list):
+                return [value for value in second["options"] if isinstance(value, str)]
+        if isinstance(first, dict) and isinstance(first.get("options"), list):
+            return [value for value in first["options"] if isinstance(value, str)]
     return []
 
 

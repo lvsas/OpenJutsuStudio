@@ -157,6 +157,22 @@ class CheckerTests(unittest.TestCase):
         # and a planned miss must not be treated as a deployment failure
         self.assertTrue(all(item.get("planned") for item in with_planned["missing_models"]))
 
+    def test_every_combo_shape_comfyui_has_used_is_read(self):
+        """Reading only the old shapes reported a present file as missing, on a live instance."""
+        file = "minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors"
+        shapes = {
+            "bare list of options": [[file, "other.safetensors"]],
+            "list of options followed by a config dict": [[file, "other.safetensors"], {}],
+            "COMBO with an options dict": ["COMBO", {"options": [file, "other.safetensors"]}],
+            "bare dict with options": [{"options": [file, "other.safetensors"]}, {}],
+        }
+        for label, spec in shapes.items():
+            with self.subTest(shape=label):
+                inventory = {"MinimaxH3LatentUpscaler3D": {
+                    "input": {"required": {"model_name": spec}}}}
+                options = checker.loader_options(inventory, "MinimaxH3LatentUpscaler3D", "model_name")
+                self.assertIn(file, options, f"the {label} shape was not read")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -8,7 +8,8 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from media import ffprobe
-from output_media import build_comparison_reel, restore_source_audio
+from output_media import (DEFAULT_REEL_ENGINE, build_comparison_reel, reel_filters,
+                          restore_source_audio)
 from scenes import detect_scenes
 
 
@@ -47,6 +48,23 @@ class MediaProbeTests(unittest.TestCase):
                         "color=size=64x64:rate=24:duration=1", "-c:v", "libx264", str(path)], check=True)
         restore_source_audio(str(path), str(path), result)
         self.assertEqual(ffprobe(result)["frames"], 24)
+
+    def test_the_reel_labels_the_swap_and_carries_the_studio_colour(self):
+        for engine, accent, name in (("ltx25-ripple", "0xD8FF3E", "LTX 2.5 + Ripple"),
+                                     ("minimax-h3", "0xFF4F2E", "MiniMax H3")):
+            with self.subTest(engine=engine):
+                graph = reel_filters(1.0, "Sans", engine)
+                self.assertIn("text=SWAP", graph)
+                self.assertNotIn("RECAST", graph)
+                self.assertIn("text=SOURCE", graph)
+                self.assertIn("CHARACTER SWAP", graph)
+                self.assertIn(name, graph)
+                self.assertIn(accent, graph)
+        # The two studios must not share a colour, and an unknown engine falls back.
+        self.assertNotEqual(reel_filters(1.0, "Sans", "ltx25-ripple"),
+                            reel_filters(1.0, "Sans", "minimax-h3"))
+        self.assertEqual(reel_filters(1.0, "Sans", "unknown-engine"),
+                         reel_filters(1.0, "Sans", DEFAULT_REEL_ENGINE))
 
     def test_comparison_reel_is_portrait_h264_with_result_duration(self):
         source, result, reel = [self.root / name for name in ("source.mp4", "result.mp4", "reel.mp4")]

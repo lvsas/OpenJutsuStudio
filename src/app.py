@@ -212,10 +212,10 @@ def _completed_job_media(job_id: str) -> tuple[core.Job, Path, Path]:
 @app.post("/api/jobs/{job_id}/reveal")
 def create_reveal(job_id: str) -> dict[str, str]:
     """Create a local 9:16 source/result comparison reel for one completed job."""
-    _, source, result = _completed_job_media(job_id)
+    job, source, result = _completed_job_media(job_id)
     output = _reveal_path(job_id)
     try:
-        build_comparison_reel(source, result, output)
+        build_comparison_reel(source, result, output, engine=job.engine)
     except (OSError, ValueError, subprocess.CalledProcessError) as exc:
         raise HTTPException(status_code=500, detail=f"Could not build comparison reel: {exc}") from exc
     return {"reveal_url": f"/api/jobs/{job_id}/reveal"}

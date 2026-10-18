@@ -88,7 +88,7 @@ class ManifestShapeTests(unittest.TestCase):
     def test_the_character_generator_names_a_gated_repository_and_its_roles(self):
         """Downloads need an authenticated client, so an installer has to be told."""
         planned = self.manifest["character_generator"]
-        self.assertEqual(planned["status"], "partially_installed")
+        self.assertIn(planned["status"], {"planned", "partially_installed", "installed"})
         self.assertTrue(planned["gated_repository"])
         roles = {role["role"] for role in planned["roles"]}
         self.assertIn("diffusion model", roles)
@@ -96,12 +96,14 @@ class ManifestShapeTests(unittest.TestCase):
         for role in planned["roles"]:
             with self.subTest(role=role["role"]):
                 self.assertTrue(role["alternatives"], "a role must say what could satisfy it")
+                self.assertTrue(role["note"], "and why it is needed")
 
-    def test_a_role_may_be_unsatisfied_and_that_is_recorded_not_hidden(self):
-        vision = [r for r in self.manifest["character_generator"]["roles"]
-                  if r["role"] == "vision encoder"][0]
-        self.assertIsNone(vision["installed"], "an uninstalled role must not claim a file")
-        self.assertTrue(vision["note"], "and it must say what it is for")
+    def test_an_installed_file_is_one_of_its_role_alternatives(self):
+        """Not a record of today's machine: the file named as installed must be a valid answer."""
+        for role in self.manifest["character_generator"]["roles"]:
+            with self.subTest(role=role["role"]):
+                if role["installed"] is not None:
+                    self.assertIn(role["installed"], role["alternatives"])
 
 
 class CheckerTests(unittest.TestCase):
@@ -161,14 +163,24 @@ class CheckerTests(unittest.TestCase):
         self.assertEqual(report["missing_nodes"], {},
                          "a core node must not be blamed on a custom pack")
 
-    def test_the_character_roles_report_what_is_actually_installed(self):
-        report = checker.check(self.complete, self.manifest, include_planned=True)
-        roles = {entry["role"]: entry for entry in report["planned_roles"]}
-        self.assertTrue(roles["diffusion model"]["satisfied"])
-        self.assertTrue(roles["prompt upsampler"]["satisfied"])
-        self.assertTrue(roles["vae"]["satisfied"])
-        self.assertFalse(roles["vision encoder"]["satisfied"],
-                         "a role with no installed file must be reported as unmet")
+    def test_a_role_is_satisfied_only_by_a_file_the_inventory_reports(self):
+        """The verdict must follow the inventory, not a hard-coded expectation."""
+        roles = {e["role"]: e for e in
+                 checker.check(self.complete, self.manifest,
+                               include_planned=True)["planned_roles"]}
+        installed = [r for r in self.manifest["character_generator"]["roles"] if r["installed"]]
+        for role in installed:
+            self.assertTrue(roles[role["role"]]["satisfied"], role["role"])
+
+        victim = installed[0]
+        without = json.loads(json.dumps(self.complete))
+        field = without["UNETLoader"]["input"]["required"]["unet_name"]
+        field[0] = [name for name in field[0] if name != victim["installed"]]
+        flipped = {e["role"]: e for e in
+                   checker.check(without, self.manifest,
+                                 include_planned=True)["planned_roles"]}
+        self.assertFalse(flipped[victim["role"]]["satisfied"],
+                         "removing the only installed file must flip the role to unmet")
 
     def test_quantisation_variants_are_not_reported_as_separate_missing_files(self):
         """Listing the variants flat made the checker cry wolf on a ready machine."""

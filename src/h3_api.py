@@ -190,6 +190,7 @@ def create_router(get_media_dir, max_upload_bytes, readiness_check, dispatch_job
     router.add_api_route('/api/h3/jobs', api.create_job, methods=['POST'], status_code=202)
     router.add_api_route('/api/h3/jobs/{job_id}/source', api.source, methods=['GET'])
     router.add_api_route('/api/h3/jobs/{job_id}/reference', api.reference, methods=['GET'])
+    router.add_api_route('/api/h3/jobs/{job_id}/reference/{index}', api.reference, methods=['GET'])
     router.add_api_route('/api/h3/jobs/{job_id}/capsule', api.capsule, methods=['GET'])
     router.add_api_route('/api/h3/jobs/{job_id}/replay', api.replay, methods=['POST'], status_code=202)
     return router

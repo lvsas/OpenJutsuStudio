@@ -5,7 +5,8 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from h3_recipe import h3_dimensions, make_recipe, validate_recipe, with_preserve_clip
+from h3_recipe import (REFERENCE_SLOTS, h3_dimensions, make_recipe, validate_recipe,
+                       with_preserve_clip)
 
 
 class H3DimensionsTests(unittest.TestCase):
@@ -99,6 +100,17 @@ class H3DimensionsTests(unittest.TestCase):
                     {'preserve_clip': 'x', 'preserve_clip_source': 'invented'}):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 make_recipe(source_width=1920, source_height=1080, **bad)
+
+    def test_capacity_is_shared_across_graph_recipe_and_api(self):
+        from h3_graphs import REFERENCE_SLOTS as graph_slots
+        self.assertEqual(REFERENCE_SLOTS, graph_slots)
+        self.assertEqual(REFERENCE_SLOTS, 2)
+        recipe = make_recipe(source_width=1920, source_height=1080,
+                             reference_descriptions=('one', 'two'))
+        self.assertEqual(recipe['reference_count'], 2)
+        with self.assertRaises(ValueError):
+            make_recipe(source_width=1920, source_height=1080,
+                        reference_descriptions=('one', 'two', 'three'))
 
     def test_legacy_policy_mismatched_prompt_and_oversized_text_are_rejected(self):
         recipe = make_recipe(source_width=1920, source_height=1080)

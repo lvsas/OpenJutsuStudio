@@ -191,24 +191,25 @@
       },
       {
         "role": "prompt upsampler",
-        "required": true,
+        "required": false,
         "installed": "qwen3.5_9b_flux3_prompt_upsampler_int8_convrot.safetensors",
         "alternatives": [
           "qwen3.5_9b_flux3_prompt_upsampler_int8_convrot.safetensors",
           "qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors",
           "qwen3.5_9b_flux3_prompt_upsampler_bf16.safetensors"
         ],
-        "note": "FLUX 3 ships its own upsampler and the graph uses it in box mode: it re-plans the layout, then Flux3BoxReconcileKJ puts our ids back on the boxes. This is the refine step -- nothing needs to be invented for it."
+        "note": "Writes the caption text in box mode, which is the refine step; Flux3BoxReconcileKJ then puts our ids back on the boxes it re-planned. It is NOT the conditioning encoder: wiring it to the sampler fails with a shape error (4096 against 20480). Not required for a plain text-to-image graph."
       },
       {
-        "role": "vision encoder",
+        "role": "text and image encoder",
         "required": true,
         "installed": "qwen3vl_4b_int8_convrot.safetensors",
         "alternatives": [
           "qwen3vl_4b_int8_convrot.safetensors",
-          "qwen3vl_4b_bf16.safetensors"
+          "QWEN/qwen3vl_4b_fp8_scaled.safetensors",
+          "QWEN/qwen3vl_4b_bf16.safetensors"
         ],
-        "note": "Reading the reference images is what turns multi-reference into a character sheet. Assumed missing at first because a name filter looked for 'flux' or 'klein'; the checker found it by asking the machine instead."
+        "note": "This is what feeds the sampler, loaded with CLIPLoader type flux3. Identified by scanning candidates with minimal real runs: the three 4B variants pass, the 8B VL and the 9B text models fail on a shape error. It is also what reads the reference images, so one file covers conditioning and references."
       },
       {
         "role": "vae",
@@ -224,6 +225,14 @@
       "CreateBoundingBoxes",
       "Flux3LayoutPrompt"
     ],
+    "verified_combination": {
+      "diffusion": "flux/flux3-image-klein-base-int8-convrot.safetensors",
+      "encoder": "qwen3vl_4b_int8_convrot.safetensors",
+      "encoder_type": "flux3",
+      "vae": "flux2-vae.safetensors",
+      "latent_and_scheduler": "EmptyFlux2LatentImage + Flux2Scheduler -- FLUX 3 Klein has none of its own",
+      "evidence": "512x512, 2 steps, execution status success. The dry audit alone was not evidence: it validated the wiring while the encoder was still wrong."
+    },
     "graph_note": "The character sheet comes from Flux3PromptBuilderKJ: draw boxes on the output canvas, give each an id and a description, cite the id in the prompt, and it appends the boxes as a JSON table on a 0-1000 grid. Its references input grows with the number of references, so the count is not fixed. No latent trick is needed, unlike the FLUX 2 path, which required the enhancer pack to inject reference latents.",
     "upstream_workflows": [
       "flux3_klein_int8_t2i.json",

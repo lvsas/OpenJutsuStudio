@@ -29,8 +29,8 @@ class BackendTests(unittest.TestCase):
         self.reference.write_bytes(b'reference')
         self.recipe = make_recipe('  user text\n', 123, source_width=640, source_height=360)
         self.job = core.Job('h3-test', engine='minimax-h3', video=str(self.source),
-                            meta={'h3_reference': str(self.reference)})
-        self.opts = {'recipe': self.recipe, 'reference_image': self.reference,
+                            meta={'h3_references': [str(self.reference)]})
+        self.opts = {'recipe': self.recipe, 'reference_images': [self.reference],
                      'media_dir': self.media}
         self.client = MagicMock()
         self.client.assets.from_file.return_value.as_reference.return_value = 'asset-ref'
@@ -113,18 +113,18 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(graph['155']['inputs']['frame_load_cap'], 39)
         frozen = job.meta['h3_capsule']
         self.assertEqual(frozen['recipe']['preserve_clip'], '  user text\n')
-        self.assertEqual(set(frozen['assets']), {'source', 'reference', 'result'})
+        self.assertEqual(set(frozen['assets']), {'source', 'references', 'result'})
         self.assertNotIn(str(self.root), json.dumps(frozen))
-        recipe, source, ref = capsule.replay_inputs(job, self.media)
+        recipe, source, refs = capsule.replay_inputs(job, self.media)
         self.assertEqual(recipe, frozen['recipe'])
-        self.assertEqual((source, ref), (self.source, self.reference))
+        self.assertEqual((source, refs), (self.source, [self.reference]))
 
     def test_replay_uses_frozen_graph_not_current_builder(self):
         parent = self.run_job()
         recipe, source, reference = capsule.replay_inputs(parent, self.media)
         frozen_graph = copy.deepcopy(parent.meta['h3_capsule']['recipe']['graph_template'])
         child = core.Job('h3-child', engine='minimax-h3', video=str(source),
-                         meta={'h3_reference': str(reference), 'parent_job_id': parent.id})
+                         meta={'h3_references': [str(reference)], 'parent_job_id': parent.id})
         with patch.object(pipeline, 'bind_frames', side_effect=AssertionError('must not rebuild')):
             pipeline.run_h3_pipeline(child, source, dict(self.opts, recipe=recipe))
         self.assertEqual(child.status, 'done', child.error)

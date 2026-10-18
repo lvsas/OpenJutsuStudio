@@ -22,11 +22,37 @@ def digest_file(path):
     return result.hexdigest()
 
 
-def freeze_capsule(job, recipe, source, reference, result, media_dir):
+def _asset(path, media_dir):
+    resolved = contained(path, media_dir)
+    return {'sha256': digest_file(resolved), 'size_bytes': resolved.stat().st_size}
+
+
+def frozen_references(job):
+    """References recorded on a job, newest key first with the historical key as fallback."""
+    recorded = job.meta.get('h3_references')
+    if recorded:
+        return list(recorded)
+    single = job.meta.get('h3_reference')
+    return [single] if single else []
+
+
+def capsule_references(capsule):
+    """References recorded in a capsule, newest shape first with the historical one after."""
+    assets = capsule.get('assets') or {}
+    recorded = assets.get('references')
+    if recorded:
+        return list(recorded)
+    single = assets.get('reference')
+    return [single] if single else []
+
+
+def freeze_capsule(job, recipe, source, references, result, media_dir):
     recipe = validate_recipe(recipe)
-    assets = {role: {'sha256': digest_file(contained(path, media_dir)),
-                      'size_bytes': Path(path).stat().st_size}
-              for role, path in [('source', source), ('reference', reference), ('result', result)]}
+    references = list(references)
+    if len(references) != recipe['reference_count']:
+        raise ValueError('H3 capsule reference count does not match the frozen recipe')
+    assets = {'source': _asset(source, media_dir), 'result': _asset(result, media_dir),
+              'references': [_asset(path, media_dir) for path in references]}
     capsule = {
         'format': 'opengenjutsu-h3-capsule', 'schema_version': 1,
         'job_id': job.id, 'parent_job_id': job.meta.get('parent_job_id'),
@@ -75,9 +101,12 @@ def replay_inputs(job, media_dir):
     except ValueError as exc:
         raise ValueError('This take was frozen with an earlier H3 prompt policy. Start a new take from the source instead of replaying it.') from exc
     source = contained(job.video, media_dir)
-    reference = contained(job.meta['h3_reference'], media_dir)
-    for role, path in [('source', source), ('reference', reference)]:
-        expected = capsule['assets'][role]
-        if expected['sha256'] != digest_file(path) or expected['size_bytes'] != path.stat().st_size:
+    references = [contained(path, media_dir) for path in frozen_references(job)]
+    expected_references = capsule_references(capsule)
+    if len(references) != len(expected_references):
+        raise ValueError('A local H3 input changed after the capsule was frozen')
+    for path, expected in [(source, capsule['assets'].get('source')), *zip(references, expected_references)]:
+        if not expected or expected['sha256'] != digest_file(path) \
+                or expected['size_bytes'] != path.stat().st_size:
             raise ValueError('A local H3 input changed after the capsule was frozen')
-    return copy.deepcopy(recipe), source, reference
+    return copy.deepcopy(recipe), source, references

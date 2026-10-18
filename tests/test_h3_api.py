@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 import core
 import h3_api
 from h3_capsule import freeze_capsule
+from h3_graphs import REFERENCE_SLOTS
 from h3_recipe import bind_frames
 
 
@@ -46,7 +47,7 @@ class APITests(unittest.TestCase):
     def submit(self, reference=b'image', **kwargs):
         files = [('video', ('../../source.mp4', b'video', 'video/mp4'))]
         if reference is not None:
-            files.append(('reference_image', ('../../ref.png', reference, 'image/png')))
+            files.append(('reference_images', ('../../ref.png', reference, 'image/png')))
         return self.client.post('/api/h3/jobs', files=files, **kwargs)
 
     def test_reference_required_invalid_and_valid(self):
@@ -63,15 +64,15 @@ class APITests(unittest.TestCase):
         self.assertEqual(opts['recipe']['preserve_clip'], '  exact\n')
         self.assertEqual(opts['recipe']['seed'], 42)
         self.assertEqual(source.parent, self.media)
-        self.assertEqual(Path(opts['reference_image']).parent, self.media)
+        self.assertEqual(Path(opts['reference_images'][0]).parent, self.media)
         self.assertNotIn(str(self.root), response.text)
         self.assertEqual(self.client.get(f'/api/h3/jobs/{job.id}/capsule').status_code, 409)
 
-    def test_duplicate_reference_and_seed_bounds_are_rejected(self):
-        response = self.client.post('/api/h3/jobs', files=[
-            ('video', ('source.mp4', b'video', 'video/mp4')),
-            ('reference_image', ('one.png', b'image', 'image/png')),
-            ('reference_image', ('two.png', b'image', 'image/png'))])
+    def test_reference_capacity_and_seed_bounds_are_rejected(self):
+        files = [('video', ('source.mp4', b'video', 'video/mp4'))]
+        files += [('reference_images', (f'{index}.png', b'image', 'image/png'))
+                  for index in range(REFERENCE_SLOTS + 1)]
+        response = self.client.post('/api/h3/jobs', files=files)
         self.assertEqual(response.status_code, 422)
         for seed in ('-1', str(2**64)):
             self.assertEqual(self.submit(data={'seed': seed}).status_code, 422)
@@ -98,7 +99,7 @@ class APITests(unittest.TestCase):
         recipe = bind_frames(opts['recipe'], 24)
         result = self.media / 'result.mp4'
         result.write_bytes(b'result')
-        freeze_capsule(job, recipe, source, opts['reference_image'], result, self.media)
+        freeze_capsule(job, recipe, source, opts['reference_images'], result, self.media)
         job.status, job.result = 'done', str(result)
         job.save()
         response = self.client.get(f'/api/h3/jobs/{job.id}/capsule')
@@ -114,7 +115,7 @@ class APITests(unittest.TestCase):
         self.assertEqual(child.status, 'queued')
         self.assertIsNone(child.result)
         self.assertNotIn('h3_capsule', child.meta)
-        Path(opts['reference_image']).write_bytes(b'changed')
+        Path(opts['reference_images'][0]).write_bytes(b'changed')
         self.assertEqual(self.client.post(f'/api/h3/jobs/{job.id}/replay').status_code, 409)
 
     def test_dispatch_failure_is_terminal(self):

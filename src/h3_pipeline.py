@@ -8,11 +8,21 @@ import time
 from pathlib import Path
 import core
 from comfy_transport import make_client
+from h3_graphs import REFERENCE_NODE
 from h3_media import prepare_source, finish_result, validate_result, has_audio
 from h3_capsule import contained, digest_file, freeze_capsule
 from h3_preserve import describe_character, describe_preserved
 from h3_recipe import ENGINE, bind_frames, validate_recipe, with_preserve_clip, with_reference_description
 from media import ffprobe
+
+
+def _reference_paths(opts):
+    """Queued reference paths, newest key first with the historical single key after."""
+    recorded = opts.get('reference_images')
+    if recorded:
+        return list(recorded)
+    single = opts.get('reference_image')
+    return [single] if single else []
 
 
 def _complete_reference_descriptions(client, recipe, references, folder):
@@ -88,11 +98,14 @@ def run_h3_pipeline(job, video_path, opts):
             raise ValueError('H3 runner accepts only minimax-h3 jobs')
         media_dir = Path(opts.get('media_dir', core.WORK / 'media')).resolve()
         source = contained(video_path, media_dir)
-        reference = contained(opts['reference_image'], media_dir)
+        references = [contained(path, media_dir) for path in _reference_paths(opts)]
         recipe = validate_recipe(copy.deepcopy(opts['recipe']))
-        input_hashes = {role: digest_file(path) for role, path in
-                        [('source', source), ('reference', reference)]}
-        for role, path in [('source', source), ('reference', reference)]:
+        if len(references) != recipe['reference_count']:
+            raise ValueError('H3 queued references do not match the frozen recipe')
+        inputs = [('source', source),
+                  *[(f'reference-{index}', path) for index, path in enumerate(references)]]
+        input_hashes = {role: digest_file(path) for role, path in inputs}
+        for role, path in inputs:
             expected = opts.get('input_hashes', {}).get(role)
             if expected and input_hashes[role] != expected:
                 raise ValueError('An H3 queued input changed')
@@ -110,7 +123,7 @@ def run_h3_pipeline(job, video_path, opts):
         client = make_client()
         if recipe['source_frames_24fps'] is None:
             recipe, reference_warning = _complete_reference_descriptions(
-                client, recipe, [reference], folder)
+                client, recipe, references, folder)
             if reference_warning:
                 job.meta['h3_reference_warning'] = reference_warning
             recipe, preserve_warning = _complete_preserve_clip(client, recipe, prepared, folder)
@@ -122,19 +135,21 @@ def run_h3_pipeline(job, video_path, opts):
         validate_recipe(recipe)
         job.prompt = recipe['effective_prompt']
         job.video = str(source)
-        job.meta.update(h3_reference=str(reference), h3_recipe=copy.deepcopy(recipe),
+        job.meta.update(h3_references=[str(path) for path in references],
+                        h3_recipe=copy.deepcopy(recipe),
                         source_frames=count, processed_frames=count, fps=24,
                         shot_plan=copy.deepcopy(recipe['shot_plan']),
                         padding_frames=padded-count, single_shot_only=True)
         job.step, job.progress = 'h3_submitting', 0.15
         job.save()
         video_ref = client.assets.from_file(prepared).as_reference()
-        image_ref = client.assets.from_file(reference).as_reference()
+        image_refs = [client.assets.from_file(path).as_reference() for path in references]
         # The prepared clip keeps its soundtrack so the reference node and the
         # combine node both condition on it, matching the measured winning arm.
         graph = copy.deepcopy(recipe['graph_template'])
         graph['155']['inputs']['video'] = video_ref
-        graph['137']['inputs']['image'] = image_ref
+        for index, image_ref in enumerate(image_refs):
+            graph[str(REFERENCE_NODE + index)]['inputs']['image'] = image_ref
         graph['156']['inputs']['filename_prefix'] = f'OpenGenjutsu/h3-{job.id}'
         rendered = _download_mp4(client, graph, folder)
         if ffprobe(rendered)['frames'] < count:
@@ -143,10 +158,9 @@ def run_h3_pipeline(job, video_path, opts):
         job.save()
         result = finish_result(rendered, source, folder / 'result.mp4', count)
         validate_result(result, count, recipe['output_width'], recipe['output_height'])
-        if any(digest_file(path) != input_hashes[role] for role, path in
-               [('source', source), ('reference', reference)]):
+        if any(digest_file(path) != input_hashes[role] for role, path in inputs):
             raise ValueError('An H3 input changed during rendering')
-        freeze_capsule(job, recipe, source, reference, result, media_dir)
+        freeze_capsule(job, recipe, source, references, result, media_dir)
         job.result, job.status, job.step, job.progress = str(result.resolve()), 'done', 'done', 1.0
     except Exception as exc:
         job.status, job.step = 'error', 'h3_error'

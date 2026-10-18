@@ -56,7 +56,7 @@ class H3IntegrationTests(unittest.TestCase):
                 with TestClient(app) as http:
                     response = http.post('/api/h3/jobs', data={'edit_prompt': '  exact user text\n'},
                                          files={'video': ('input.mp4', source.read_bytes(), 'video/mp4'),
-                                                'reference_image': ('ref.png', reference.read_bytes(), 'image/png')})
+                                                'reference_images': ('ref.png', reference.read_bytes(), 'image/png')})
                     self.assertEqual(response.status_code, 202, response.text)
                     parent = core.Job.load(response.json()['job_id'])
                     self.assertEqual(parent.status, 'done', parent.error)

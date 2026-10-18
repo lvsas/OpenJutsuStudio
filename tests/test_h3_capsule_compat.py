@@ -22,7 +22,7 @@ class Job:
     def __init__(self, job_id, source, reference, result, recipe):
         self.id, self.engine, self.status = job_id, 'minimax-h3', 'done'
         self.video, self.result = str(source), str(result)
-        self.meta = {'h3_reference': str(reference), 'h3_recipe': recipe}
+        self.meta = {'h3_references': [str(reference)], 'h3_recipe': recipe}
 
 
 class HistoricalCapsuleTests(unittest.TestCase):
@@ -36,7 +36,7 @@ class HistoricalCapsuleTests(unittest.TestCase):
             path.write_bytes(b'fixture:' + path.name.encode())
         recipe = bind_frames(make_recipe(source_width=1920, source_height=1080), 56, source_audio=True)
         self.job = Job('a' * 32, self.source, self.reference, self.result, recipe)
-        freeze_capsule(self.job, recipe, self.source, self.reference, self.result, self.media)
+        freeze_capsule(self.job, recipe, self.source, [self.reference], self.result, self.media)
 
     def reseal(self, capsule):
         capsule.pop('capsule_id', None)
@@ -64,9 +64,9 @@ class HistoricalCapsuleTests(unittest.TestCase):
         self.assertIn('earlier H3 prompt policy', str(raised.exception))
 
     def test_a_current_capsule_still_replays_and_a_tampered_input_is_rejected(self):
-        recipe, source, reference = replay_inputs(self.job, self.media)
+        recipe, source, references = replay_inputs(self.job, self.media)
         self.assertEqual(recipe['prompt_policy'], 'h3-recast-v3')
-        self.assertEqual((source, reference), (self.source, self.reference))
+        self.assertEqual((source, references), (self.source, [self.reference]))
         capsule = self.job.meta['h3_capsule']
         capsule['assets']['source']['sha256'] = 'f' * 64
         self.reseal(capsule)

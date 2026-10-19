@@ -11,7 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from media import ffprobe
 from output_media import (ASSET_ORDER, CHIP, DEFAULT_REEL_ENGINE, EYEBROW, HOOK, LABELS, LAYOUTS,
                           MICRO, SAFE_BOTTOM, STACKED, WIPE, build_comparison_reel, fonts,
-                          reel_filters, restore_source_audio, wipe_filters, wipe_timing)
+                          reel_filters, restore_source_audio, wipe_filters, wipe_label_timing,
+                          wipe_timing)
 from reel_design import BASE, ENGINES, ensure_assets
 from scenes import detect_scenes
 
@@ -110,31 +111,25 @@ class MediaProbeTests(unittest.TestCase):
         self.assertIn("text=SWAP", graph)
         self.assertNotIn("RECAST", graph)
         self.assertIn("MiniMax H3 + Character Swap LoRA", graph)
-        # A real wipe, not a slide: a growing alpha mask over a result that never moves.
+        # A real wipe, not a slide: its moving boundary chooses source before the sweep and
+        # result after it, then only the completed frame receives rounded alpha.
         band = WIPE["band"]
-        self.assertIn("alphamerge[revealed]", graph)
-        # Both halves carry the rounded frame: leaving the source unmasked paints square
-        # corners over the radius, which is invisible until you look at a corner pixel.
         mask_input = 2 + ASSET_ORDER.index("band_mask")
-        self.assertIn(f"[src][{mask_input}:v]alphamerge[src_r]", graph)
-        # The radius must survive the reveal: the two masks are applied one after the other
-        # rather than replacing the alpha.
-        self.assertIn("alphamerge[revealed]", graph)
-        self.assertIn(f"[revealed][{mask_input}:v]alphamerge[revealed_rounded]", graph)
-        # The edge travels inside the band, so the same mask clips it.
+        self.assertIn("[src][resmarked]blend=all_expr='if(gte(X,", graph)
+        self.assertIn(f"[transition][{mask_input}:v]alphamerge[transition_rounded]", graph)
+        # The existing narrow edge travels inside the band while blend controls the actual reveal.
         inside_x_pattern = f"({band['width']}-(2*floor({band['width'] // 2}*max(0,min(1,"
         self.assertIn(f"overlay=x='{inside_x_pattern}", graph)
-        self.assertIn(f"color=c=white:s={band['width']}x{band['height']}", graph)
         self.assertIn(f"color=c=0xFF4F2E:s=5x{band['height']}", graph)
-        self.assertRegex(graph, rf"\[blank\]\[white\]overlay=x='\({band['width']}-"
-                                 rf"\(2\*floor\({band['width'] // 2}\*max\(0,min\(1,")
         # drawbox cannot animate its position: such an expression silently draws nothing, so
         # no animated drawbox may creep back into this layout.
         self.assertNotIn("drawbox=x='", graph)
         self.assertNotIn("crop=", graph)
-        # The second label waits for the result instead of announcing it early.
-        hold, sweep = wipe_timing(2.4)
-        self.assertIn(f"enable='gte(t,{round(hold + sweep, 3)})'", graph)
+        # SOURCE exits before its chip crosses the wipe; SWAP appears only once its chip is
+        # entirely within revealed result pixels.
+        source_until, swap_from = wipe_label_timing(2.4)
+        self.assertIn(f"enable='lt(t,{source_until})'", graph)
+        self.assertIn(f"enable='gte(t,{swap_from})'", graph)
 
     @staticmethod
     def _size(path):
@@ -206,3 +201,59 @@ class MediaProbeTests(unittest.TestCase):
         streams = json.loads(subprocess.run(["ffprobe", "-v", "error", "-show_streams", "-of", "json", str(reel)],
                                              text=True, capture_output=True, check=True).stdout)["streams"]
         self.assertEqual(next(stream["codec_name"] for stream in streams if stream["codec_type"] == "video"), "h264")
+
+    @staticmethod
+    def _frame_region(path, frame, x, y, width=24, height=24):
+        """Decode a small frame region without materialising a portrait reel in memory."""
+        # trim selects the requested decoded frame without materialising the reel.
+        filters = f"trim=start_frame={frame}:end_frame={frame + 1},crop={width}:{height}:{x}:{y}"
+        return subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-vf", filters,
+                               "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                              capture_output=True, check=True).stdout
+
+    @staticmethod
+    def _mae(left, right):
+        return sum(abs(a - b) for a, b in zip(left, right)) / len(left)
+
+    def test_wipe_is_source_first_result_last_with_exact_ltx_timing(self):
+        """A 73-frame LTX-shaped fixture catches the old 74th frame and label lie."""
+        source, result, reel = [self.root / name for name in ("source.mp4", "result.mp4", "wipe.mp4")]
+        for path, colour, tone in ((source, "0xE02020", "330"), (result, "0x2050E0", "660")):
+            subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i",
+                            f"color=c={colour}:size=64x64:rate=24", "-f", "lavfi", "-i",
+                            f"sine=frequency={tone}:sample_rate=48000", "-frames:v", "73",
+                            "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                            str(path)], check=True)
+        result_info = ffprobe(result)
+        self.assertEqual((result_info["frames"], result_info["fps"]), (73, 24.0))
+        hold, sweep = wipe_timing(result_info["duration"])
+        self.assertEqual(hold, 0.4, "the source first beat must end by 0.4 seconds")
+        source_until, swap_from = wipe_label_timing(result_info["duration"])
+        graph = wipe_filters(result_info["duration"], "Sans")
+        self.assertIn(f"enable='lt(t,{source_until})'", graph)
+        self.assertIn(f"enable='gte(t,{swap_from})'", graph)
+
+        build_comparison_reel(source, result, reel, layout="wipe")
+        reel_info = ffprobe(reel)
+        self.assertEqual(reel_info["frames"], result_info["frames"],
+                         "the reel must not synthesize a 74th LTX frame")
+        self.assertAlmostEqual(reel_info["duration"], result_info["duration"], places=3)
+        band = WIPE["band"]
+        x, y = band["x"] + band["width"] // 2, band["y"] + band["height"] // 2
+        source_pixels = self._frame_region(source, 0, 20, 20)
+        result_pixels = self._frame_region(result, 0, 20, 20)
+        pre_pixels = self._frame_region(reel, 0, x, y)
+        post_pixels = self._frame_region(reel, reel_info["frames"] - 1, x, y)
+        self.assertLess(self._mae(pre_pixels, source_pixels), self._mae(pre_pixels, result_pixels),
+                        "SOURCE's first beat must use actual source pixels")
+        self.assertLess(self._mae(post_pixels, result_pixels), self._mae(post_pixels, source_pixels),
+                        "the held end state must use actual result pixels")
+
+        streams = json.loads(subprocess.run(["ffprobe", "-v", "error", "-show_streams", "-of", "json",
+                                             str(reel)], text=True, capture_output=True, check=True).stdout)["streams"]
+        video = next(stream for stream in streams if stream["codec_type"] == "video")
+        audio = next(stream for stream in streams if stream["codec_type"] == "audio")
+        self.assertEqual((video["codec_name"], video["pix_fmt"]), ("h264", "yuv420p"))
+        self.assertEqual(audio["codec_name"], "aac")
+        self.assertLess(reel.read_bytes().find(b"moov"), reel.read_bytes().find(b"mdat"),
+                        "faststart must put MP4 metadata before media data")

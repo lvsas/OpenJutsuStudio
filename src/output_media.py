@@ -44,7 +44,7 @@ WIPE = {
 }
 HOOK = ("SAME MOMENT.", "NEW CHARACTER.")
 LAYOUTS = ("stacked", "wipe")
-WIPE_HOLD_RATIO, WIPE_MAX_HOLD = 0.2, 0.5
+WIPE_HOLD_RATIO, WIPE_MAX_HOLD = 0.15, 0.4
 WIPE_SWEEP_RATIO, WIPE_MAX_SWEEP, WIPE_MIN_SWEEP = 0.4, 1.2, 0.3
 
 
@@ -55,6 +55,17 @@ def wipe_timing(duration):
     if hold + sweep >= duration:
         sweep = max(WIPE_MIN_SWEEP, duration - hold - 0.05)
     return round(hold, 3), round(sweep, 3)
+
+
+def wipe_label_timing(duration):
+    """Keep each chip on the pixels its label names during the right-to-left reveal."""
+    hold, sweep = wipe_timing(duration)
+    band = WIPE["band"]
+    source_right = CHIP["margin"] + CHIP["ink"][0] + CHIP["pad"]
+    swap_left = band["width"] - CHIP["margin"] - CHIP["ink"][1] - CHIP["pad"]
+    source_until = hold + sweep * (1 - source_right / band["width"])
+    swap_from = hold + sweep * (1 - swap_left / band["width"])
+    return round(source_until, 3), round(swap_from, 3)
 
 
 def reel_theme(engine):
@@ -190,52 +201,50 @@ def wipe_filters(duration, font, engine=DEFAULT_REEL_ENGINE, inputs=None, fps=24
     accent, bg = _hex(theme["accent"]), _hex(BASE["bg"])
     layout, band, chip = WIPE, WIPE["band"], CHIP
     hold, sweep = wipe_timing(duration)
-    # Even widths, because the masked frame reaches an encoder and yuv420p needs them.
+    # Even boundary positions keep the subject frame encoder-safe for yuv420p.
     progress = f"max(0,min(1,(t-{hold})/{sweep}))"
+    blend_progress = f"max(0,min(1,(T-{hold})/{sweep}))"
     inside_x = f"({band['width']}-(2*floor({band['width'] // 2}*{progress})))"
+    blend_inside_x = f"({band['width']}-(2*floor({band['width'] // 2}*{blend_progress})))"
     geo = (f"scale={band['width']}:{band['height']}:force_original_aspect_ratio=decrease,"
            f"pad={band['width']}:{band['height']}:(ow-iw)/2:(oh-ih)/2:black,setsar=1")
     mask, outline = inputs["band_mask"], inputs["band_outline"]
     chip_y = band["y"] + chip["margin"]
     chip_x = band["x"] + chip["margin"]
     swap_at = band["x"] + band["width"] - chip["margin"] - (CHIP["ink"][1] + chip["pad"])
-    gate = f"gte(t,{round(hold + sweep, 3)})"
+    source_until, swap_from = wipe_label_timing(duration)
+    source_gate = f"lt(t,{source_until})"
+    swap_gate = f"gte(t,{swap_from})"
     hook = layout["hook"]
     texts = [
         *_masthead(faces, theme, layout["masthead_y"]),
         _centred(faces["display"], HOOK[0], hook["y"], _hex(BASE["text"]), hook["size"]),
         _centred(faces["display"], HOOK[1], hook["y"] + hook["leading"], accent, hook["size"]),
-        _chip_label(faces, "SOURCE", chip_x, chip_y),
-        # The second label arrives with the result rather than before it.
-        _chip_label(faces, "SWAP", swap_at, chip_y, enable=gate),
+        _chip_label(faces, "SOURCE", chip_x, chip_y, enable=source_gate),
+        # SWAP begins only once its whole chip is on revealed result pixels.
+        _chip_label(faces, "SWAP", swap_at, chip_y, enable=swap_gate),
         *_micro(faces, theme, layout),
     ]
     groups = [
         f"[0:v]{geo}[src]",
         f"[1:v]{geo}[res]",
-        # The mask grows leftwards from the right edge, built by overlaying a full-width white
-        # band whose visible part is what fits in the frame. drawbox cannot animate: an
-        # expression using t draws nothing at all in this build, so overlay is the only way.
-        f"color=c=black:s={band['width']}x{band['height']}:r={fps},format=gray[blank]",
-        f"color=c=white:s={band['width']}x{band['height']}:r={fps},format=gray[white]",
+        # crop() cannot do this: its width is evaluated once at init, where t is unavailable.
+        # The animated overlay carries only the existing narrow accent edge; blend below selects
+        # the source/result pixels for every other position.
         f"color=c={accent}:s={WIPE['edge']}x{band['height']}:r={fps}[mark]",
-        f"[blank][white]overlay=x='{inside_x}':y=0[mask]",
-        # The moving edge travels inside the band, so the rounded mask clips it too.
+        # The moving edge travels inside the band. blend selects the unaltered source until the
+        # edge reaches each pixel, then selects the result; the rounded alpha is applied only to
+        # that completed source/result frame.
         f"[res][mark]overlay=x='{inside_x}':y=0[resmarked]",
-        # The rounded frame must survive the reveal: applying the two masks one after the other
-        # multiplies them, where a single alphamerge would replace the alpha and lose the radius
-        # on whichever side the wipe has already passed.
-        f"[resmarked][mask]alphamerge[revealed]",
-        f"[revealed][{mask}:v]alphamerge[revealed_rounded]",
-        # The source is masked too, or its square corners paint over the radius.
-        f"[src][{mask}:v]alphamerge[src_r]",
+        f"[src][resmarked]blend=all_expr='if(gte(X,{blend_inside_x}),B,A)'[transition]",
+        f"[transition][{mask}:v]alphamerge[transition_rounded]",
         f"color=c={bg}:s=1080x1920:d={duration}[base]",
         f"[base][{inputs['background']}:v]overlay=0:0[canvas]",
-        f"[canvas][src_r]overlay={band['x']}:{band['y']}[withsrc]",
-        f"[withsrc][revealed_rounded]overlay={band['x']}:{band['y']}[barred]",
+        f"[canvas][transition_rounded]overlay={band['x']}:{band['y']}[barred]",
         f"[barred][{outline}:v]overlay={band['x']}:{band['y']}[outlined]",
-        _chip_overlay(inputs, "SOURCE", chip_x, chip_y, "outlined", out_label="withsource"),
-        _chip_overlay(inputs, "SWAP", swap_at, chip_y, "withsource", enable=gate),
+        _chip_overlay(inputs, "SOURCE", chip_x, chip_y, "outlined", out_label="withsource",
+                      enable=source_gate),
+        _chip_overlay(inputs, "SWAP", swap_at, chip_y, "withsource", enable=swap_gate),
         f"[chips]{','.join(texts)}[out]",
     ]
     return ";".join(groups)
@@ -249,7 +258,7 @@ def build_comparison_reel(source: str | Path, result: str | Path, output: Path,
     if layout not in LAYOUTS:
         raise ValueError(f"Unknown reel layout: {layout}")
     result_info = ffprobe(result)
-    duration, fps = result_info["duration"], result_info["fps"]
+    duration, fps, frame_count = result_info["duration"], result_info["fps"], result_info["frames"]
     if duration <= 0:
         raise ValueError("Result video must have a positive duration")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -264,7 +273,7 @@ def build_comparison_reel(source: str | Path, result: str | Path, output: Path,
         command += ["-loop", "1", "-framerate", str(fps), "-i", str(path)]
     command += ["-filter_complex", builder(duration, fonts(), engine, inputs, fps=fps),
                 "-map", "[out]", "-map", "1:a:0?",
-                "-t", str(duration), "-r", str(fps), "-c:v", "libx264", "-preset", "medium",
+                "-frames:v", str(frame_count), "-t", str(duration), "-r", str(fps), "-c:v", "libx264", "-preset", "medium",
                 "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
                 "-movflags", "+faststart", str(output)]
     subprocess.run(command, capture_output=True, check=True, timeout=300)

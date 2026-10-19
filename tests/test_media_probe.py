@@ -124,7 +124,10 @@ class MediaProbeTests(unittest.TestCase):
         # drawbox cannot animate its position: such an expression silently draws nothing, so
         # no animated drawbox may creep back into this layout.
         self.assertNotIn("drawbox=x='", graph)
-        self.assertNotIn("crop=", graph)
+        # Crop may cover a static ambient plate, but animated crop dimensions remain forbidden:
+        # FFmpeg evaluates them once and silently breaks the intended reveal.
+        self.assertNotIn("crop=w=", graph)
+        self.assertNotIn("crop=iw", graph)
         # SOURCE exits before its chip crosses the wipe; SWAP appears only once its chip is
         # entirely within revealed result pixels.
         source_until, swap_from = wipe_label_timing(2.4)

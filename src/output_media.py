@@ -249,8 +249,14 @@ def wipe_filters(duration, font, engine=DEFAULT_REEL_ENGINE, inputs=None, fps=24
     blend_progress = f"max(0,min(1,(T-{hold})/{sweep}))"
     inside_x = f"({band['width']}-(2*floor({band['width'] // 2}*{progress})))"
     blend_inside_x = f"({band['width']}-(2*floor({band['width'] // 2}*{blend_progress})))"
-    geo = (f"scale={band['width']}:{band['height']}:force_original_aspect_ratio=decrease,"
-           f"pad={band['width']}:{band['height']}:(ow-iw)/2:(oh-ih)/2:black,setsar=1")
+    # A transparent sharp layer sits over a source-derived blurred cover. This removes
+    # black pillar bars for portrait takes without cropping their actual media.
+    sharp_geo = (f"scale={band['width']}:{band['height']}:force_original_aspect_ratio=decrease,"
+                 f"format=rgba,pad={band['width']}:{band['height']}:(ow-iw)/2:(oh-ih)/2:"
+                 f"color=black@0,setsar=1")
+    cover_geo = (f"scale={band['width']}:{band['height']}:force_original_aspect_ratio=increase,"
+                 f"crop={band['width']}:{band['height']},gblur=sigma=28,"
+                 f"eq=brightness=-0.12:saturation=0.58:contrast=1.03,setsar=1")
     mask, outline = inputs["band_mask"], inputs["band_outline"]
     chip_y = band["y"] + chip["margin"]
     chip_x = band["x"] + chip["margin"]
@@ -269,8 +275,12 @@ def wipe_filters(duration, font, engine=DEFAULT_REEL_ENGINE, inputs=None, fps=24
         *_micro(faces, theme, layout),
     ]
     groups = [
-        f"[0:v]{geo}[src]",
-        f"[1:v]{geo}[res]",
+        f"[0:v]{cover_geo}[src_cover]",
+        f"[src_cover]split=2[src_cover_a][src_cover_b]",
+        f"[0:v]{sharp_geo}[src_sharp]",
+        f"[1:v]{sharp_geo}[res_sharp]",
+        f"[src_cover_a][src_sharp]overlay=0:0[src]",
+        f"[src_cover_b][res_sharp]overlay=0:0[res]",
         # crop() cannot do this: its width is evaluated once at init, where t is unavailable.
         # The animated overlay carries only the existing narrow accent edge; blend below selects
         # the source/result pixels for every other position.

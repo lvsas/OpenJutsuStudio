@@ -48,6 +48,46 @@ WIPE_HOLD_RATIO, WIPE_MAX_HOLD = 0.15, 0.4
 WIPE_SWEEP_RATIO, WIPE_MAX_SWEEP, WIPE_MIN_SWEEP = 0.4, 1.2, 0.3
 
 
+REEL_MODES = ("compact", "standard", "extended")
+
+
+def reel_timeline(duration, fps, frames):
+    """Return frame-aligned narrative beats for a complete generated take.
+
+    Result frames are authoritative. Durations determine only the opening story;
+    everything after Collect remains the real result, uncut.
+    """
+    if fps <= 0 or frames < 3 or duration <= 0:
+        raise ValueError("Reel timeline needs a positive duration, FPS and at least 3 frames")
+    real_duration = frames / fps
+    if real_duration < 2.5:
+        mode, capture_s, recast_s = "compact", max(0.25 * real_duration, 0.35), max(0.30 * real_duration, 0.40)
+    elif real_duration <= 8.0:
+        mode = "standard"
+        capture_s = min(1.25, max(0.85, 0.28 * real_duration))
+        recast_s = min(1.20, max(0.80, 0.30 * real_duration))
+    else:
+        mode, capture_s, recast_s = "extended", 1.25, 1.20
+    capture_end = max(1, min(frames - 2, round(capture_s * fps)))
+    recast_end = max(capture_end + 1, min(frames - 1, capture_end + round(recast_s * fps)))
+    return {"mode": mode, "frame_count": frames, "fps": fps,
+            "capture_start_frame": 0, "capture_end_frame": capture_end,
+            "recast_end_frame": recast_end, "collect_start_frame": recast_end,
+            "capture_end": capture_end / fps, "recast_end": recast_end / fps,
+            "recast_duration": (recast_end - capture_end) / fps}
+
+
+def validate_reel_media(source, result):
+    """Reject incompatible comparison inputs instead of freezing or inventing pixels."""
+    source_info, result_info = ffprobe(source), ffprobe(result)
+    if abs(source_info["fps"] - result_info["fps"]) > 0.001:
+        raise ValueError("Comparison source and result must have the same FPS")
+    if source_info["frames"] < result_info["frames"]:
+        raise ValueError("Comparison source is shorter than result; refusing to invent source frames")
+    return source_info, result_info
+
+
+
 def wipe_timing(duration):
     """Hold the source for a beat, then sweep. Bounded so a short clip still has both."""
     hold = min(WIPE_MAX_HOLD, max(0.0, duration) * WIPE_HOLD_RATIO)
@@ -188,7 +228,7 @@ def reel_filters(duration, font, engine=DEFAULT_REEL_ENGINE, inputs=None, fps=24
     return ";".join(groups)
 
 
-def wipe_filters(duration, font, engine=DEFAULT_REEL_ENGINE, inputs=None, fps=24):
+def wipe_filters(duration, font, engine=DEFAULT_REEL_ENGINE, inputs=None, fps=24, timeline=None):
     """The wipe layout: one band where the result replaces the source in a single movement.
 
     The result stays still and is revealed under a growing alpha mask, so the change reads as
@@ -200,7 +240,10 @@ def wipe_filters(duration, font, engine=DEFAULT_REEL_ENGINE, inputs=None, fps=24
     inputs = inputs or _default_inputs()
     accent, bg = _hex(theme["accent"]), _hex(BASE["bg"])
     layout, band, chip = WIPE, WIPE["band"], CHIP
-    hold, sweep = wipe_timing(duration)
+    if timeline is None:
+        hold, sweep = wipe_timing(duration)
+    else:
+        hold, sweep = timeline["capture_end"], timeline["recast_duration"]
     # Even boundary positions keep the subject frame encoder-safe for yuv420p.
     progress = f"max(0,min(1,(t-{hold})/{sweep}))"
     blend_progress = f"max(0,min(1,(T-{hold})/{sweep}))"
@@ -257,21 +300,23 @@ def build_comparison_reel(source: str | Path, result: str | Path, output: Path,
     source, result, output = Path(source), Path(result), Path(output)
     if layout not in LAYOUTS:
         raise ValueError(f"Unknown reel layout: {layout}")
-    result_info = ffprobe(result)
+    _, result_info = validate_reel_media(source, result)
     duration, fps, frame_count = result_info["duration"], result_info["fps"], result_info["frames"]
     if duration <= 0:
         raise ValueError("Result video must have a positive duration")
+    timeline = reel_timeline(duration, fps, frame_count)
     output.parent.mkdir(parents=True, exist_ok=True)
     band = WIPE["band"] if layout == "wipe" else STACKED["panel"]
     assets = ensure_assets(REEL_ASSET_DIR, engine, labels=LABELS, label_ink=CHIP["ink"],
                            label_size=CHIP["size"],
                            band=(band["width"], band["height"]))
     asset_paths, inputs = _asset_inputs(assets)
-    builder = wipe_filters if layout == "wipe" else reel_filters
+    filters = (wipe_filters(duration, fonts(), engine, inputs, fps=fps, timeline=timeline)
+               if layout == "wipe" else reel_filters(duration, fonts(), engine, inputs, fps=fps))
     command = ["ffmpeg", "-y", "-v", "error", "-i", str(source), "-i", str(result)]
     for path in asset_paths:
         command += ["-loop", "1", "-framerate", str(fps), "-i", str(path)]
-    command += ["-filter_complex", builder(duration, fonts(), engine, inputs, fps=fps),
+    command += ["-filter_complex", filters,
                 "-map", "[out]", "-map", "1:a:0?",
                 "-frames:v", str(frame_count), "-t", str(duration), "-r", str(fps), "-c:v", "libx264", "-preset", "medium",
                 "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",

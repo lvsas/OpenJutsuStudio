@@ -11,8 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from media import ffprobe
 from output_media import (ASSET_ORDER, CHIP, DEFAULT_REEL_ENGINE, EYEBROW, HOOK, LABELS, LAYOUTS,
                           MICRO, SAFE_BOTTOM, STACKED, WIPE, build_comparison_reel, fonts,
-                          reel_filters, restore_source_audio, wipe_filters, wipe_label_timing,
-                          wipe_timing)
+                          reel_filters, reel_timeline, restore_source_audio, validate_reel_media,
+                          wipe_filters, wipe_label_timing, wipe_timing)
 from reel_design import BASE, ENGINES, ensure_assets
 from scenes import detect_scenes
 
@@ -214,6 +214,33 @@ class MediaProbeTests(unittest.TestCase):
     @staticmethod
     def _mae(left, right):
         return sum(abs(a - b) for a, b in zip(left, right)) / len(left)
+
+    def test_reel_timeline_adapts_to_duration_and_real_frame_rate(self):
+        cases = (
+            (1.2, 24, 29, "compact"),
+            (73 / 24, 24, 73, "standard"),
+            (8.0, 24, 192, "standard"),
+            (20.0, 30, 600, "extended"),
+        )
+        for duration, fps, frames, mode in cases:
+            with self.subTest(duration=duration, fps=fps):
+                timeline = reel_timeline(duration, fps, frames)
+                self.assertEqual(timeline["mode"], mode)
+                self.assertEqual(timeline["frame_count"], frames)
+                self.assertEqual(timeline["capture_start_frame"], 0)
+                self.assertLess(timeline["capture_end_frame"], timeline["recast_end_frame"])
+                self.assertLess(timeline["recast_end_frame"], frames)
+                self.assertEqual(timeline["collect_start_frame"], timeline["recast_end_frame"])
+                self.assertGreaterEqual(frames - timeline["collect_start_frame"], 1)
+
+    def test_reel_media_validation_rejects_unsynchronised_source(self):
+        source, result = self.root / "source.mp4", self.root / "result.mp4"
+        for path, duration in ((source, 0.5), (result, 1.0)):
+            subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+                            f"color=size=64x64:rate=24:duration={duration}", "-c:v", "libx264", str(path)],
+                           check=True)
+        with self.assertRaisesRegex(ValueError, "source.*shorter"):
+            validate_reel_media(source, result)
 
     def test_wipe_is_source_first_result_last_with_exact_ltx_timing(self):
         """A 73-frame LTX-shaped fixture catches the old 74th frame and label lie."""

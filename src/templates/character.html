@@ -23,8 +23,8 @@
     <section class="studio-intro">
       <p class="eyebrow">Stage 01 · Characters</p>
       <h1>Viral<br><em>Character Maker</em></h1>
-      <p>Shuffle until something absurd appears, edit it if you want, then generate. Every character is
-        an original studio photograph you can carry into either studio as a reference.</p>
+      <p>Start with a memorable person. Nudge only the part that matters, then create an original
+        studio photograph you can carry into either studio as a reference.</p>
     </section>
 
     <div class="studio-grid">
@@ -32,50 +32,60 @@
         <div class="panel-heading">
           <div>
             <p class="eyebrow">Direction</p>
-            <h2>Propose a character</h2>
+            <h2>Make a person</h2>
           </div>
-          <button type="button" class="btn btn-ghost btn-small" id="shuffle">Shuffle</button>
         </div>
 
         <form id="character-form">
-          <fieldset class="recipe-step">
-            <legend><span>01</span> What to make <small>editable — shuffle proposes, you decide</small></legend>
-            <label>
-              <span class="field-label">Direction</span>
-              <textarea id="direction" name="direction" class="text-input textarea" rows="5" maxlength="2000" required
-                        placeholder="An original heavyweight beekeeper with a deliberately blunt bowl cut…"></textarea>
-            </label>
-            <div class="character-row">
-              <label>
-                <span class="field-label">Output</span>
-                <select id="mode" name="mode" class="text-input">
-                  <option value="portrait">Portrait · 3:4</option>
-                  <option value="turnaround">Turnaround · 16:9</option>
-                </select>
-              </label>
-              <label>
-                <span class="field-label">Prompt upsampler</span>
-                <select id="upsampler" name="upsampler" class="text-input">
-                  <option value="on">On — a richer caption</option>
-                  <option value="off">Off — the wording exactly</option>
-                </select>
-              </label>
-            </div>
-            <p class="microcopy" id="mode-hint">One shareable studio photograph.</p>
-          </fieldset>
+          <section class="proposal-card" aria-labelledby="proposal-label">
+            <p class="eyebrow" id="proposal-label">Current proposal</p>
+            <p class="proposal-summary" id="proposal-summary" aria-live="polite"></p>
+            <button type="button" class="btn btn-ghost btn-small" id="shuffle">Try another</button>
+          </section>
 
-          <details class="optional-block" id="steer">
+          <div class="refine-list" id="refine-list" aria-label="Refine the proposal"></div>
+          <div class="refine-options" id="refine-options" aria-live="polite"></div>
+
+          <details class="more-control" id="more-control">
             <summary>
-              <span class="optional-label">Steer it</span>
-              <small>optional — leave blank and the model decides</small>
+              <span class="optional-label">More control</span>
+              <small>exact details, wording and output</small>
             </summary>
-            <div class="axis-picker" id="axis-picker"></div>
-            <div class="axis-options" id="axis-options"></div>
+            <div class="more-control-body">
+              <details class="direction-editor" id="direction-editor">
+                <summary>Edit the wording</summary>
+                <label>
+                  <span class="field-label">Direction</span>
+                  <textarea id="direction" name="direction" class="text-input textarea" rows="5" maxlength="2000" required
+                            placeholder="Describe the person in your own words…"></textarea>
+                </label>
+              </details>
+              <div class="character-row">
+                <label>
+                  <span class="field-label">Output</span>
+                  <select id="mode" name="mode" class="text-input">
+                    <option value="portrait">Portrait · 3:4</option>
+                    <option value="turnaround">Turnaround · 16:9</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="field-label">Prompt detail</span>
+                  <select id="upsampler" name="upsampler" class="text-input">
+                    <option value="on">On — a richer caption</option>
+                    <option value="off">Off — the wording exactly</option>
+                  </select>
+                </label>
+              </div>
+              <p class="microcopy" id="mode-hint">One shareable studio photograph.</p>
+              <p class="field-label">Fine tune an exact detail</p>
+              <div class="axis-picker" id="axis-picker"></div>
+              <div class="axis-options" id="axis-options"></div>
+            </div>
           </details>
 
           <div class="character-actions">
             <button type="submit" class="btn btn-primary" id="generate">Generate character</button>
-            <button type="button" class="btn btn-ghost btn-small" id="clear-axes">Clear optional control</button>
+            <button type="button" class="btn btn-ghost btn-small" id="clear-axes" hidden>Clear refinements</button>
           </div>
           <p class="microcopy form-error" id="form-error" role="alert" hidden></p>
         </form>

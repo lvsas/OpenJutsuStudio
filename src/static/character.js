@@ -52,6 +52,13 @@
                              "deadpan and self-assured", "guarded but steady"]],
   ];
 
+  const REFINEMENTS = [
+    ["appearance", "Change the hair or expression", ["hair", "face"], "Hair and expression · model decides"],
+    ["style", "Change the style", ["outfit", "era"], "Outfit and era · model decides"],
+    ["story", "Change the story", ["role", "attitude"], "Role and energy · model decides"],
+    ["identity", "Make identity specific", ["being", "build", "skin_tone"], "Presentation and build · model decides"],
+  ];
+
   const MODE_HINTS = {
     portrait: "One shareable studio photograph.",
     turnaround: "Four photographs of the same person — front, three-quarter, profile, back.",
@@ -64,6 +71,10 @@
   const $ = (selector) => document.querySelector(selector);
   const form = $("#character-form");
   const directionField = $("#direction");
+  const proposalSummary = $("#proposal-summary");
+  const refineListHost = $("#refine-list");
+  const refineOptionsHost = $("#refine-options");
+  const clearAxesButton = $("#clear-axes");
   const jobsHost = $("#jobs");
   const errorHost = $("#form-error");
   const countHost = $("#job-count");
@@ -75,15 +86,98 @@
     return ((buffer[0] * 4294967296) + buffer[1]) % 9007199254740991;
   };
 
-  /* ---- optional control: collapsed, and only ONE axis open at a time ----
-   * Showing every axis and every option at once was the density failure: ~70 chips on screen.
-   * The picker stays a single small row; opening an axis reveals only that axis. */
+  /* ---- progressive refinement: proposal first, named choices only when asked ---- */
 
   const axisValues = new Map();
+  const axisByKey = new Map(AXES.map((axis) => [axis[0], axis]));
   const pickerHost = $("#axis-picker");
   const optionsHost = $("#axis-options");
   const pickerChips = new Map();
   let openAxis = null;
+  let openRefinement = null;
+
+  function selectedValues(axisKeys) {
+    return axisKeys.map((key) => axisValues.get(key)).filter(Boolean);
+  }
+
+  function syncProposalSummary() {
+    proposalSummary.textContent = directionField.value.trim();
+  }
+
+  function renderChoices(axisKeys, host) {
+    for (const key of axisKeys) {
+      const [, label, choices] = axisByKey.get(key);
+      const group = document.createElement("section");
+      group.className = "refine-choice-group";
+      const heading = document.createElement("p");
+      heading.className = "field-label";
+      heading.textContent = label;
+      const row = document.createElement("div");
+      row.className = "axis-chips";
+      for (const choice of choices) {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "chip";
+        chip.textContent = choice;
+        chip.setAttribute("aria-pressed", String(axisValues.get(key) === choice));
+        chip.addEventListener("click", () => setAxis(key, axisValues.get(key) === choice ? "" : choice));
+        row.append(chip);
+      }
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "axis-input";
+      input.maxLength = 300;
+      input.placeholder = `or make the ${label.toLowerCase()} specific`;
+      input.setAttribute("aria-label", `${label}: custom value`);
+      const current = axisValues.get(key) || "";
+      input.value = choices.includes(current) ? "" : current;
+      input.addEventListener("change", () => setAxis(key, input.value.trim()));
+      row.append(input);
+      group.append(heading, row);
+      host.append(group);
+    }
+  }
+
+  function renderRefinements() {
+    refineListHost.replaceChildren();
+    for (const [key, label, axisKeys, fallback] of REFINEMENTS) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "refine-button";
+      button.dataset.refinement = key;
+      button.setAttribute("aria-expanded", String(openRefinement === key));
+      const copy = document.createElement("span");
+      const title = document.createElement("b");
+      title.textContent = label;
+      const summary = document.createElement("small");
+      const values = selectedValues(axisKeys);
+      summary.textContent = values.length ? values.join(" · ") : fallback;
+      copy.append(title, summary);
+      const arrow = document.createElement("span");
+      arrow.className = "refine-arrow";
+      arrow.setAttribute("aria-hidden", "true");
+      arrow.textContent = "→";
+      button.append(copy, arrow);
+      button.addEventListener("click", () => {
+        openRefinement = openRefinement === key ? null : key;
+        renderRefinements();
+        renderRefineOptions();
+      });
+      refineListHost.append(button);
+    }
+    clearAxesButton.hidden = axisValues.size === 0;
+  }
+
+  function renderRefineOptions() {
+    refineOptionsHost.replaceChildren();
+    if (!openRefinement) return;
+    const [, label, axisKeys] = REFINEMENTS.find(([key]) => key === openRefinement);
+    const hint = document.createElement("p");
+    hint.className = "microcopy";
+    hint.textContent = `Refine ${label.toLowerCase()} — choose only what matters.`;
+    refineOptionsHost.append(hint);
+    renderChoices(axisKeys, refineOptionsHost);
+  }
 
   for (const [key, label] of AXES) {
     const chip = document.createElement("button");
@@ -102,57 +196,30 @@
   function renderOptions() {
     optionsHost.replaceChildren();
     for (const [key] of AXES) {
-      pickerChips.get(key).setAttribute("aria-pressed",
-        String(Boolean(axisValues.get(key))));
+      pickerChips.get(key).setAttribute("aria-pressed", String(Boolean(axisValues.get(key))));
       pickerChips.get(key).dataset.open = String(openAxis === key);
     }
-    if (!openAxis) {
-      const hint = document.createElement("p");
-      hint.className = "microcopy";
-      hint.textContent = "Pick an axis to steer it. Blank means the model decides.";
-      optionsHost.append(hint);
-      return;
-    }
-    const [, label, choices] = AXES.find(([axisKey]) => axisKey === openAxis);
-
-    const row = document.createElement("div");
-    row.className = "axis-chips";
-
-    for (const choice of choices) {
-      const chip = document.createElement("button");
-      chip.type = "button";
-      chip.className = "chip";
-      chip.textContent = choice;
-      chip.setAttribute("aria-pressed", String(axisValues.get(openAxis) === choice));
-      chip.addEventListener("click", () => {
-        setAxis(openAxis, axisValues.get(openAxis) === choice ? "" : choice);
-      });
-      row.append(chip);
-    }
-
-    const input = document.createElement("input");
-    input.type = "text";
-    input.className = "axis-input";
-    input.maxLength = 300;
-    input.placeholder = `or type your own ${label.toLowerCase()}`;
-    input.setAttribute("aria-label", `${label}: custom value`);
-    const current = axisValues.get(openAxis) || "";
-    input.value = choices.includes(current) ? "" : current;
-    input.addEventListener("input", () => setAxis(openAxis, input.value.trim()));
-    row.append(input);
-
-    optionsHost.append(row);
+    if (!openAxis) return;
+    const axisHost = document.createElement("div");
+    axisHost.className = "advanced-axis-options";
+    renderChoices([openAxis], axisHost);
+    optionsHost.append(axisHost);
   }
 
   function setAxis(key, value) {
     if (value) axisValues.set(key, value);
     else axisValues.delete(key);
+    renderRefinements();
+    renderRefineOptions();
     renderOptions();
   }
 
   function clearAxes() {
     axisValues.clear();
     openAxis = null;
+    openRefinement = null;
+    renderRefinements();
+    renderRefineOptions();
     renderOptions();
   }
 
@@ -175,6 +242,7 @@
   function shuffle() {
     directionField.value = buildDirection();
     clearAxes();
+    syncProposalSummary();
   }
 
   /* ---- durable, independent job cards; only the newest stay large ---- */
@@ -358,7 +426,8 @@
   /* ---- boot ---- */
 
   $("#shuffle").addEventListener("click", shuffle);
-  $("#clear-axes").addEventListener("click", clearAxes);
+  clearAxesButton.addEventListener("click", clearAxes);
+  directionField.addEventListener("input", syncProposalSummary);
   $("#clear-jobs").addEventListener("click", () => {
     jobsHost.replaceChildren();
     store([]);

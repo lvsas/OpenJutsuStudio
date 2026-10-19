@@ -50,31 +50,39 @@ class CharacterStudioUITests(unittest.TestCase):
         self.assertNotIn("<style>", self.page, "the page must use the shared stylesheet, not inline CSS")
         self.assertNotIn("style=", self.page)
 
-    def test_optional_control_is_collapsed_and_reveals_one_axis_at_a_time(self):
-        """Density was the failure: every axis and option on screen at once. The picker stays a
-        single small row and opening an axis reveals only that axis."""
+    def test_refine_proposal_is_progressive_and_keeps_the_taxonomy_out_of_the_default_flow(self):
+        """The selected B sketch starts from one person, then exposes only four named changes."""
         self.assertNotIn("🔒", self.page + self.js)
         self.assertNotIn("padlock", (self.page + self.js).lower())
         self.assertNotRegex(self.css, r"\.locked|\.is-locked")
-        # One host for the options, not one container per axis.
-        self.assertEqual(self.js.count('$("#axis-options")'), 1)
-        self.assertIn("optionsHost.replaceChildren()", self.js)
-        self.assertIn("openAxis === key ? null : key", self.js, "clicking the open axis must close it")
-        # Collapsed by default: a closed <details> with no `open` attribute.
-        details = re.search(r"<details[^>]*class=\"optional-block\"[^>]*>", self.page)
-        self.assertIsNotNone(details, "the optional control must be a native disclosure")
+        for element_id in ("proposal-summary", "refine-list", "refine-options", "more-control"):
+            with self.subTest(element_id=element_id):
+                self.assertIn(f'id="{element_id}"', self.page)
+        for label in ("Change the hair or expression", "Change the style", "Change the story",
+                      "Make identity specific"):
+            with self.subTest(label=label):
+                self.assertIn(f'"{label}"', self.js)
+        self.assertIn("const REFINEMENTS = [", self.js)
+        self.assertIn("function renderRefinements()", self.js)
+        self.assertIn("function renderRefineOptions()", self.js)
+        self.assertIn("openRefinement === key ? null : key", self.js,
+                      "opening a refinement must close the same drawer, and rendering closes others")
+        self.assertIn("refineOptionsHost.replaceChildren()", self.js)
+        self.assertIn('input.type = "text"', self.js, "free text must stay possible within a refinement")
+        self.assertIn("axisValues.delete(key)", self.js, "every selected value needs a one-action clear")
+        # More control is a native disclosure and stays closed until explicitly requested.
+        details = re.search(r"<details[^>]*id=\"more-control\"[^>]*>", self.page)
+        self.assertIsNotNone(details, "advanced controls need a native disclosure")
         self.assertNotIn(" open", details.group(0))
+        self.assertGreater(self.page.index('id="more-control"'), self.page.index('id="refine-options"'))
+        # Generic axes exist only inside the advanced disclosure, never as the default visual flow.
+        self.assertGreater(self.page.index('id="axis-picker"'), self.page.index('id="more-control"'))
         for axis in ("being", "build", "skin_tone", "hair", "face", "outfit", "role", "era", "attitude"):
             self.assertIn(f'"{axis}"', self.js, f"{axis} must be part of the v2 optional vocabulary")
         for removed_axis in ("accessory", "absurdity"):
             self.assertNotIn(f'"{removed_axis}"', self.js, f"v2 must not expose {removed_axis}")
-        # A chip is a selection, and selecting it again clears it — never a lock.
-        self.assertIn("axisValues.get(openAxis) === choice ? \"\" : choice", self.js)
-        self.assertIn('input.type = "text"', self.js, "a custom value must stay possible")
-        # Density guard: setting `display` on a child of <details> overrides the UA rule that hides
-        # a closed panel, so the collapsed state must re-hide its content explicitly.
-        self.assertIn(".optional-block:not([open]) > :not(summary) { display: none; }", self.css,
-                      "a closed optional panel must actually hide its controls")
+        self.assertIn(".more-control:not([open]) > :not(summary) { display: none; }", self.css,
+                      "a closed advanced disclosure must actually hide its controls")
 
     def test_payload_reaches_the_api_with_the_expected_contract(self):
         for key in ("direction", "mode", "trend_id", "selections", "sampler_seed", "upsampler_seed",

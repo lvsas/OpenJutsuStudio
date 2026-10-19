@@ -1,21 +1,59 @@
-/* Viral Character Maker — shares the studio shell, adds only the Character-specific parts. */
+/* Viral Character Maker — proposal-first refinement and Character-specific result states. */
 
 [data-engine="characters"] .studio-grid { grid-template-columns: minmax(21rem, .9fr) minmax(24rem, 1.1fr); }
-[data-engine="characters"] .recipe-step { display: grid; gap: var(--space-3); }
-[data-engine="characters"] .recipe-step > label { display: block; }
-
-.character-row { display: grid; gap: var(--space-3); grid-template-columns: 1fr 1fr; }
-
 [data-engine="characters"] select.text-input { appearance: none; }
 
-/* --- optional control: collapsed by default, one axis open at a time --- */
+#character-form { display: grid; gap: var(--space-3); }
 
-.optional-block {
+.proposal-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--accent-card-line);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.proposal-summary { color: var(--text); font-size: 1.05rem; letter-spacing: -.015em; line-height: 1.45; margin: 0; }
+.proposal-card .btn { justify-self: start; }
+
+.refine-list { display: grid; gap: .45rem; }
+.refine-button {
+  align-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  display: flex;
+  justify-content: space-between;
+  padding: .72rem .8rem;
+  text-align: left;
+  transition: border var(--transition), background var(--transition);
+}
+.refine-button:hover,
+.refine-button[aria-expanded="true"] { background: var(--surface-raised); border-color: var(--accent-line); }
+.refine-button b { display: block; font-size: .84rem; }
+.refine-button small { color: var(--subtle); display: block; font-size: .74rem; margin-top: .15rem; overflow-wrap: anywhere; }
+.refine-arrow { color: var(--accent); font-size: 1.15rem; margin-left: var(--space-3); }
+
+.refine-options {
+  background: var(--surface-raised);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+.refine-options:empty { display: none; }
+.refine-options .microcopy { margin: 0; }
+.refine-choice-group { display: grid; gap: .35rem; }
+.refine-choice-group .field-label { margin: 0; }
+
+.more-control {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   padding: var(--space-3);
 }
-.optional-block > summary {
+.more-control > summary {
   align-items: baseline;
   cursor: pointer;
   display: flex;
@@ -23,20 +61,23 @@
   gap: .5rem;
   list-style: none;
 }
-.optional-block > summary::-webkit-details-marker { display: none; }
-.optional-block > summary::before { color: var(--accent); content: "＋"; font-weight: 800; }
-.optional-block[open] > summary::before { content: "−"; }
+.more-control > summary::-webkit-details-marker { display: none; }
+.more-control > summary::before { color: var(--accent); content: "＋"; font-weight: 800; }
+.more-control[open] > summary::before { content: "−"; }
 .optional-label { color: var(--text); font-size: .88rem; font-weight: 720; }
-.optional-block > summary small { color: var(--subtle); font-size: .74rem; }
+.more-control > summary small { color: var(--subtle); font-size: .74rem; }
+.more-control:not([open]) > :not(summary) { display: none; }
+.more-control-body { display: grid; gap: var(--space-3); margin-top: var(--space-3); }
 
-/* A UA stylesheet hides the content of a closed <details> via `display: none`. Setting `display`
-   on a child (`.axis-picker { display: flex }`) overrides that UA rule, so the collapsed block
-   stayed on screen and the density never dropped. Re-hide it explicitly; author rules set the
-   layout again only once the block is open. */
-.optional-block:not([open]) > :not(summary) { display: none; }
-.optional-block[open] .axis-picker { display: flex; }
+.direction-editor { border-top: 1px solid var(--line); padding-top: var(--space-3); }
+.direction-editor > summary { color: var(--muted); cursor: pointer; font-size: .8rem; font-weight: 720; }
+.direction-editor[open] > summary { color: var(--text); margin-bottom: var(--space-3); }
+.direction-editor:not([open]) > :not(summary) { display: none; }
+.direction-editor label { display: block; }
 
-.axis-picker { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: var(--space-3); }
+.character-row { display: grid; gap: var(--space-3); grid-template-columns: 1fr 1fr; }
+
+.axis-picker { display: flex; flex-wrap: wrap; gap: .3rem; }
 .axis-name {
   background: transparent;
   border: 1px solid var(--line);
@@ -49,9 +90,7 @@
 .axis-name[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-light); }
 .axis-name[data-open="true"] { background: var(--surface-raised); color: var(--text); }
 
-.axis-options { margin-top: var(--space-3); }
-.axis-options .microcopy { margin: 0; }
-
+.axis-options { display: grid; gap: var(--space-3); }
 .axis-chips { display: flex; flex-wrap: wrap; gap: .3rem; }
 
 .chip {
@@ -157,6 +196,10 @@
 }
 .job-card[data-density="compact"] .job-caption,
 .job-card[data-density="compact"] .job-download { display: none; }
+
+@media (max-width: 900px) {
+  [data-engine="characters"] .studio-grid { grid-template-columns: 1fr; }
+}
 
 @media (max-width: 640px) {
   [data-engine="characters"] .studio-grid { grid-template-columns: 1fr; }

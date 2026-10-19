@@ -112,6 +112,30 @@ class CharacterStudioUITests(unittest.TestCase):
         self.assertNotIn("fetch(", shuffle_body, "shuffle must never call the server")
         self.assertIn("buildDirection()", shuffle_body)
 
+    @unittest.expectedFailure
+    def test_next_shuffle_vocabulary_is_person_first_and_face_safe(self):
+        """This deliberately fails on v1: a viral character is a person with a hook, not a prop
+        plus an intentionally damaged expression. The v2 implementation must satisfy it before a
+        visual GPU acceptance run is allowed. Remove expectedFailure when v2 is implemented: an
+        unexpected pass then proves the guardrail is ready to become mandatory."""
+        banned_default_terms = (
+            "taxidermy", "accordion", "oversized ring of keys", "bolted-on grin",
+            "eyebrows drawn far too high", "gormless", "holding a fish",
+        )
+        for term in banned_default_terms:
+            with self.subTest(term=term):
+                self.assertFalse(term in self.js.lower(), f"default shuffle contains banned term: {term!r}")
+        self.assertFalse("const PROPS" in self.js, "default shuffle must not define a props vocabulary")
+        self.assertFalse('"accessory"' in self.js, "v2 browser controls must not expose accessory")
+        direction_start = self.js.index("function buildDirection()")
+        direction_end = self.js.index("function shuffle()", direction_start)
+        direction_builder = self.js[direction_start:direction_end]
+        self.assertIn("pick(ROLES)", direction_builder)
+        self.assertIn("pick(HOOKS)", direction_builder)
+        self.assertIn("pick(OUTFITS)", direction_builder)
+        self.assertIn("pick(ATTITUDES)", direction_builder)
+        self.assertIn("pick(STANCES)", direction_builder)
+
     def test_turnaround_wording_never_sends_character_sheet(self):
         self.assertIn("/character sheet/i.test(direction)", self.js)
         self.assertIn("turnaround", self.page.lower())

@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from tests.character_recipe_fixtures import v1_recipe_fixture  # noqa: E402
 from core import Job  # noqa: E402
 from character_capsule import freeze_capsule, get_capsule, replay_recipe  # noqa: E402
 from character_recipe import ENGINE, digest_json, make_recipe  # noqa: E402
@@ -97,6 +98,16 @@ class CharacterCapsuleTests(unittest.TestCase):
         self.job.meta["character_capsule"] = malformed
         with self.assertRaisesRegex(ValueError, "artifact"):
             get_capsule(self.job)
+
+    def test_v1_capsule_evidence_remains_readable_but_cannot_replay_under_v2_policy(self):
+        legacy = v1_recipe_fixture()
+        legacy_job = Job(id=legacy["job_id"], engine=ENGINE, status="done", result=str(self.image),
+                         meta={"character_caption": str(self.caption)})
+        frozen = freeze_capsule(legacy_job, legacy, self.image, self.caption, self.media)
+        self.assertEqual(frozen["recipe"]["schema_version"], 1)
+        self.assertEqual(get_capsule(legacy_job)["recipe"], legacy)
+        with self.assertRaisesRegex(ValueError, "earlier policy"):
+            replay_recipe(legacy_job, self.media)
 
     def test_historical_capsule_is_readable_but_current_policy_is_checked_only_on_replay(self):
         frozen = freeze_capsule(self.job, self.recipe, self.image, self.caption, self.media)

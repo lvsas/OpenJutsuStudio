@@ -17,12 +17,19 @@ from character_graphs import (
 )
 
 ENGINE = "flux3-klein-character"
-PROMPT_POLICY = "character-v1"
-SCHEMA_VERSION = 1
+V1_PROMPT_POLICY = "character-v1"
+V1_SCHEMA_VERSION = 1
+V1_AXES = ("being", "build", "skin_tone", "hair", "face", "outfit", "role", "era", "accessory", "absurdity")
+V2_PROMPT_POLICY = "character-v2"
+V2_SCHEMA_VERSION = 2
+V2_AXES = ("being", "build", "skin_tone", "hair", "face", "outfit", "role", "era", "attitude")
+# Public aliases always describe recipes that can be newly created.
+PROMPT_POLICY = V2_PROMPT_POLICY
+SCHEMA_VERSION = V2_SCHEMA_VERSION
+AXES = V2_AXES
 MAX_TEXT = 2_000
 MAX_AXIS_TEXT = 300
 MAX_SEED = 2**64 - 1
-AXES = ("being", "build", "skin_tone", "hair", "face", "outfit", "role", "era", "accessory", "absurdity")
 MODEL_DECIDES = "model_decides"
 TREND_LIBRARY = {"original": {"label": "Original character", "source": "built_in"}}
 # The mode owns medium, framing, views and environment; the direction owns only the character.
@@ -91,16 +98,16 @@ def _seed(value: Any, name: str) -> int:
     return value
 
 
-def _selections(value: Any) -> dict[str, str]:
+def _selections(value: Any, axes: tuple[str, ...]) -> dict[str, str]:
     if value is None:
         value = {}
     if not isinstance(value, dict) or any(not isinstance(key, str) for key in value):
         raise ValueError("Character selections must be a JSON object")
-    unknown = set(value) - set(AXES)
+    unknown = set(value) - set(axes)
     if unknown:
         raise ValueError(f"Unknown Character selection axis: {sorted(unknown)}")
     resolved = {}
-    for axis in AXES:
+    for axis in axes:
         raw = value.get(axis, "")
         selected = _text(raw, f"{axis} selection", MAX_AXIS_TEXT, required=False)
         resolved[axis] = selected or MODEL_DECIDES
@@ -151,7 +158,7 @@ def make_recipe(*, job_id: str, direction: str, mode: str, trend_id: str, select
     sampler_seed, upsampler_seed = _seed(sampler_seed, "sampler seed"), _seed(upsampler_seed, "upsampler seed")
     if type(upsampler) is not bool:
         raise ValueError("Character prompt upsampler must be boolean")
-    resolved = _selections(selections)
+    resolved = _selections(selections, V2_AXES)
     request = _request(mode, direction, resolved)
     graph = build_character_graph(request, sampler_seed, MODE_SPECS[mode]["aspect_ratio"], upsampler, job_id,
                                   upsampler_seed=upsampler_seed)
@@ -178,8 +185,17 @@ def make_recipe(*, job_id: str, direction: str, mode: str, trend_id: str, select
     return validate_recipe(recipe)
 
 
+def _recipe_axes(recipe: dict[str, Any]) -> tuple[str, ...]:
+    version, policy = recipe.get("schema_version"), recipe.get("prompt_policy")
+    if version == V1_SCHEMA_VERSION and policy == V1_PROMPT_POLICY:
+        return V1_AXES
+    if version == V2_SCHEMA_VERSION and policy == V2_PROMPT_POLICY:
+        return V2_AXES
+    raise ValueError("Unsupported Character recipe contract")
+
+
 def validate_recipe(recipe: Any) -> dict[str, Any]:
-    """Reject any drift from the frozen, canonical Character recipe."""
+    """Validate declared recipe versions without rewriting historical evidence."""
     if not isinstance(recipe, dict):
         raise ValueError("Character recipe must be a JSON object")
     required = {
@@ -187,11 +203,9 @@ def validate_recipe(recipe: Any) -> dict[str, Any]:
         "mode", "aspect_ratio", "resolved_request", "sampler_seed", "upsampler_seed", "upsampler",
         "model_roles", "vendor_workflow_sha256", "system_prompt_sha256", "graph_template", "graph_sha256",
     }
-    if set(recipe) != required:
+    if set(recipe) != required or recipe.get("engine") != ENGINE:
         raise ValueError("Unsupported Character recipe contract")
-    if (recipe.get("schema_version") != SCHEMA_VERSION or recipe.get("engine") != ENGINE
-            or recipe.get("prompt_policy") != PROMPT_POLICY):
-        raise ValueError("Unsupported Character recipe contract")
+    axes = _recipe_axes(recipe)
     direction = _text(recipe.get("raw_direction"), "direction", MAX_TEXT, required=True)
     job_id = recipe.get("job_id")
     if not isinstance(job_id, str):
@@ -206,10 +220,15 @@ def validate_recipe(recipe: Any) -> dict[str, Any]:
     upsampler_seed = _seed(recipe.get("upsampler_seed"), "upsampler seed")
     if type(recipe.get("upsampler")) is not bool:
         raise ValueError("Character prompt upsampler contract changed")
-    selections = _selections(recipe.get("selections"))
-    request = _request(mode, direction, selections)
-    if recipe.get("resolved_request") != request:
-        raise ValueError("Character resolved request changed")
+    selections = _selections(recipe.get("selections"), axes)
+    if recipe["schema_version"] == V1_SCHEMA_VERSION:
+        # v1 evidence predates the current framing/negative-clause contract. Its saved request is
+        # the only truthful record of what reached the graph; do not reconstruct it with v2 wording.
+        request = _text(recipe.get("resolved_request"), "resolved request", MAX_TEXT, required=True)
+    else:
+        request = _request(mode, direction, selections)
+        if recipe.get("resolved_request") != request:
+            raise ValueError("Character resolved request changed")
     if recipe.get("model_roles") != MODEL_ROLES:
         raise ValueError("Character model-role map changed")
     if (recipe.get("vendor_workflow_sha256") != VENDOR_WORKFLOW_SHA256
@@ -220,3 +239,11 @@ def validate_recipe(recipe: Any) -> dict[str, Any]:
     if recipe.get("graph_template") != graph or recipe.get("graph_sha256") != digest_json(graph):
         raise ValueError("Character frozen graph changed")
     return copy.deepcopy(recipe)
+
+
+def validate_current_recipe(recipe: Any) -> dict[str, Any]:
+    """Validate an input that may be replayed under the current creation policy."""
+    validated = validate_recipe(recipe)
+    if validated["schema_version"] != SCHEMA_VERSION or validated["prompt_policy"] != PROMPT_POLICY:
+        raise ValueError("This Character was frozen with an earlier policy; create a new Character instead of replaying it.")
+    return validated

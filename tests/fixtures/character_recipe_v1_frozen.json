@@ -1,0 +1,20 @@
+{
+  "job_id": "7195b5e17d3547ff969b6af1a82bf263",
+  "raw_direction": "Studio photograph, three-quarter body, an original a night-shift lighthouse keeper against a plain mid-grey seamless backdrop, soft even high-key studio lighting, sharp focus, unmarked single-colour clothing, no text, no logos, no watermark.",
+  "resolved_request": "Studio photograph, Studio photograph, three-quarter body, an original a night-shift lighthouse keeper against a plain mid-grey seamless backdrop, soft even high-key studio lighting, sharp focus, unmarked single-colour clothing, no text, no logos, no watermark., build: compact and stocky, skin tone: warm brown skin, hair: a flat top, era: contemporary studio styling, accessory: a folded paper map",
+  "sampler_seed": 35563026693706,
+  "upsampler_seed": 35563026693706,
+  "selections": {
+    "being": "model_decides",
+    "build": "compact and stocky",
+    "skin_tone": "warm brown skin",
+    "hair": "a flat top",
+    "face": "model_decides",
+    "outfit": "model_decides",
+    "role": "model_decides",
+    "era": "contemporary studio styling",
+    "accessory": "a folded paper map",
+    "absurdity": "model_decides"
+  },
+  "graph_sha256": "8d7dac437d48efc3b14db03941c0f025ac38e78dda48304050b8b4d4e350ca19"
+}

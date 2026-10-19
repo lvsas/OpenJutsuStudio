@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from character_recipe import ENGINE, digest_json, validate_recipe
+from character_recipe import ENGINE, digest_json, validate_current_recipe, validate_recipe
 
 
 _ALLOWED_ARTIFACTS = {".png", ".txt"}
@@ -152,7 +152,7 @@ def replay_recipe(job, media_dir: str | Path) -> dict[str, Any]:
     """Validate current policy and local artifact bytes before a replay submission."""
     capsule = get_capsule(job)
     try:
-        recipe = validate_recipe(capsule["recipe"])
+        recipe = validate_current_recipe(capsule["recipe"])
     except ValueError as exc:
         raise ValueError("This Character was frozen with an earlier policy; create a new Character instead of replaying it.") from exc
     image = contained(job.result, media_dir)

@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from tests.character_recipe_fixtures import v1_recipe_fixture  # noqa: E402
 from character_recipe import (  # noqa: E402
     AXES,
     ENGINE,
@@ -32,6 +33,23 @@ class CharacterRecipeTests(unittest.TestCase):
             upsampler_seed=758781618552631,
             upsampler=True,
         )
+
+    def test_new_recipes_are_v2_person_first_and_reject_v1_only_accessory(self):
+        self.assertEqual(self.recipe["schema_version"], 2)
+        self.assertEqual(self.recipe["prompt_policy"], "character-v2")
+        self.assertNotIn("accessory", self.recipe["selections"])
+        self.assertNotIn("absurdity", self.recipe["selections"])
+        with self.assertRaisesRegex(ValueError, "Unknown Character selection axis"):
+            make_recipe(job_id="character_no_accessory", direction="an original performer", mode="portrait",
+                        trend_id="original", selections={"accessory": "a chrome accordion"},
+                        sampler_seed=1, upsampler_seed=2, upsampler=True)
+
+    def test_v1_recipe_evidence_remains_exactly_readable_without_being_coerced_to_v2(self):
+        legacy = v1_recipe_fixture()
+        self.assertEqual(validate_recipe(legacy), legacy)
+        self.assertEqual(validate_recipe(legacy)["schema_version"], 1)
+        self.assertEqual(validate_recipe(legacy)["prompt_policy"], "character-v1")
+        self.assertEqual(validate_recipe(legacy)["selections"]["accessory"], "a folded paper map")
 
     def test_recipe_freezes_all_resolved_generation_facts(self):
         self.assertEqual(self.recipe["engine"], ENGINE)
@@ -140,14 +158,18 @@ class CharacterRecipeTests(unittest.TestCase):
                             trend_id="original", selections={}, sampler_seed=1, upsampler_seed=2,
                             upsampler=True)
 
-    def test_free_text_axes_remain_open_but_the_trend_id_is_controlled(self):
+    def test_v2_keeps_safe_free_text_axes_open_but_rejects_accessory_steering(self):
         free = make_recipe(
             job_id="character_free_1", direction="an original performer", mode="portrait",
-            trend_id="original", selections={"accessory": "a chrome accordion shaped like a fish"},
+            trend_id="original", selections={"attitude": "quietly delighted by a private joke"},
             sampler_seed=9, upsampler_seed=9, upsampler=False)
-        self.assertEqual(free["selections"]["accessory"], "a chrome accordion shaped like a fish")
+        self.assertEqual(free["selections"]["attitude"], "quietly delighted by a private joke")
         self.assertEqual(set(TREND_LIBRARY), {"original"})
-        self.assertIn("accessory: a chrome accordion shaped like a fish", free["resolved_request"])
+        self.assertIn("attitude: quietly delighted by a private joke", free["resolved_request"])
+        with self.assertRaisesRegex(ValueError, "Unknown Character selection axis"):
+            make_recipe(job_id="character_no_prop", direction="an original performer", mode="portrait",
+                        trend_id="original", selections={"accessory": "a chrome accordion shaped like a fish"},
+                        sampler_seed=9, upsampler_seed=9, upsampler=False)
 
 
 if __name__ == "__main__":

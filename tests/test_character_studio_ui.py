@@ -64,9 +64,10 @@ class CharacterStudioUITests(unittest.TestCase):
         details = re.search(r"<details[^>]*class=\"optional-block\"[^>]*>", self.page)
         self.assertIsNotNone(details, "the optional control must be a native disclosure")
         self.assertNotIn(" open", details.group(0))
-        for axis in ("being", "build", "skin_tone", "hair", "face", "outfit", "role", "era",
-                     "accessory", "absurdity"):
-            self.assertIn(f'"{axis}"', self.js, f"{axis} must be part of the optional vocabulary")
+        for axis in ("being", "build", "skin_tone", "hair", "face", "outfit", "role", "era", "attitude"):
+            self.assertIn(f'"{axis}"', self.js, f"{axis} must be part of the v2 optional vocabulary")
+        for removed_axis in ("accessory", "absurdity"):
+            self.assertNotIn(f'"{removed_axis}"', self.js, f"v2 must not expose {removed_axis}")
         # A chip is a selection, and selecting it again clears it — never a lock.
         self.assertIn("axisValues.get(openAxis) === choice ? \"\" : choice", self.js)
         self.assertIn('input.type = "text"', self.js, "a custom value must stay possible")
@@ -112,12 +113,8 @@ class CharacterStudioUITests(unittest.TestCase):
         self.assertNotIn("fetch(", shuffle_body, "shuffle must never call the server")
         self.assertIn("buildDirection()", shuffle_body)
 
-    @unittest.expectedFailure
-    def test_next_shuffle_vocabulary_is_person_first_and_face_safe(self):
-        """This deliberately fails on v1: a viral character is a person with a hook, not a prop
-        plus an intentionally damaged expression. The v2 implementation must satisfy it before a
-        visual GPU acceptance run is allowed. Remove expectedFailure when v2 is implemented: an
-        unexpected pass then proves the guardrail is ready to become mandatory."""
+    def test_shuffle_vocabulary_is_person_first_and_face_safe(self):
+        """A viral hook belongs to the person, never a hand-held gag or malformed face."""
         banned_default_terms = (
             "taxidermy", "accordion", "oversized ring of keys", "bolted-on grin",
             "eyebrows drawn far too high", "gormless", "holding a fish",
@@ -125,16 +122,17 @@ class CharacterStudioUITests(unittest.TestCase):
         for term in banned_default_terms:
             with self.subTest(term=term):
                 self.assertFalse(term in self.js.lower(), f"default shuffle contains banned term: {term!r}")
-        self.assertFalse("const PROPS" in self.js, "default shuffle must not define a props vocabulary")
-        self.assertFalse('"accessory"' in self.js, "v2 browser controls must not expose accessory")
+        self.assertNotIn("const PROPS", self.js, "default shuffle must not define a props vocabulary")
+        self.assertNotIn('"accessory"', self.js, "v2 browser controls must not expose accessory")
         direction_start = self.js.index("function buildDirection()")
         direction_end = self.js.index("function shuffle()", direction_start)
         direction_builder = self.js[direction_start:direction_end]
-        self.assertIn("pick(ROLES)", direction_builder)
-        self.assertIn("pick(HOOKS)", direction_builder)
-        self.assertIn("pick(OUTFITS)", direction_builder)
-        self.assertIn("pick(ATTITUDES)", direction_builder)
-        self.assertIn("pick(STANCES)", direction_builder)
+        for collection in ("ROLES", "BUILDS", "HAIR", "OUTFITS", "ATTITUDES"):
+            with self.subTest(collection=collection):
+                self.assertEqual(direction_builder.count(f"pick({collection})"), 1,
+                                 f"shuffle must use exactly one {collection.lower()} cue")
+        self.assertNotIn("pick(STANCES)", direction_builder)
+        self.assertNotRegex(direction_builder, r"\b(?:holding|carrying|clutching|cradling|wheeling|balancing)\b")
 
     def test_turnaround_wording_never_sends_character_sheet(self):
         self.assertIn("/character sheet/i.test(direction)", self.js)

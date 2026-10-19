@@ -87,7 +87,8 @@ class CharacterRecipeTests(unittest.TestCase):
         for angle in ("front view", "three-quarter view", "left profile", "back view"):
             with self.subTest(angle=angle):
                 self.assertIn(angle, request)
-        for negative in ("no text", "no watermark", "exactly one person"):
+        for negative in ("no text", "no watermark", "exactly one person",
+                         "clear eyes", "plausible facial anatomy", "unexaggerated natural expression"):
             with self.subTest(negative=negative):
                 self.assertIn(negative, request)
         with self.assertRaisesRegex(ValueError, "character sheet"):

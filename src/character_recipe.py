@@ -35,7 +35,8 @@ TREND_LIBRARY = {"original": {"label": "Original character", "source": "built_in
 # The mode owns medium, framing, views and environment; the direction owns only the character.
 # Nothing here asks for a "character sheet": that noun makes the upsampler plan an illustration.
 NEGATIVE_CLAUSE = ("no text, no letters, no logo, no watermark, no border, no frame, "
-                   "exactly one person, nothing cropped")
+                   "exactly one person, nothing cropped, clear eyes, plausible facial anatomy, "
+                   "unexaggerated natural expression")
 PORTRAIT_FRAMING = (
     "Studio photograph, three-quarter body, one person standing on a plain mid-grey seamless "
     "backdrop under soft even high-key lighting, sharp focus on the face, whole character in frame"

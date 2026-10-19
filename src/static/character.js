@@ -9,58 +9,47 @@
   const ROLES = [
     "municipal locksmith", "competitive cheese judge", "night-shift lighthouse keeper",
     "unlicensed beekeeper", "freelance snake handler", "retired stunt double",
-    "amateur taxidermist", "part-time opera understudy", "regional weather presenter",
-    "semi-professional bagpipe tuner", "village blacksmith turned influencer",
-    "independent traffic-cone collector",
+    "part-time opera understudy", "regional weather presenter", "semi-professional bagpipe tuner",
+    "village blacksmith turned influencer", "independent traffic-cone collector",
   ];
-  const HOOKS = [
-    "a towering pompadour", "a blunt bowl cut with a deadpan fringe", "waist-length braids",
-    "a shaved head with one long curl", "an asymmetric undercut", "enormous round glasses",
-    "a moustache groomed into two spirals", "shoulder-length hair parted dead centre",
-    "a bolted-on grin", "eyebrows drawn far too high",
+  const BUILDS = [
+    "tall and wiry", "compact and stocky", "heavyweight and broad", "lean and lanky",
+    "broad-shouldered and solidly built", "short and athletic",
+  ];
+  const HAIR = [
+    "shoulder-length centre-parted hair", "a towering pompadour", "a blunt bowl cut",
+    "waist-length braids", "a neat flat top", "an asymmetric undercut",
+    "slicked-back shoulder-length hair", "short close-cropped curls",
   ];
   const OUTFITS = [
-    "a tight mustard corduroy suit", "an oversized orange puffer jacket over a wetsuit",
-    "a floor-length knitted cardigan with reindeer", "a white double-breasted tuxedo with shorts",
-    "a hi-vis vest over full evening dress", "a leather apron over a ruffled shirt",
-    "a full tartan three-piece with matching hat", "a raincoat two sizes too small",
-  ];
-  const PROPS = [
-    "clutching a single glass honey jar", "holding a chrome accordion",
-    "carrying an oversized ring of keys", "cradling a taxidermy owl",
-    "balancing a teetering stack of plastic tubs", "wheeling a trolley full of turnips",
-    "clutching a trophy engraved with someone else's name", "holding a fish, gently",
+    "a weathered tartan three-piece", "a tight mustard corduroy suit",
+    "an oversized orange puffer jacket over a wetsuit", "a floor-length knitted cardigan",
+    "a white double-breasted tuxedo with shorts", "a hi-vis vest over full evening dress",
+    "a leather apron over a ruffled shirt", "a raincoat two sizes too small",
   ];
   const ATTITUDES = [
-    "completely straight-faced", "suspiciously proud", "serene beyond all reason",
-    "endearingly confused", "mid-sentence and furious", "beaming like it just won something",
-    "deeply unimpressed", "as if it has just remembered something terrible",
-  ];
-  const STANCES = [
-    "wide stance, arms held away from the body", "shoulders squared", "leaning slightly forward",
-    "standing very still, chin lifted", "caught mid-step", "feet planted far apart",
+    "standing calmly with a guarded half-smile", "shoulders squared, focused and composed",
+    "leaning slightly forward with a wry expression", "standing very still with warm, clear-eyed calm",
+    "feet planted, deadpan but relaxed", "mid-step with a confident natural smile",
   ];
 
   const AXES = [
     ["being", "Presentation", ["a woman", "a man", "an androgynous person", "a non-binary person"]],
     ["build", "Build", ["heavyweight and broad", "tall and wiry", "compact and stocky", "lean and lanky"]],
     ["skin_tone", "Skin tone", ["fair skin", "olive skin", "warm brown skin", "deep brown skin", "very dark brown skin"]],
-    ["hair", "Hair", ["a blunt bowl cut", "a flat top", "a towering pompadour", "waist-length braids",
-                      "a shaved head with a widow's peak", "slicked-back shoulder-length hair",
-                      "an asymmetric undercut", "a two-spiral moustache"]],
-    ["face", "Face", ["a wide closed-mouth smile", "an unblinking stare", "heavy-lidded calm eyes",
-                      "a permanently surprised expression", "a vacant gormless expression"]],
+    ["hair", "Hair", ["a blunt bowl cut", "a neat flat top", "a towering pompadour", "waist-length braids",
+                      "short close-cropped curls", "slicked-back shoulder-length hair", "an asymmetric undercut"]],
+    ["face", "Expression", ["a calm closed-mouth smile", "focused clear eyes", "a wry natural expression",
+                            "a warm relaxed expression", "a guarded half-smile", "deadpan calm"]],
     ["outfit", "Outfit", ["a tight corduroy suit", "an oversized yellow protective suit",
                           "a knitted ski jumper", "a worn leather apron over a white shirt",
                           "a pinstriped double-breasted blazer", "a white tuxedo with shorts"]],
-    ["role", "Role", ["a beekeeper", "a municipal locksmith", "an accordion repairer",
+    ["role", "Role", ["a beekeeper", "a municipal locksmith", "a regional weather presenter",
                       "a night-shift lighthouse keeper", "a competitive cheese judge"]],
     ["era", "Era", ["seventies catalogue styling", "nineties documentary styling",
                     "contemporary studio styling", "eighties corporate video styling"]],
-    ["accessory", "Accessory", ["a single glass honey jar", "a chrome accordion",
-                                "an oversized ring of keys", "a folded paper map", "a taxidermy owl"]],
-    ["absurdity", "Attitude", ["completely straight-faced", "endearingly confused",
-                               "suspiciously proud", "serene beyond reason"]],
+    ["attitude", "Energy", ["calm and focused", "wry and composed", "warm and relaxed",
+                             "deadpan and self-assured", "guarded but steady"]],
   ];
 
   const MODE_HINTS = {
@@ -176,21 +165,16 @@
     return chosen;
   }
 
-  /* ---- one legible hook per shuffle: the nonsense lives in the character ---- */
+  /* ---- one legible hook per shuffle: five human signals, no object inventory ---- */
 
   function buildDirection() {
-    return `An original character: an original ${pick(ROLES)} with ${pick(HOOKS)}, ` +
-      `wearing ${pick(OUTFITS)}, ${pick(PROPS)}, ${pick(ATTITUDES)}, ${pick(STANCES)}.`;
+    return `An original ${pick(ROLES)}: ${pick(BUILDS)}, ${pick(HAIR)}, ` +
+      `wearing ${pick(OUTFITS)}, ${pick(ATTITUDES)}.`;
   }
 
   function shuffle() {
     directionField.value = buildDirection();
     clearAxes();
-    // A few axes ride along so the roll is never a blank slate; the hook above is what makes the
-    // character memorable, the axes only steer it.
-    for (const [key, , choices] of AXES) {
-      if (Math.random() < 0.5) setAxis(key, pick(choices));
-    }
   }
 
   /* ---- durable, independent job cards; only the newest stay large ---- */

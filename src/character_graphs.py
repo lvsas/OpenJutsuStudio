@@ -158,9 +158,10 @@ def _prefix(job_id: str, artifact: str) -> str:
 
 
 def build_character_graph(request: str, seed: int, aspect_ratio: str, upsampler: bool,
-                          job_id: str) -> dict[str, dict[str, Any]]:
+                          job_id: str, *, upsampler_seed: int | None = None) -> dict[str, dict[str, Any]]:
     """Clone the vendor graph and patch only the declared Character runtime controls."""
     request, seed, job_id = _request(request), _seed(seed), _job_id(job_id)
+    upsampler_seed = seed if upsampler_seed is None else _seed(upsampler_seed)
     if aspect_ratio not in ASPECT_RATIOS:
         raise ValueError("Character aspect ratio is not supported by the vendor selector")
     if type(upsampler) is not bool:
@@ -172,7 +173,7 @@ def build_character_graph(request: str, seed: int, aspect_ratio: str, upsampler:
     graph["19"]["inputs"]["aspect_ratio"] = aspect_ratio
     graph["18:16"]["inputs"]["switch"] = upsampler
     graph["18:7"]["inputs"]["seed"] = seed
-    graph["18:11"]["inputs"]["sampling_mode.seed"] = seed
+    graph["18:11"]["inputs"]["sampling_mode.seed"] = upsampler_seed
     graph[IMAGE_OUTPUT_NODE]["inputs"]["filename_prefix"] = _prefix(job_id, "image")
     graph[TEXT_OUTPUT_NODE] = {
         "class_type": "SaveText",

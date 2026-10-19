@@ -23,10 +23,14 @@ V1_AXES = ("being", "build", "skin_tone", "hair", "face", "outfit", "role", "era
 V2_PROMPT_POLICY = "character-v2"
 V2_SCHEMA_VERSION = 2
 V2_AXES = ("being", "build", "skin_tone", "hair", "face", "outfit", "role", "era", "attitude")
+V3_PROMPT_POLICY = "character-v3"
+V3_SCHEMA_VERSION = 3
+V3_AXES = V2_AXES
+DIRECTION_ORIGINS = ("generated", "user_authored")
 # Public aliases always describe recipes that can be newly created.
-PROMPT_POLICY = V2_PROMPT_POLICY
-SCHEMA_VERSION = V2_SCHEMA_VERSION
-AXES = V2_AXES
+PROMPT_POLICY = V3_PROMPT_POLICY
+SCHEMA_VERSION = V3_SCHEMA_VERSION
+AXES = V3_AXES
 MAX_TEXT = 2_000
 MAX_AXIS_TEXT = 300
 MAX_SEED = 2**64 - 1
@@ -34,9 +38,15 @@ MODEL_DECIDES = "model_decides"
 TREND_LIBRARY = {"original": {"label": "Original character", "source": "built_in"}}
 # The mode owns medium, framing, views and environment; the direction owns only the character.
 # Nothing here asks for a "character sheet": that noun makes the upsampler plan an illustration.
-NEGATIVE_CLAUSE = ("no text, no letters, no logo, no watermark, no border, no frame, "
-                   "exactly one person, nothing cropped, clear eyes, plausible facial anatomy, "
-                   "unexaggerated natural expression")
+V2_NEGATIVE_CLAUSE = ("no text, no letters, no logo, no watermark, no border, no frame, "
+                      "exactly one person, nothing cropped, clear eyes, plausible facial anatomy, "
+                      "unexaggerated natural expression")
+# Measured against the vendor TextGenerate upsampler: this wording prevents it from inventing a
+# prop while preserving whole-body framing. It applies only to a generated proposal, never to a
+# direction the user deliberately authored.
+GENERATED_NO_PROP_CLAUSE = "no held, carried, worn, or visible props; no object in the hands or on the body"
+V3_NEGATIVE_CLAUSE = f"{V2_NEGATIVE_CLAUSE}, {GENERATED_NO_PROP_CLAUSE}"
+NEGATIVE_CLAUSE = V3_NEGATIVE_CLAUSE
 PORTRAIT_FRAMING = (
     "Studio photograph, three-quarter body, one person standing on a plain mid-grey seamless "
     "backdrop under soft even high-key lighting, sharp focus on the face, whole character in frame"
@@ -132,7 +142,7 @@ MODEL_ROLES = _model_roles()
 SYSTEM_PROMPT_SHA256 = digest_json(load_vendor_graph()["18:14"]["inputs"]["value"])
 
 
-def _request(mode: str, direction: str, selections: dict[str, str]) -> str:
+def _request_with_clause(mode: str, direction: str, selections: dict[str, str], negative_clause: str) -> str:
     if mode not in MODE_SPECS:
         raise ValueError("Unknown Character output mode")
     if "character sheet" in direction.lower():
@@ -140,14 +150,31 @@ def _request(mode: str, direction: str, selections: dict[str, str]) -> str:
     facts = [f"{axis.replace('_', ' ')}: {value}" for axis, value in selections.items()
              if value != MODEL_DECIDES]
     # Medium and framing first, then the character, then the explicit choices, then the negatives.
-    text = ", ".join([MODE_SPECS[mode]["framing"], direction, *facts, NEGATIVE_CLAUSE])
+    text = ", ".join([MODE_SPECS[mode]["framing"], direction, *facts, negative_clause])
     if "character sheet" in text.lower():
         raise ValueError("Character requests must not use the phrase 'character sheet'")
     return text
 
 
+def _direction_origin(value: Any) -> str:
+    if not isinstance(value, str) or value not in DIRECTION_ORIGINS:
+        raise ValueError("Character direction origin is unsupported")
+    return value
+
+
+def _request_v2(mode: str, direction: str, selections: dict[str, str]) -> str:
+    return _request_with_clause(mode, direction, selections, V2_NEGATIVE_CLAUSE)
+
+
+def _request_v3(mode: str, direction: str, selections: dict[str, str], direction_origin: str) -> str:
+    origin = _direction_origin(direction_origin)
+    clause = V3_NEGATIVE_CLAUSE if origin == "generated" else V2_NEGATIVE_CLAUSE
+    return _request_with_clause(mode, direction, selections, clause)
+
+
 def make_recipe(*, job_id: str, direction: str, mode: str, trend_id: str, selections: dict[str, str] | None,
-                sampler_seed: int, upsampler_seed: int, upsampler: bool) -> dict[str, Any]:
+                sampler_seed: int, upsampler_seed: int, upsampler: bool,
+                direction_origin: str = "generated") -> dict[str, Any]:
     """Resolve all Character choices before a graph is ever submitted."""
     direction = _text(direction, "direction", MAX_TEXT, required=True)
     if not isinstance(mode, str) or mode not in MODE_SPECS:
@@ -159,8 +186,9 @@ def make_recipe(*, job_id: str, direction: str, mode: str, trend_id: str, select
     sampler_seed, upsampler_seed = _seed(sampler_seed, "sampler seed"), _seed(upsampler_seed, "upsampler seed")
     if type(upsampler) is not bool:
         raise ValueError("Character prompt upsampler must be boolean")
-    resolved = _selections(selections, V2_AXES)
-    request = _request(mode, direction, resolved)
+    resolved = _selections(selections, V3_AXES)
+    direction_origin = _direction_origin(direction_origin)
+    request = _request_v3(mode, direction, resolved, direction_origin)
     graph = build_character_graph(request, sampler_seed, MODE_SPECS[mode]["aspect_ratio"], upsampler, job_id,
                                   upsampler_seed=upsampler_seed)
     recipe = {
@@ -169,6 +197,7 @@ def make_recipe(*, job_id: str, direction: str, mode: str, trend_id: str, select
         "prompt_policy": PROMPT_POLICY,
         "job_id": job_id,
         "raw_direction": direction,
+        "direction_origin": direction_origin,
         "trend_id": trend_id,
         "selections": resolved,
         "mode": mode,
@@ -192,6 +221,8 @@ def _recipe_axes(recipe: dict[str, Any]) -> tuple[str, ...]:
         return V1_AXES
     if version == V2_SCHEMA_VERSION and policy == V2_PROMPT_POLICY:
         return V2_AXES
+    if version == V3_SCHEMA_VERSION and policy == V3_PROMPT_POLICY:
+        return V3_AXES
     raise ValueError("Unsupported Character recipe contract")
 
 
@@ -204,6 +235,8 @@ def validate_recipe(recipe: Any) -> dict[str, Any]:
         "mode", "aspect_ratio", "resolved_request", "sampler_seed", "upsampler_seed", "upsampler",
         "model_roles", "vendor_workflow_sha256", "system_prompt_sha256", "graph_template", "graph_sha256",
     }
+    if recipe.get("schema_version") == V3_SCHEMA_VERSION:
+        required.add("direction_origin")
     if set(recipe) != required or recipe.get("engine") != ENGINE:
         raise ValueError("Unsupported Character recipe contract")
     axes = _recipe_axes(recipe)
@@ -226,8 +259,13 @@ def validate_recipe(recipe: Any) -> dict[str, Any]:
         # v1 evidence predates the current framing/negative-clause contract. Its saved request is
         # the only truthful record of what reached the graph; do not reconstruct it with v2 wording.
         request = _text(recipe.get("resolved_request"), "resolved request", MAX_TEXT, required=True)
+    elif recipe["schema_version"] == V2_SCHEMA_VERSION:
+        request = _request_v2(mode, direction, selections)
+        if recipe.get("resolved_request") != request:
+            raise ValueError("Character resolved request changed")
     else:
-        request = _request(mode, direction, selections)
+        direction_origin = _direction_origin(recipe.get("direction_origin"))
+        request = _request_v3(mode, direction, selections, direction_origin)
         if recipe.get("resolved_request") != request:
             raise ValueError("Character resolved request changed")
     if recipe.get("model_roles") != MODEL_ROLES:

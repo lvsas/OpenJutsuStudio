@@ -37,9 +37,6 @@ class CharacterAPI:
     async def create_job(self, payload: dict):
         if not isinstance(payload, dict):
             raise HTTPException(422, "Character request must be an object")
-        report = await asyncio.to_thread(self.readiness_check)
-        if not report.get("ready"):
-            raise HTTPException(503, " ".join(report.get("issues", [])) or "Character runtime is not ready")
         job_id = uuid.uuid4().hex
         try:
             recipe = make_recipe(job_id=job_id, direction=payload.get("direction", ""),
@@ -47,9 +44,13 @@ class CharacterAPI:
                                  selections=payload.get("selections", {}),
                                  sampler_seed=payload.get("sampler_seed", 0),
                                  upsampler_seed=payload.get("upsampler_seed", payload.get("sampler_seed", 0)),
-                                 upsampler=payload.get("upsampler", True))
+                                 upsampler=payload.get("upsampler", True),
+                                 direction_origin=payload.get("direction_origin", "generated"))
         except (KeyError, TypeError, ValueError) as exc:
             raise HTTPException(422, str(exc)) from exc
+        report = await asyncio.to_thread(self.readiness_check)
+        if not report.get("ready"):
+            raise HTTPException(503, " ".join(report.get("issues", [])) or "Character runtime is not ready")
         job = core.Job(id=job_id, engine=ENGINE, prompt=recipe["resolved_request"],
                        meta={"character_recipe": copy.deepcopy(recipe)})
         await asyncio.to_thread(job.save)
@@ -98,7 +99,7 @@ class CharacterAPI:
             recipe = make_recipe(job_id=child_id, direction=old["raw_direction"], mode=old["mode"],
                                  trend_id=old["trend_id"], selections=old["selections"],
                                  sampler_seed=old["sampler_seed"], upsampler_seed=old["upsampler_seed"],
-                                 upsampler=old["upsampler"])
+                                 upsampler=old["upsampler"], direction_origin=old["direction_origin"])
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
         child = core.Job(id=child_id, engine=ENGINE, prompt=recipe["resolved_request"],

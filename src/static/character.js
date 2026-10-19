@@ -6,50 +6,62 @@
 (() => {
   "use strict";
 
-  const ROLES = [
-    "municipal locksmith", "competitive cheese judge", "night-shift lighthouse keeper",
-    "unlicensed beekeeper", "freelance snake handler", "retired stunt double",
-    "part-time opera understudy", "regional weather presenter", "semi-professional bagpipe tuner",
-    "village blacksmith turned influencer", "independent traffic-cone collector",
-  ];
-  const BUILDS = [
-    "tall and wiry", "compact and stocky", "heavyweight and broad", "lean and lanky",
-    "broad-shouldered and solidly built", "short and athletic",
-  ];
-  const HAIR = [
-    "shoulder-length centre-parted hair", "a towering pompadour", "a blunt bowl cut",
-    "waist-length braids", "a neat flat top", "an asymmetric undercut",
-    "slicked-back shoulder-length hair", "short close-cropped curls",
-  ];
-  const OUTFITS = [
-    "a weathered tartan three-piece", "a tight mustard corduroy suit",
-    "an oversized orange puffer jacket over a wetsuit", "a floor-length knitted cardigan",
-    "a white double-breasted tuxedo with shorts", "a hi-vis vest over full evening dress",
-    "a leather apron over a ruffled shirt", "a raincoat two sizes too small",
-  ];
-  const ATTITUDES = [
-    "standing calmly with a guarded half-smile", "shoulders squared, focused and composed",
-    "leaning slightly forward with a wry expression", "standing very still with warm, clear-eyed calm",
-    "feet planted, deadpan but relaxed", "mid-step with a confident natural smile",
+  // Curated complete looks avoid accidental "costume" collisions from independently shuffled lists.
+  // The vocabulary is contemporary, wearable and prop-free by default; the server freezes the
+  // matching generated-origin anti-prop policy with the recipe.
+  const LOOKS = [
+    {
+      role: "nightlife creative", build: "tall with a relaxed athletic build",
+      hair: "a lacquered micro bob with a razor-sharp fringe", outfit: "a cropped cherry-red bomber over a sheer black layer, low-slung puddle trousers and slim trainers",
+      attitude: "standing calm and self-assured with a direct expression",
+    },
+    {
+      role: "independent stylist", build: "compact and athletic",
+      hair: "a soft wolf cut with bleached face-framing pieces", outfit: "a boxy denim jacket over a graphic knit with a long cargo skirt and heavy boots",
+      attitude: "standing easy and focused with a warm, direct expression",
+    },
+    {
+      role: "editorial producer", build: "lean and long-limbed",
+      hair: "sculpted finger waves with a clean side part", outfit: "an oversized pinstripe suit with a fitted waistcoat and pointed boots",
+      attitude: "standing composed with a subtle, knowing smile",
+    },
+    {
+      role: "digital art director", build: "broad-shouldered with an easy stance",
+      hair: "a platinum buzz cut with a sharp graphic shaved line", outfit: "a cropped cobalt technical jacket over a ribbed tank with wide asymmetric parachute trousers",
+      attitude: "standing relaxed, clear-eyed and quietly confident",
+    },
+    {
+      role: "fashion student", build: "slim with an upright posture",
+      hair: "a glossy blunt bob with a micro fringe", outfit: "an asymmetric butter-yellow knit with wide tailored trousers and platform loafers",
+      attitude: "standing still with a cool, unforced expression",
+    },
+    {
+      role: "music visual director", build: "tall with a lean, balanced silhouette",
+      hair: "long lacquered braids with an exact centre part", outfit: "a cropped moto jacket over a mesh layer with low-rise trousers and square-toe boots",
+      attitude: "standing open and observant with a calm natural smile",
+    },
+    {
+      role: "downtown curator", build: "compact with a solid build",
+      hair: "defined natural curls with a deep side part", outfit: "a sculptural zip-up jacket over a striped knit with wide black trousers",
+      attitude: "standing grounded, wry and completely at ease",
+    },
+    {
+      role: "street-style filmmaker", build: "tall and softly built",
+      hair: "long dark butterfly layers with a deep side part", outfit: "a cropped olive work jacket with an asymmetric pleated midi skirt and tall boots",
+      attitude: "standing quietly alert with a focused, natural expression",
+    },
   ];
 
   const AXES = [
     ["being", "Presentation", ["a woman", "a man", "an androgynous person", "a non-binary person"]],
-    ["build", "Build", ["heavyweight and broad", "tall and wiry", "compact and stocky", "lean and lanky"]],
+    ["build", "Build", ["tall with a relaxed athletic build", "compact with a solid build", "lean and long-limbed", "broad-shouldered with an easy stance"]],
     ["skin_tone", "Skin tone", ["fair skin", "olive skin", "warm brown skin", "deep brown skin", "very dark brown skin"]],
-    ["hair", "Hair", ["a blunt bowl cut", "a neat flat top", "a towering pompadour", "waist-length braids",
-                      "short close-cropped curls", "slicked-back shoulder-length hair", "an asymmetric undercut"]],
-    ["face", "Expression", ["a calm closed-mouth smile", "focused clear eyes", "a wry natural expression",
-                            "a warm relaxed expression", "a guarded half-smile", "deadpan calm"]],
-    ["outfit", "Outfit", ["a tight corduroy suit", "an oversized yellow protective suit",
-                          "a knitted ski jumper", "a worn leather apron over a white shirt",
-                          "a pinstriped double-breasted blazer", "a white tuxedo with shorts"]],
-    ["role", "Role", ["a beekeeper", "a municipal locksmith", "a regional weather presenter",
-                      "a night-shift lighthouse keeper", "a competitive cheese judge"]],
-    ["era", "Era", ["seventies catalogue styling", "nineties documentary styling",
-                    "contemporary studio styling", "eighties corporate video styling"]],
-    ["attitude", "Energy", ["calm and focused", "wry and composed", "warm and relaxed",
-                             "deadpan and self-assured", "guarded but steady"]],
+    ["hair", "Hair", ["a lacquered micro bob with a razor-sharp fringe", "a soft wolf cut with bleached face-framing pieces", "sculpted finger waves with a clean side part", "a platinum buzz cut with a sharp graphic shaved line", "a glossy blunt bob with a micro fringe", "long lacquered braids with an exact centre part"]],
+    ["face", "Expression", ["a calm closed-mouth smile", "focused clear eyes", "a wry natural expression", "a warm relaxed expression", "a cool, unforced expression", "deadpan calm"]],
+    ["outfit", "Outfit", ["a cropped cherry-red bomber over a sheer black layer with low-slung puddle trousers", "a boxy denim jacket over a graphic knit with a long cargo skirt", "an oversized pinstripe suit with a fitted waistcoat", "a cropped cobalt technical jacket over a ribbed tank with wide asymmetric parachute trousers", "an asymmetric butter-yellow knit with wide tailored trousers", "a cropped moto jacket over a mesh layer with low-rise trousers"]],
+    ["role", "Role", ["a nightlife creative", "an independent stylist", "an editorial producer", "a digital art director", "a fashion student", "a music visual director"]],
+    ["era", "Era", ["viral contemporary street style", "late-night editorial styling", "new-tailoring street style", "fashion-week off-duty styling"]],
+    ["attitude", "Energy", ["calm and focused", "wry and composed", "warm and relaxed", "cool and self-assured", "guarded but steady"]],
   ];
 
   const REFINEMENTS = [
@@ -95,6 +107,7 @@
   const pickerChips = new Map();
   let openAxis = null;
   let openRefinement = null;
+  let directionOrigin = "generated";
 
   function selectedValues(axisKeys) {
     return axisKeys.map((key) => axisValues.get(key)).filter(Boolean);
@@ -235,11 +248,12 @@
   /* ---- one legible hook per shuffle: five human signals, no object inventory ---- */
 
   function buildDirection() {
-    return `An original ${pick(ROLES)}: ${pick(BUILDS)}, ${pick(HAIR)}, ` +
-      `wearing ${pick(OUTFITS)}, ${pick(ATTITUDES)}.`;
+    const look = pick(LOOKS);
+    return `A shareable contemporary editorial street-style portrait of an original ${look.role}: ${look.build}, ${look.hair}, wearing ${look.outfit}, ${look.attitude}.`;
   }
 
   function shuffle() {
+    directionOrigin = "generated";
     directionField.value = buildDirection();
     clearAxes();
     syncProposalSummary();
@@ -402,6 +416,7 @@
           mode: $("#mode").value,
           trend_id: "original",
           selections: selections(),
+          direction_origin: directionOrigin,
           sampler_seed: seed,
           upsampler_seed: seed,
           upsampler: $("#upsampler").value === "on",
@@ -427,7 +442,10 @@
 
   $("#shuffle").addEventListener("click", shuffle);
   clearAxesButton.addEventListener("click", clearAxes);
-  directionField.addEventListener("input", syncProposalSummary);
+  directionField.addEventListener("input", () => {
+    directionOrigin = "user_authored";
+    syncProposalSummary();
+  });
   $("#clear-jobs").addEventListener("click", () => {
     jobsHost.replaceChildren();
     store([]);

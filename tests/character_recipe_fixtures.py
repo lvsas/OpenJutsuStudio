@@ -16,9 +16,12 @@ from character_recipe import (
 
 _V1_PROMPT_POLICY = "character-v1"
 _V1_SCHEMA_VERSION = 1
+_V2_PROMPT_POLICY = "character-v2"
+_V2_SCHEMA_VERSION = 2
 
 
 _FIXTURE_PATH = Path(__file__).with_name("fixtures") / "character_recipe_v1_frozen.json"
+_V2_FIXTURE_PATH = Path(__file__).with_name("fixtures") / "character_recipe_v2_frozen.json"
 
 
 def v1_recipe_fixture() -> dict:
@@ -49,3 +52,11 @@ def v1_recipe_fixture() -> dict:
         "graph_template": graph,
         "graph_sha256": frozen["graph_sha256"],
     }
+
+
+def v2_recipe_fixture() -> dict:
+    """Rehydrate a real v2 recipe exactly as it was frozen before v3 existed."""
+    frozen = json.loads(_V2_FIXTURE_PATH.read_text(encoding="utf-8"))
+    if (frozen.get("schema_version"), frozen.get("prompt_policy")) != (_V2_SCHEMA_VERSION, _V2_PROMPT_POLICY):
+        raise AssertionError("The captured recipe is not v2 evidence")
+    return copy.deepcopy(frozen)

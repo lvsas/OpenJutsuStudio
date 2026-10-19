@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from tests.character_recipe_fixtures import v1_recipe_fixture  # noqa: E402
+from tests.character_recipe_fixtures import v1_recipe_fixture, v2_recipe_fixture  # noqa: E402
 from character_recipe import (  # noqa: E402
     AXES,
     ENGINE,
@@ -34,9 +34,12 @@ class CharacterRecipeTests(unittest.TestCase):
             upsampler=True,
         )
 
-    def test_new_recipes_are_v2_person_first_and_reject_v1_only_accessory(self):
-        self.assertEqual(self.recipe["schema_version"], 2)
-        self.assertEqual(self.recipe["prompt_policy"], "character-v2")
+    def test_new_generated_recipes_are_v3_person_first_and_reject_v1_only_accessory(self):
+        self.assertEqual(self.recipe["schema_version"], 3)
+        self.assertEqual(self.recipe["prompt_policy"], "character-v3")
+        self.assertEqual(self.recipe["direction_origin"], "generated")
+        self.assertIn("no held, carried, worn, or visible props; no object in the hands or on the body",
+                      self.recipe["resolved_request"])
         self.assertNotIn("accessory", self.recipe["selections"])
         self.assertNotIn("absurdity", self.recipe["selections"])
         with self.assertRaisesRegex(ValueError, "Unknown Character selection axis"):
@@ -44,12 +47,31 @@ class CharacterRecipeTests(unittest.TestCase):
                         trend_id="original", selections={"accessory": "a chrome accordion"},
                         sampler_seed=1, upsampler_seed=2, upsampler=True)
 
-    def test_v1_recipe_evidence_remains_exactly_readable_without_being_coerced_to_v2(self):
+    def test_user_authored_direction_can_explicitly_use_a_prop_without_default_policy_override(self):
+        recipe = make_recipe(
+            job_id="character_user_prop", direction="an original locksmith holding one brass key",
+            mode="portrait", trend_id="original", selections={}, sampler_seed=2, upsampler_seed=3,
+            upsampler=True, direction_origin="user_authored")
+        self.assertEqual(recipe["direction_origin"], "user_authored")
+        self.assertIn("holding one brass key", recipe["resolved_request"])
+        self.assertNotIn("no held, carried, worn, or visible props; no object in the hands or on the body",
+                         recipe["resolved_request"])
+        with self.assertRaisesRegex(ValueError, "direction origin"):
+            make_recipe(job_id="character_bad_origin", direction="an original performer", mode="portrait",
+                        trend_id="original", selections={}, sampler_seed=1, upsampler_seed=2, upsampler=True,
+                        direction_origin="system")
+
+    def test_v1_and_v2_recipe_evidence_remain_exactly_readable_without_coercion_to_v3(self):
         legacy = v1_recipe_fixture()
         self.assertEqual(validate_recipe(legacy), legacy)
         self.assertEqual(validate_recipe(legacy)["schema_version"], 1)
         self.assertEqual(validate_recipe(legacy)["prompt_policy"], "character-v1")
         self.assertEqual(validate_recipe(legacy)["selections"]["accessory"], "a folded paper map")
+        v2 = v2_recipe_fixture()
+        self.assertEqual(validate_recipe(v2), v2)
+        self.assertEqual(validate_recipe(v2)["schema_version"], 2)
+        self.assertEqual(validate_recipe(v2)["prompt_policy"], "character-v2")
+        self.assertNotIn("direction_origin", validate_recipe(v2))
 
     def test_recipe_freezes_all_resolved_generation_facts(self):
         self.assertEqual(self.recipe["engine"], ENGINE)

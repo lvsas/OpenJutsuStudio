@@ -103,6 +103,23 @@ class CharacterAPITests(unittest.TestCase):
         self.assertIn("FLUX 3 weights missing", blocked.text)
         self.dispatch.assert_not_called()
 
+    def test_direction_origin_is_frozen_and_invalid_values_never_dispatch(self):
+        generated = self.submit(direction_origin="generated")
+        self.assertEqual(generated.status_code, 202, generated.text)
+        recipe = self.dispatch.call_args.args[1]["recipe"]
+        self.assertEqual(recipe["direction_origin"], "generated")
+        self.assertIn("no held, carried, worn, or visible props; no object in the hands or on the body",
+                      recipe["resolved_request"])
+        self.dispatch.reset_mock()
+        invalid = self.submit(direction_origin="system")
+        self.assertEqual(invalid.status_code, 422)
+        self.dispatch.assert_not_called()
+        self.ready.return_value = {"ready": False, "issues": ["offline"]}
+        invalid_while_offline = self.submit(direction_origin="system")
+        self.assertEqual(invalid_while_offline.status_code, 422)
+        self.assertIn("direction origin", invalid_while_offline.text)
+        self.dispatch.assert_not_called()
+
     def test_dispatch_failure_is_terminal_and_reported(self):
         self.dispatch.side_effect = RuntimeError("executor unavailable")
         response = self.submit()

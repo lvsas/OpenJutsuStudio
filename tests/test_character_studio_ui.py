@@ -121,25 +121,40 @@ class CharacterStudioUITests(unittest.TestCase):
         self.assertNotIn("fetch(", shuffle_body, "shuffle must never call the server")
         self.assertIn("buildDirection()", shuffle_body)
 
-    def test_shuffle_vocabulary_is_person_first_and_face_safe(self):
-        """A viral hook belongs to the person, never a hand-held gag or malformed face."""
+    def test_payload_records_whether_the_direction_was_generated_or_user_authored(self):
+        self.assertIn('let directionOrigin = "generated"', self.js)
+        start = self.js.index("function shuffle()")
+        end = self.js.index("/* ----", start)
+        self.assertIn('directionOrigin = "generated"', self.js[start:end])
+        self.assertRegex(self.js, r'directionField\.addEventListener\("input", \(\) => \{\s*directionOrigin = "user_authored";')
+        self.assertIn("direction_origin: directionOrigin", self.js)
+
+    def test_shuffle_vocabulary_is_person_first_face_safe_and_style_coherent(self):
+        """A viral hook comes from one complete contemporary look, never a prop or costume collision."""
         banned_default_terms = (
             "taxidermy", "accordion", "oversized ring of keys", "bolted-on grin",
-            "eyebrows drawn far too high", "gormless", "holding a fish",
+            "eyebrows drawn far too high", "gormless", "holding a fish", "competitive cheese judge",
+            "night-shift lighthouse keeper", "unlicensed beekeeper", "freelance snake handler",
+            "towering pompadour", "blunt bowl cut", "puffer jacket over a wetsuit",
+            "tuxedo with shorts", "hi-vis vest over full evening dress", "raincoat two sizes too small",
         )
         for term in banned_default_terms:
             with self.subTest(term=term):
-                self.assertFalse(term in self.js.lower(), f"default shuffle contains banned term: {term!r}")
+                self.assertNotIn(term, self.js.lower(), f"default shuffle contains stale prop-comedy term: {term!r}")
         self.assertNotIn("const PROPS", self.js, "default shuffle must not define a props vocabulary")
-        self.assertNotIn('"accessory"', self.js, "v2 browser controls must not expose accessory")
+        self.assertNotIn("const ROLES", self.js, "independent lists create incoherent costume collisions")
+        self.assertNotIn('"accessory"', self.js, "browser controls must not expose accessory")
+        self.assertIn("const LOOKS = [", self.js)
         direction_start = self.js.index("function buildDirection()")
         direction_end = self.js.index("function shuffle()", direction_start)
         direction_builder = self.js[direction_start:direction_end]
-        for collection in ("ROLES", "BUILDS", "HAIR", "OUTFITS", "ATTITUDES"):
-            with self.subTest(collection=collection):
-                self.assertEqual(direction_builder.count(f"pick({collection})"), 1,
-                                 f"shuffle must use exactly one {collection.lower()} cue")
-        self.assertNotIn("pick(STANCES)", direction_builder)
+        self.assertIn("const look = pick(LOOKS)", direction_builder)
+        for field in ("role", "build", "hair", "outfit", "attitude"):
+            with self.subTest(field=field):
+                self.assertIn(f"look.{field}", direction_builder)
+        for signal in ("micro bob", "wolf cut", "platinum buzz", "finger waves", "cropped", "cargo", "asymmetric"):
+            with self.subTest(signal=signal):
+                self.assertIn(signal, self.js.lower(), f"default looks lost contemporary visual signal: {signal!r}")
         self.assertNotRegex(direction_builder, r"\b(?:holding|carrying|clutching|cradling|wheeling|balancing)\b")
 
     def test_turnaround_wording_never_sends_character_sheet(self):

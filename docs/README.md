@@ -37,7 +37,8 @@ what the product **is now**. Where an older file contradicts a newer one, the ne
 | [Timeline plan](plans/2026-10-18-timeline-latent-phase.md) | extend, prepend and bridge from the latent capsules, with the pack's traps as test assertions |
 | [Dependencies](dependencies.md) | every node class and model file this repository needs, verified against a live ComfyUI |
 | [`dependencies.json`](../dependencies.json) | the same list machine-readably, with `scripts/check_dependencies.py` to verify a machine |
-| [Character reference probe](validation/character-reference-probe.md) | whether an installed model can produce a usable character reference, and what remains unverified |
+| [Character reference probe](validation/character-reference-probe.md) | historical visual/model experiments that established the FLUX 3 prompt and identity constraints |
+| [Character SDK multi-artifact spike](validation/character-sdk-multi-artifact-spike.md) | live proof that the official SDK retrieved the FLUX 3 PNG and saved caption from exact nodes, without `/history` |
 | [Model licences](validation/model-licences.md) | which model may be used for paid work: the LTX path is licensed, the FLUX step and MiniMax H3 are not |
 | [H3 license gate](validation/h3-license-gate.md) | contest eligibility is not a commercial or territorial licence — read before deploying or sharing output |
 | [Prompt profiles](architecture/prompt-profiles.md) | how a prompt policy is versioned and frozen per engine |

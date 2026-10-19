@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+import core  # noqa: E402
 from core import Job  # noqa: E402
 from character_recipe import ENGINE, make_recipe  # noqa: E402
 from character_pipeline import run_character_pipeline  # noqa: E402
@@ -29,6 +30,10 @@ class CharacterPipelineTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
+        self.addCleanup(patch.stopall)
+        # Job.save() writes under core.WORK: without this patch every run of this file drops a
+        # character job into the repository's real work/jobs, which the running app then lists.
+        patch.object(core, "WORK", Path(self.tmp.name)).start()
         self.media = Path(self.tmp.name) / "media"
         self.recipe = make_recipe(
             job_id="character_worker_1", direction="an original beekeeper", mode="portrait",
@@ -74,6 +79,20 @@ class CharacterPipelineTests(unittest.TestCase):
         self.assertIn("recipe differs", self.job.error)
         self.assertEqual(self.job.meta["character_recipe"], self.recipe)
         client.close.assert_not_called()
+
+    def test_worker_tests_never_write_into_the_repository_work_directory(self):
+        """A test that saves a Job under core.WORK pollutes the app's live job list."""
+        real_jobs = ROOT / "work" / "jobs"
+        before = set(real_jobs.glob("*.json")) if real_jobs.is_dir() else set()
+        client = MagicMock()
+        with patch("character_pipeline.make_client", return_value=client), \
+             patch("character_pipeline._run_graph_artifacts", side_effect=lambda c, g, r, f, on_progress: (
+                 self._artifacts(f))):
+            run_character_pipeline(self.job, {"recipe": self.recipe, "media_dir": self.media})
+        after = set(real_jobs.glob("*.json")) if real_jobs.is_dir() else set()
+        self.assertEqual(after - before, set(), "the suite must not add jobs to work/jobs")
+        self.assertTrue((Path(self.tmp.name) / "jobs" / f"{self.job.id}.json").is_file(),
+                        "the job belongs in the isolated work directory")
 
     def test_missing_sdk_artifact_never_yields_done_or_capsule(self):
         client = MagicMock()

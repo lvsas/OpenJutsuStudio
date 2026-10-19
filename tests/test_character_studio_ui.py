@@ -99,6 +99,26 @@ class CharacterStudioUITests(unittest.TestCase):
         self.assertIn("turnaround", self.page.lower())
         self.assertNotIn("character sheet", self.page.lower())
 
+    def test_every_page_loads_the_token_sheet_before_the_sheets_that_consume_it(self):
+        """design-system.css is the only file defining the CSS variables, so a page that links
+        app.css without it renders with every var(--…) unresolved and looks unstyled."""
+        tokens = (SRC / "static" / "design-system.css").read_text()
+        self.assertIn(":root", tokens, "the token sheet must define the studio variables")
+        for name, markup in (("character.html", self.page), ("index.html", self.index), ("h3.html", self.h3)):
+            with self.subTest(page=name):
+                token_at = markup.find("design-system.css")
+                shell_at = markup.find("app.css")
+                self.assertNotEqual(token_at, -1, f"{name} must link the token sheet")
+                self.assertNotEqual(shell_at, -1, f"{name} must link the studio shell sheet")
+                self.assertLess(token_at, shell_at, f"{name} must load the tokens before app.css")
+                for sheet in re.findall(r'href="/static/([a-z-]+\.css)"', markup):
+                    with self.subTest(page=name, sheet=sheet):
+                        css = (SRC / "static" / sheet).read_text()
+                        self.assertTrue(css.strip(), f"{sheet} must not be empty")
+                        if sheet != "design-system.css":
+                            self.assertIn("var(--", css,
+                                          f"{sheet} consumes studio tokens and needs the token sheet")
+
     def test_served_page_and_assets_resolve(self):
         with patch.dict(os.environ, {}, clear=True), patch.object(
                 character_studio_app, "_character_readiness",

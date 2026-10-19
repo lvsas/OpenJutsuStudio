@@ -25,17 +25,23 @@ MAX_SEED = 2**64 - 1
 AXES = ("being", "build", "skin_tone", "hair", "face", "outfit", "role", "era", "accessory", "absurdity")
 MODEL_DECIDES = "model_decides"
 TREND_LIBRARY = {"original": {"label": "Original character", "source": "built_in"}}
+# The mode owns medium, framing, views and environment; the direction owns only the character.
+# Nothing here asks for a "character sheet": that noun makes the upsampler plan an illustration.
+NEGATIVE_CLAUSE = ("no text, no letters, no logo, no watermark, no border, no frame, "
+                   "exactly one person, nothing cropped")
+PORTRAIT_FRAMING = (
+    "Studio photograph, three-quarter body, one person standing on a plain mid-grey seamless "
+    "backdrop under soft even high-key lighting, sharp focus on the face, whole character in frame"
+)
+TURNAROUND_FRAMING = (
+    "Studio photographic quadriptych: four separate photographs of the same one person side by side "
+    "at equal scale on one plain mid-grey seamless backdrop, under soft even high-key lighting, "
+    "showing four different viewing angles in this order — front view, three-quarter view, left "
+    "profile, and back view — with identical clothing, hair and lighting in all four panels"
+)
 MODE_SPECS = {
-    "portrait": {
-        "aspect_ratio": "3:4 (Portrait Standard)",
-        "opening": "Studio photograph",
-        "purpose": "shareable portrait",
-    },
-    "turnaround": {
-        "aspect_ratio": "16:9 (Widescreen)",
-        "opening": "Studio photographic quadriptych",
-        "purpose": "four studio photographs of the same original person",
-    },
+    "portrait": {"aspect_ratio": "3:4 (Portrait Standard)", "framing": PORTRAIT_FRAMING},
+    "turnaround": {"aspect_ratio": "16:9 (Widescreen)", "framing": TURNAROUND_FRAMING},
 }
 _PRIVATE_ADDRESS = re.compile(r"(?:\d{1,3}\.){3}\d{1,3}")
 
@@ -48,7 +54,11 @@ def digest_json(value: Any) -> str:
 def _unsafe(value: str) -> bool:
     if "/" in value or "\\" in value or "://" in value or ".." in value:
         return True
-    if re.search(r"[A-Za-z]:", value) or "localhost" in value.lower():
+    # A Windows drive path is a single letter, a colon and then a separator (`C:\`, `C:/`).
+    # Matching a bare `[A-Za-z]:` rejected ordinary prose such as "An original character: ...".
+    if re.search(r"[A-Za-z]:[\\/]", value):
+        return True
+    if "localhost" in value.lower():
         return True
     if "::1" in value:
         return True
@@ -121,7 +131,8 @@ def _request(mode: str, direction: str, selections: dict[str, str]) -> str:
         raise ValueError("Character requests must not use the phrase 'character sheet'")
     facts = [f"{axis.replace('_', ' ')}: {value}" for axis, value in selections.items()
              if value != MODEL_DECIDES]
-    text = ", ".join([MODE_SPECS[mode]["opening"], direction, *facts])
+    # Medium and framing first, then the character, then the explicit choices, then the negatives.
+    text = ", ".join([MODE_SPECS[mode]["framing"], direction, *facts, NEGATIVE_CLAUSE])
     if "character sheet" in text.lower():
         raise ValueError("Character requests must not use the phrase 'character sheet'")
     return text

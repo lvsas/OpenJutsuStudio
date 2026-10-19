@@ -55,13 +55,23 @@ class CharacterRecipeTests(unittest.TestCase):
         self.assertNotIn("127.0.0.1", encoded)
         validate_recipe(self.recipe)
 
-    def test_request_is_photographic_and_turnaround_is_not_a_character_sheet(self):
+    def test_request_is_photographic_and_turnaround_asks_for_four_different_angles(self):
         self.assertTrue(self.recipe["resolved_request"].startswith("Studio photograph,"))
         turnaround = make_recipe(
             job_id="character_turnaround_1", direction="an original locksmith", mode="turnaround",
             trend_id="original", selections={}, sampler_seed=1, upsampler_seed=1, upsampler=True)
-        self.assertTrue(turnaround["resolved_request"].startswith("Studio photographic quadriptych,"))
-        self.assertNotIn("character sheet", turnaround["resolved_request"].lower())
+        request = turnaround["resolved_request"]
+        self.assertTrue(request.startswith("Studio photographic quadriptych"))
+        self.assertNotIn("character sheet", request.lower())
+        # The earlier probe asked for "four identical views", which is why every panel came back
+        # frontal. A usable turnaround must name the four distinct angles.
+        self.assertNotIn("identical views", request.lower())
+        for angle in ("front view", "three-quarter view", "left profile", "back view"):
+            with self.subTest(angle=angle):
+                self.assertIn(angle, request)
+        for negative in ("no text", "no watermark", "exactly one person"):
+            with self.subTest(negative=negative):
+                self.assertIn(negative, request)
         with self.assertRaisesRegex(ValueError, "character sheet"):
             make_recipe(job_id="character_bad", direction="a character sheet of a locksmith", mode="portrait",
                         trend_id="original", selections={}, sampler_seed=1, upsampler_seed=1, upsampler=True)
@@ -111,6 +121,23 @@ class CharacterRecipeTests(unittest.TestCase):
             with self.subTest(mode=mode, trend_id=trend_id), self.assertRaises(ValueError):
                 make_recipe(job_id="character_malformed", direction="an original performer", mode=mode,
                             trend_id=trend_id, selections={}, sampler_seed=1, upsampler_seed=2,
+                            upsampler=True)
+
+    def test_ordinary_prose_with_a_colon_is_not_mistaken_for_a_windows_path(self):
+        """A bare `[A-Za-z]:` check refused any sentence containing 'word:' — including every
+        shuffle proposal, which made generation impossible with a 422."""
+        for direction in ("An original character: a locksmith with a blunt bowl cut",
+                          "An original character: a lighthouse keeper, deeply unimpressed"):
+            with self.subTest(direction=direction):
+                recipe = make_recipe(job_id="character_prose", direction=direction, mode="portrait",
+                                     trend_id="original", selections={}, sampler_seed=1,
+                                     upsampler_seed=2, upsampler=True)
+                self.assertIn(direction, recipe["resolved_request"])
+        for direction in ("C:/Users/a/secret.txt", "C:\\Users\\a\\secret.txt",
+                          "read /etc/passwd now", "relative/secret.txt", "../escape"):
+            with self.subTest(direction=direction), self.assertRaises(ValueError):
+                make_recipe(job_id="character_path", direction=direction, mode="portrait",
+                            trend_id="original", selections={}, sampler_seed=1, upsampler_seed=2,
                             upsampler=True)
 
     def test_free_text_axes_remain_open_but_the_trend_id_is_controlled(self):

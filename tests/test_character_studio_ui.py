@@ -50,15 +50,30 @@ class CharacterStudioUITests(unittest.TestCase):
         self.assertNotIn("<style>", self.page, "the page must use the shared stylesheet, not inline CSS")
         self.assertNotIn("style=", self.page)
 
-    def test_optional_axes_are_editable_fields_not_a_lock_toggle(self):
+    def test_optional_control_is_collapsed_and_reveals_one_axis_at_a_time(self):
+        """Density was the failure: every axis and option on screen at once. The picker stays a
+        single small row and opening an axis reveals only that axis."""
         self.assertNotIn("🔒", self.page + self.js)
         self.assertNotIn("padlock", (self.page + self.js).lower())
-        self.assertNotRegex(self.css, r"aria-pressed|\.locked|\.is-locked")
+        self.assertNotRegex(self.css, r"\.locked|\.is-locked")
+        # One host for the options, not one container per axis.
+        self.assertEqual(self.js.count('$("#axis-options")'), 1)
+        self.assertIn("optionsHost.replaceChildren()", self.js)
+        self.assertIn("openAxis === key ? null : key", self.js, "clicking the open axis must close it")
+        # Collapsed by default: a closed <details> with no `open` attribute.
+        details = re.search(r"<details[^>]*class=\"optional-block\"[^>]*>", self.page)
+        self.assertIsNotNone(details, "the optional control must be a native disclosure")
+        self.assertNotIn(" open", details.group(0))
         for axis in ("being", "build", "skin_tone", "hair", "face", "outfit", "role", "era",
                      "accessory", "absurdity"):
-            self.assertIn(f'"{axis}"', self.js, f"{axis} must be part of the optional control vocabulary")
-        self.assertIn('input.placeholder = "model decides"', self.js)
-        self.assertIn('input.type = "text"', self.js)
+            self.assertIn(f'"{axis}"', self.js, f"{axis} must be part of the optional vocabulary")
+        # A chip is a selection, and selecting it again clears it — never a lock.
+        self.assertIn("axisValues.get(openAxis) === choice ? \"\" : choice", self.js)
+        self.assertIn('input.type = "text"', self.js, "a custom value must stay possible")
+        # Density guard: setting `display` on a child of <details> overrides the UA rule that hides
+        # a closed panel, so the collapsed state must re-hide its content explicitly.
+        self.assertIn(".optional-block:not([open]) > :not(summary) { display: none; }", self.css,
+                      "a closed optional panel must actually hide its controls")
 
     def test_payload_reaches_the_api_with_the_expected_contract(self):
         for key in ("direction", "mode", "trend_id", "selections", "sampler_seed", "upsampler_seed",
@@ -91,8 +106,11 @@ class CharacterStudioUITests(unittest.TestCase):
         self.assertIn("directionField.value", self.js)
         self.assertIn('$("#shuffle").addEventListener("click", shuffle)', self.js)
         self.assertIn("clearAxes", self.js)
-        shuffle_body = self.js[self.js.index("function shuffle()"):self.js.index("function clearAxes()")]
+        start = self.js.index("function shuffle()")
+        end = self.js.index("/* ----", start)
+        shuffle_body = self.js[start:end]
         self.assertNotIn("fetch(", shuffle_body, "shuffle must never call the server")
+        self.assertIn("buildDirection()", shuffle_body)
 
     def test_turnaround_wording_never_sends_character_sheet(self):
         self.assertIn("/character sheet/i.test(direction)", self.js)

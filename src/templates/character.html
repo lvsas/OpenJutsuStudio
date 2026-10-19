@@ -64,10 +64,14 @@
             <p class="microcopy" id="mode-hint">One shareable studio photograph.</p>
           </fieldset>
 
-          <fieldset class="recipe-step" id="axes-step">
-            <legend><span>02</span> Optional control <small>leave blank and the model decides</small></legend>
-            <div class="axes" id="axes"></div>
-          </fieldset>
+          <details class="optional-block" id="steer">
+            <summary>
+              <span class="optional-label">Steer it</span>
+              <small>optional — leave blank and the model decides</small>
+            </summary>
+            <div class="axis-picker" id="axis-picker"></div>
+            <div class="axis-options" id="axis-options"></div>
+          </details>
 
           <div class="character-actions">
             <button type="submit" class="btn btn-primary" id="generate">Generate character</button>
@@ -83,7 +87,10 @@
             <p class="eyebrow">Results</p>
             <h2>Your characters</h2>
           </div>
-          <span class="stage-meta" id="job-count">No jobs yet</span>
+          <div class="stage-actions">
+            <span class="stage-meta" id="job-count">No jobs yet</span>
+            <button type="button" class="btn btn-ghost btn-small" id="clear-jobs">Clear</button>
+          </div>
         </header>
         <div id="jobs" class="job-list" aria-live="polite"></div>
       </section>

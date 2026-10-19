@@ -1,33 +1,118 @@
 /* Viral Character Maker — shares the studio shell, adds only the Character-specific parts. */
 
-[data-engine="characters"] .studio-grid { grid-template-columns: minmax(20rem, .85fr) minmax(26rem, 1.15fr); }
+[data-engine="characters"] .studio-grid { grid-template-columns: minmax(21rem, .9fr) minmax(24rem, 1.1fr); }
 [data-engine="characters"] .recipe-step { display: grid; gap: var(--space-3); }
 [data-engine="characters"] .recipe-step > label { display: block; }
 
 .character-row { display: grid; gap: var(--space-3); grid-template-columns: 1fr 1fr; }
 
-[data-engine="characters"] .text-input { appearance: none; }
-[data-engine="characters"] select.text-input { background-image: none; }
+[data-engine="characters"] select.text-input { appearance: none; }
 
-/* --- optional identity control: suggestions, never locks --- */
+/* --- optional control: collapsed by default, one axis open at a time --- */
 
-.axes { display: grid; gap: var(--space-2); grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); }
-.axes .axis { display: grid; gap: .25rem; }
-.axes .axis > span { color: var(--subtle); font-size: .72rem; font-weight: 720; letter-spacing: .04em; }
-.axes .axis input { min-height: 2.35rem; padding: .5rem .6rem; font-size: .86rem; }
-.axes .axis input:not(:placeholder-shown) { border-color: var(--accent-line); color: var(--accent-light); }
-.axes .axis input:placeholder-shown { color: var(--subtle); }
+.optional-block {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+.optional-block > summary {
+  align-items: baseline;
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  list-style: none;
+}
+.optional-block > summary::-webkit-details-marker { display: none; }
+.optional-block > summary::before { color: var(--accent); content: "＋"; font-weight: 800; }
+.optional-block[open] > summary::before { content: "−"; }
+.optional-label { color: var(--text); font-size: .88rem; font-weight: 720; }
+.optional-block > summary small { color: var(--subtle); font-size: .74rem; }
+
+/* A UA stylesheet hides the content of a closed <details> via `display: none`. Setting `display`
+   on a child (`.axis-picker { display: flex }`) overrides that UA rule, so the collapsed block
+   stayed on screen and the density never dropped. Re-hide it explicitly; author rules set the
+   layout again only once the block is open. */
+.optional-block:not([open]) > :not(summary) { display: none; }
+.optional-block[open] .axis-picker { display: flex; }
+
+.axis-picker { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: var(--space-3); }
+.axis-name {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: .74rem;
+  padding: .28rem .55rem;
+}
+.axis-name:hover { border-color: var(--accent-line); color: var(--text); }
+.axis-name[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-light); }
+.axis-name[data-open="true"] { background: var(--surface-raised); color: var(--text); }
+
+.axis-options { margin-top: var(--space-3); }
+.axis-options .microcopy { margin: 0; }
+
+.axis-chips { display: flex; flex-wrap: wrap; gap: .3rem; }
+
+.chip {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: .76rem;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: .32rem .6rem;
+  text-align: left;
+  transition: border var(--transition), background var(--transition), color var(--transition);
+}
+.chip:hover { border-color: var(--accent-line); color: var(--text); }
+.chip[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 720;
+}
+
+.axis-input {
+  background: transparent;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  color: var(--text);
+  flex: 1 1 9rem;
+  font-size: .76rem;
+  min-width: 0;
+  padding: .32rem .6rem;
+}
+.axis-input::placeholder { color: var(--subtle); }
+.axis-input:focus {
+  border-color: var(--accent);
+  border-style: solid;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  outline: 0;
+}
 
 .character-actions { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .character-actions .btn-primary { flex: 1 1 14rem; }
 .form-error { color: var(--danger); margin: 0; }
 
-/* --- job cards: one per request, always independent --- */
+/* --- job cards: one per request; newest large, older ones compact enough to scan --- */
 
+.stage-header .stage-actions { align-items: center; display: flex; gap: var(--space-2); }
 .job-list { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
-.job-card { background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-md); display: grid; gap: var(--space-2); padding: var(--space-4); }
+
+.job-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
 .job-card[data-state="done"] { border-color: var(--accent-card-line); }
 .job-card[data-state="error"] { border-color: rgba(255, 142, 150, .38); }
+
 .job-head { align-items: center; display: flex; gap: var(--space-2); justify-content: space-between; }
 .job-state { color: var(--subtle); font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .job-card[data-state="running"] .job-state,
@@ -36,9 +121,10 @@
 .job-card[data-state="error"] .job-state,
 .job-card[data-state="offline"] .job-state { color: var(--danger); }
 .job-step { color: var(--subtle); font-size: .74rem; }
+
 .job-body { display: grid; gap: var(--space-2); }
 .job-direction { color: var(--muted); font-size: .82rem; line-height: 1.45; margin: 0; }
-.job-image { background: var(--surface-soft); border-radius: var(--radius-sm); display: block; max-width: 100%; width: 100%; }
+.job-image { background: var(--surface-soft); border-radius: var(--radius-sm); display: block; width: 100%; }
 .job-download { color: var(--accent); font-size: .78rem; font-weight: 720; text-decoration: none; }
 .job-download:hover { text-decoration: underline; }
 .job-caption { border-top: 1px solid var(--line); color: var(--muted); font-size: .8rem; padding-top: var(--space-2); }
@@ -46,8 +132,35 @@
 .job-caption p { line-height: 1.5; margin: var(--space-2) 0 0; }
 .job-error { color: var(--danger); font-size: .82rem; margin: 0; }
 
+/* A finished job that is no longer newest collapses to a small preview row. */
+.job-card[data-density="compact"] {
+  align-items: center;
+  column-gap: var(--space-3);
+  grid-template-columns: 4.5rem 1fr;
+  padding: var(--space-2) var(--space-3);
+}
+.job-card[data-density="compact"] .job-body {
+  align-items: center;
+  display: grid;
+  gap: .2rem;
+  grid-column: 2;
+  grid-row: 1;
+}
+.job-card[data-density="compact"] .job-image { grid-column: 1; grid-row: 1 / span 2; width: 4.5rem; }
+.job-card[data-density="compact"] .job-head { grid-column: 2; grid-row: 2; }
+.job-card[data-density="compact"] .job-direction {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  display: -webkit-box;
+  font-size: .76rem;
+  overflow: hidden;
+}
+.job-card[data-density="compact"] .job-caption,
+.job-card[data-density="compact"] .job-download { display: none; }
+
 @media (max-width: 640px) {
   [data-engine="characters"] .studio-grid { grid-template-columns: 1fr; }
   .character-row { grid-template-columns: 1fr; }
-  .axes { grid-template-columns: 1fr 1fr; }
+  .job-card[data-density="compact"] { grid-template-columns: 3.5rem 1fr; }
+  .job-card[data-density="compact"] .job-image { width: 3.5rem; }
 }

@@ -152,6 +152,22 @@ class SDKTransportTests(unittest.TestCase):
             self.assertFalse(root.exists())
             self.assertFalse(list(root.parent.glob(f".{root.name}.*.part")))
 
+    def test_multi_artifact_callback_failure_cleans_unpublished_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "job"
+            client = MagicMock()
+            output = MagicMock()
+            output.name = "image.png"
+            output.to_file.side_effect = lambda dest: Path(dest).write_bytes(b"image")
+            client.run.return_value.get_outputs.return_value = [output]
+            with self.assertRaisesRegex(RuntimeError, "persistence failed"):
+                transport._run_graph_artifacts(
+                    client, {}, {"image": ("9", {".png"})}, root,
+                    on_progress=lambda state: (_ for _ in ()).throw(RuntimeError("persistence failed")),
+                )
+            self.assertFalse(root.exists())
+            self.assertFalse(list(root.parent.glob(f".{root.name}.*.part")))
+
     def test_multi_artifact_transport_uses_exact_nodes_and_commits_together(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "job"

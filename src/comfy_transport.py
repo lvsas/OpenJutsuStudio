@@ -125,11 +125,11 @@ def _run_graph_artifacts(client, graph: dict, requested: dict[str, tuple[str, se
             finally:
                 partial.unlink(missing_ok=True)
             staged[role] = destination
-        _publish_directory(staging, root)
-        published = True
         artifacts = {role: root / path.name for role, path in staged.items()}
         if on_progress:
             on_progress("downloaded")
+        _publish_directory(staging, root)
+        published = True
         return artifacts
     finally:
         if not published:

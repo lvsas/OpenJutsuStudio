@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en" data-engine="characters">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Viral Character Maker — OpenGenjutsu</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/character.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="wordmark" href="/" aria-label="OpenGenjutsu home">OPEN<span>GENJUTSU</span></a>
+    <nav class="engine-switch" aria-label="Product stage">
+      <a class="engine-chip active" href="/characters" aria-current="page">Characters</a>
+      <a class="engine-chip" href="/">LTX <span>Studio</span></a>
+      <a class="engine-chip" href="/h3">H3 <span>Studio</span></a>
+    </nav>
+    <div id="readiness" class="badge" role="status" aria-live="polite">Checking local studio…</div>
+  </header>
+
+  <main class="studio-shell">
+    <section class="studio-intro">
+      <p class="eyebrow">Stage 01 · Characters</p>
+      <h1>Viral<br><em>Character Maker</em></h1>
+      <p>Shuffle until something absurd appears, edit it if you want, then generate. Every character is
+        an original studio photograph you can carry into either studio as a reference.</p>
+    </section>
+
+    <div class="studio-grid">
+      <section class="recipe-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Direction</p>
+            <h2>Propose a character</h2>
+          </div>
+          <button type="button" class="btn btn-ghost btn-small" id="shuffle">Shuffle</button>
+        </div>
+
+        <form id="character-form">
+          <fieldset class="recipe-step">
+            <legend><span>01</span> What to make <small>editable — shuffle proposes, you decide</small></legend>
+            <label>
+              <span class="field-label">Direction</span>
+              <textarea id="direction" name="direction" class="text-input textarea" rows="5" maxlength="2000" required
+                        placeholder="An original heavyweight beekeeper with a deliberately blunt bowl cut…"></textarea>
+            </label>
+            <div class="character-row">
+              <label>
+                <span class="field-label">Output</span>
+                <select id="mode" name="mode" class="text-input">
+                  <option value="portrait">Portrait · 3:4</option>
+                  <option value="turnaround">Turnaround · 16:9</option>
+                </select>
+              </label>
+              <label>
+                <span class="field-label">Prompt upsampler</span>
+                <select id="upsampler" name="upsampler" class="text-input">
+                  <option value="on">On — a richer caption</option>
+                  <option value="off">Off — the wording exactly</option>
+                </select>
+              </label>
+            </div>
+            <p class="microcopy" id="mode-hint">One shareable studio photograph.</p>
+          </fieldset>
+
+          <fieldset class="recipe-step" id="axes-step">
+            <legend><span>02</span> Optional control <small>leave blank and the model decides</small></legend>
+            <div class="axes" id="axes"></div>
+          </fieldset>
+
+          <div class="character-actions">
+            <button type="submit" class="btn btn-primary" id="generate">Generate character</button>
+            <button type="button" class="btn btn-ghost btn-small" id="clear-axes">Clear optional control</button>
+          </div>
+          <p class="microcopy form-error" id="form-error" role="alert" hidden></p>
+        </form>
+      </section>
+
+      <section class="studio-stage">
+        <header class="stage-header">
+          <div>
+            <p class="eyebrow">Results</p>
+            <h2>Your characters</h2>
+          </div>
+          <span class="stage-meta" id="job-count">No jobs yet</span>
+        </header>
+        <div id="jobs" class="job-list" aria-live="polite"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/static/character.js"></script>
+</body>
+</html>

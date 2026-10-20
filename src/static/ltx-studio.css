@@ -1,0 +1,14 @@
+/* LTX-only theme: the shared lime stays with the Character Generator.
+   Mirrors h3-studio.css so each surface owns exactly one accent. */
+html[data-engine="ltx"] {
+  --accent: #22d3ee;
+  --accent-ink: #00161c;
+  --accent-soft: rgba(34, 211, 238, .13);
+  --accent-line: rgba(34, 211, 238, .28);
+  --accent-card-line: rgba(34, 211, 238, .35);
+  --accent-glow: rgba(34, 211, 238, .25);
+  --accent-glow-strong: rgba(34, 211, 238, .6);
+  --accent-light: #b5f4ff;
+  --accent-deep: #0d6d7d;
+}
+[data-engine="ltx"] a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

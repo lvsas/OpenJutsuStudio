@@ -182,6 +182,33 @@ class CharacterStudioUITests(unittest.TestCase):
                             self.assertIn("var(--", css,
                                           f"{sheet} consumes studio tokens and needs the token sheet")
 
+    def test_each_surface_owns_one_distinct_accent(self):
+        """Three surfaces, three accents: the shared lime belongs to the Character Generator.
+
+        LTX and the character stage previously resolved to the same lime, so nothing on screen
+        said which studio you were in. Each studio sheet now overrides the token for its own
+        ``data-engine`` scope, and the shared sheet keeps the default the generator uses.
+        """
+        shared = (SRC / "static" / "design-system.css").read_text()
+        self.assertIn("--accent: #d8ff3e", shared, "the shared default stays the generator's lime")
+        for name, markup in (("index.html", self.index), ("h3.html", self.h3),
+                             ("character.html", self.page)):
+            with self.subTest(page=name):
+                self.assertIn("design-system.css", markup)
+        scoped = {"ltx": "#22d3ee", "h3": "#ff4f2e"}
+        for engine, accent in scoped.items():
+            with self.subTest(engine=engine):
+                sheet = (SRC / "static" / f"{engine}-studio.css").read_text()
+                self.assertIn(f'html[data-engine="{engine}"]', sheet)
+                self.assertIn(f"--accent: {accent}", sheet)
+                markup = self.index if engine == "ltx" else self.h3
+                self.assertIn(f'href="/static/{engine}-studio.css"', markup)
+                # The override must load after the shared tokens and the shell it adjusts.
+                self.assertLess(markup.find("design-system.css"), markup.find(f"{engine}-studio.css"))
+                self.assertLess(markup.find("app.css"), markup.find(f"{engine}-studio.css"))
+        self.assertNotIn("--accent:", (SRC / "static" / "character.css").read_text(),
+                         "the generator must keep inheriting the shared lime, not fork it")
+
     def test_served_page_and_assets_resolve(self):
         with patch.dict(os.environ, {}, clear=True), patch.object(
                 character_studio_app, "_character_readiness",

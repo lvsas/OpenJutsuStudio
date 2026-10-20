@@ -9,29 +9,7 @@ from pathlib import Path
 from config import WORK
 
 from scenes import detect_scenes
-
-
-def ffprobe(path: str | Path) -> dict:
-    """Count decoded frames; WebM/MKV often omit nb_frames and stream duration."""
-    from fractions import Fraction
-    result = subprocess.run(
-        ["ffprobe", "-v", "error", "-count_frames", "-select_streams", "v:0",
-         "-show_entries", "stream=width,height,nb_read_frames,avg_frame_rate,r_frame_rate,duration:format=duration",
-         "-of", "json", str(path)], capture_output=True, text=True, check=True, timeout=180)
-    data = json.loads(result.stdout)
-    if not data.get("streams"):
-        raise ValueError("No video stream")
-    stream = data["streams"][0]
-    rate = stream.get("avg_frame_rate")
-    if not rate or rate == "0/0":
-        rate = stream.get("r_frame_rate", "0/1")
-    fps = float(Fraction(rate))
-    count = int(stream.get("nb_read_frames") or 0)
-    if fps <= 0 or count <= 0:
-        raise ValueError("Cannot determine video frame count or frame rate")
-    duration = stream.get("duration") or data.get("format", {}).get("duration")
-    return {"width": int(stream["width"]), "height": int(stream["height"]),
-            "fps": fps, "frames": count, "duration": float(duration or count / fps)}
+from media_probe import ffprobe  # Compatibility export; pure probe has no app-config side effects.
 
 
 def extract_first_frame(video: Path, dest: Path) -> Path:

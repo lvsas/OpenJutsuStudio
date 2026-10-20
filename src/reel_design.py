@@ -59,6 +59,16 @@ GLOW_RADIUS = 416          # 26rem
 GLOW_TIGHT_RADIUS = 168
 FRAME_RADIUS = 28          # --radius-md at this canvas scale
 
+# Social candidate only: leave the established stacked/wipe layouts unchanged.
+SOCIAL = {
+    "masthead_y": 82,
+    "reality": {"y": 346, "size": 104},
+    "swap": {"y": 446, "size": 112, "reveal_lift": 8},
+    "subtitle": {"y": 574, "size": 22},
+    "passport": {"x": 120, "y": 1345, "width": 840, "height": 190,
+                 "size": 38, "text": "YOUR CHARACTER. YOUR MOMENT."},
+}
+
 
 def _first_existing(candidates):
     for path in candidates:
@@ -133,6 +143,32 @@ def _background(width, height, accent, soft, glow, small=(270, 480)):
     return pixels, small
 
 
+def _passport_card(width, height, accent):
+    """Alpha artwork for a collectible Take Passport card, matching the studio's surface tokens."""
+    outer = _rounded_mask(width, height, 24)
+    inset = _inset_coverage(width, height, 24, inset=2)
+    rgba = bytearray()
+    for y in range(height):
+        for x in range(width):
+            i = y * width + x
+            coverage = outer[i]
+            if not coverage:
+                rgba.extend((0, 0, 0, 0))
+                continue
+            border = coverage > inset[i]
+            if x < 6:
+                colour = accent
+            elif border:
+                colour = accent
+            elif y < 3:
+                colour = _blend(BASE["surface"], accent, 0.20)
+            else:
+                colour = BASE["surface"]
+            alpha = int(round(242 * coverage / 255))
+            rgba.extend((*colour, alpha))
+    return rgba
+
+
 def ensure_assets(cache_dir, engine, labels=("SOURCE", "SWAP"), label_ink=None,
                   label_size=30, band=(992, 558)):
     """Generate the static artwork for one engine, once, and return the paths.
@@ -201,6 +237,13 @@ def ensure_assets(cache_dir, engine, labels=("SOURCE", "SWAP"), label_ink=None,
             _write_pam_rgba(pam, width, height, rgba)
             _to_png(pam, chip)
             values[f"chip_{name.lower()}"] = chip
+    ticket = cache_dir / f"reel-passport-ticket-v1-{engine}.png"
+    if not ticket.is_file():
+        width, height = SOCIAL["passport"]["width"], SOCIAL["passport"]["height"]
+        pam = cache_dir / f"reel-passport-ticket-v1-{engine}.pam"
+        _write_pam_rgba(pam, width, height, _passport_card(width, height, palette["accent"]))
+        _to_png(pam, ticket)
+    values["passport_ticket"] = ticket
     return values
 
 

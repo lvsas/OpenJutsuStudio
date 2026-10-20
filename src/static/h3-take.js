@@ -1,8 +1,8 @@
-import {byId, validId, jobURL, h3URL, request, revealURL, setStage, loadStageMedia} from './h3-http.js';
+import {byId, validId, jobURL, h3URL, request, loadStageMedia} from './h3-http.js';
 const STORAGE_KEY = 'opengenjutsu.h3.current-job';
 const TERMINAL = new Set(['done', 'error', 'failed', 'cancelled']);
-// Grounded in the frozen recipe: this studio runs MiniMax H3 with its Character Swap LoRA.
-const CAPTION = 'Made with OpenGenjutsu — an open-source local video transformation studio, recast with MiniMax H3 and its Character Swap LoRA.';
+const COMPLETED_KEY = 'opengenjutsu.h3.completed-job';
+const CAPTION = 'Same moment. New character. Made with OpenGenjutsu. #OpenGenjutsu #CharacterSwap';
 
 function saveCapsule(capsule, id) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(capsule, null, 2)], {type: 'application/json'}));
@@ -24,23 +24,58 @@ export class H3Take {
     this.onStage = onStage;
     this.epoch = 0;
     this.active = false;
+    this.lastCompletedId = this.storage(undefined, COMPLETED_KEY);
+    if (!validId(this.lastCompletedId)) this.lastCompletedId = null;
+    byId('return-last').addEventListener('click', () => this.restoreCompleted());
     byId('save-capsule').addEventListener('click', () => { if (this.capsule) saveCapsule(this.capsule, this.id); });
     byId('replay').addEventListener('click', () => this.replay());
     // Shared result actions: the same generic comparison-reel contract LTX uses.
     byId('build-reel').addEventListener('click', () => this.reel());
     byId('copy-caption').addEventListener('click', () => this.copyCaption());
   }
-  storage(id) {
+  storage(id, key = STORAGE_KEY) {
     try {
-      if (id) localStorage.setItem(STORAGE_KEY, id);
-      else localStorage.removeItem(STORAGE_KEY);
+      if (id === undefined) return localStorage.getItem(key);
+      if (id) localStorage.setItem(key, id);
+      else localStorage.removeItem(key);
     } catch { /* Status still works when browser persistence is unavailable. */ }
   }
+  returnAffordance() {
+    byId('return-last').hidden = !this.lastCompletedId || !byId('result-actions').hidden;
+    byId('return-last').disabled = this.active;
+  }
   resume() {
-    let id = this.id;
-    try { id ||= localStorage.getItem(STORAGE_KEY); } catch { /* Private browser. */ }
+    const id = this.id || this.storage();
     if (validId(id)) this.watch(id);
-    else if (id) this.storage(null);
+    else { this.storage(null); this.restoreCompleted(); }
+    this.returnAffordance();
+  }
+  validate(job, id) {
+    if (job.engine !== 'minimax-h3' || job.id !== id) throw new Error('The saved job is not an H3 take.');
+    if (!['queued', 'running', ...TERMINAL].includes(job.status)) throw new Error('Unknown H3 job state.');
+    if (job.status === 'done' && job.result_url !== jobURL(id, '/result')) throw new Error('This take has no available result.');
+  }
+  async resultAvailable(job) {
+    const response = await fetch(job.result_url, {headers: {Range: 'bytes=0-0'}, signal: AbortSignal.timeout(20000)});
+    await response.body?.cancel();
+    if (!response.ok) throw new Error('The saved result is no longer available.');
+  }
+  async restoreCompleted() {
+    const id = this.lastCompletedId;
+    if (!validId(id) || this.active) return;
+    const epoch = ++this.epoch;
+    try {
+      const job = await request(jobURL(id));
+      this.validate(job, id);
+      if (job.status !== 'done') throw new Error('The saved swap has no completed result.');
+      await this.resultAvailable(job);
+      if (epoch !== this.epoch) return;
+      this.id = id; this.job = job;
+      this.render(job);
+      await this.loadCapsule(epoch);
+    } catch (error) {
+      if (epoch === this.epoch) { toast(error.message); this.returnAffordance(); }
+    }
   }
   reset() {
     this.epoch += 1;
@@ -61,10 +96,12 @@ export class H3Take {
     byId('download').removeAttribute('href');
     byId('take-story').hidden = true;
     loadStageMedia('result', '');
+    this.returnAffordance();
   }
   setActive(active) {
     this.active = active;
     this.onActivity(active);
+    this.returnAffordance();
   }
   watch(id) {
     jobURL(id);
@@ -75,6 +112,7 @@ export class H3Take {
     this.clearResult();
     loadStageMedia('source', '');
     loadStageMedia('reference', '');
+    loadStageMedia('reference-2', '');
     this.storage(id);
     this.setActive(true);
     this.onStage?.('source');
@@ -85,24 +123,30 @@ export class H3Take {
     try {
       const job = await request(jobURL(this.id));
       if (epoch !== this.epoch) return;
-      if (job.engine !== 'minimax-h3' || job.id !== this.id) {
-        this.storage(null);
-        this.setActive(false);
-        throw new Error('The saved job is not an H3 take. Select H3 inputs to start a new take.');
+      try { this.validate(job, this.id); }
+      catch (error) { this.storage(null); this.setActive(false); byId('run-overlay').hidden = true; throw error; }
+      if (job.status === 'done') {
+        try { await this.resultAvailable(job); }
+        catch (error) {
+          if (epoch !== this.epoch) return;
+          this.storage(null); this.setActive(false); byId('run-overlay').hidden = true; throw error;
+        }
+        if (epoch !== this.epoch) return;
       }
-      if (!['queued', 'running', ...TERMINAL].includes(job.status)) throw new Error('Unknown H3 job state. Retry status.');
       this.job = job;
       this.render(job);
       if (TERMINAL.has(job.status)) {
         this.setActive(false);
-        // Align with LTX: a finished take is not restored after a refresh. Robust
-        // persistence is a separate design decision, not an accident of this key.
         this.storage(null);
         if (job.status === 'done') await this.loadCapsule(epoch);
       } else this.pollTimer = setTimeout(() => this.poll(epoch), 2000);
     } catch (error) {
       if (epoch !== this.epoch) return;
+      if (/^HTTP (404|410):/.test(error.message)) {
+        this.storage(null); this.setActive(false); byId('run-overlay').hidden = true;
+      }
       toast(`${error.message} A disconnected request does not stop a job.`);
+      if (this.active) this.pollTimer = setTimeout(() => this.poll(epoch), 3000);
     }
   }
   render(job) {
@@ -113,10 +157,14 @@ export class H3Take {
     loadStageMedia('source', h3URL(job.id, '/source'));
     loadStageMedia('reference', h3URL(job.id, '/reference'));
     if (job.status === 'done') {
+      this.lastCompletedId = job.id;
+      this.storage(job.id, COMPLETED_KEY);
       loadStageMedia('result', jobURL(job.id, '/result'));
-      byId('download').href = jobURL(job.id, '/result');
+      byId('download').href = `${job.result_url}?download=true`;
       byId('result-actions').hidden = false;
       byId('build-reel').disabled = false;
+      byId('completion-more').open = byId('take-inspection').open = false;
+      this.returnAffordance();
       // Same as LTX: the capsule describes a take, so it appears with the take.
       byId('take-story').hidden = false;
       this.onStage?.('result');
@@ -132,7 +180,7 @@ export class H3Take {
       // A reopened take shows every reference it consumed, not just the first.
       if (capsule.recipe.reference_count > 1) {
         loadStageMedia('reference-2', h3URL(this.id, '/reference/1'));
-      }
+      } else loadStageMedia('reference-2', '');
       byId('capsule-manifest').textContent = JSON.stringify(capsule, null, 2);
       byId('capsule-details').hidden = false;
       byId('save-capsule').disabled = false;
@@ -151,33 +199,25 @@ export class H3Take {
       byId('capsule-status').textContent = 'Clipboard access was unavailable. Copy the caption manually.';
     }
   }
-  async reel() {
-    if (!validId(this.id)) return;
-    byId('build-reel').disabled = true;
-    byId('build-reel').textContent = 'Building reel…';
-    try {
-      const payload = await request(revealURL(this.id), {method: 'POST'});
-      const link = document.createElement('a');
-      link.href = `${payload.reveal_url}?download=true`;
-      link.download = `opengenjutsu-h3-${this.id}-comparison.mp4`;
-      link.click();
-      byId('capsule-status').textContent = 'Your local 9:16 comparison reel is downloading.';
-    } catch (error) {
-      byId('capsule-status').textContent = error.message;
-    } finally {
-      byId('build-reel').disabled = !this.job || this.job.status !== 'done';
-      byId('build-reel').textContent = 'Build comparison reel';
-    }
+  reel() {
+    if (!validId(this.id) || this.job?.status !== 'done' || byId('result-actions').hidden) return;
+    if (!window.OpenGenjutsuShare?.open) return toast('Share preview is unavailable. Reload the studio to retry.');
+    window.OpenGenjutsuShare.open({jobId: this.id, resultUrl: this.job.result_url, returnFocus: byId('build-reel'), caption: CAPTION});
   }
   async replay() {
     if (!this.capsule || this.active) return;
+    const epoch = ++this.epoch;
     this.setActive(true);
     byId('replay').disabled = true;
     try {
-      if (!await this.checkReady()) throw new Error('H3 is not ready. Resolve the availability notes above.');
+      const ready = await this.checkReady();
+      if (epoch !== this.epoch) return;
+      if (!ready) throw new Error('H3 is not ready. Resolve the availability notes above.');
       const response = await request(h3URL(this.id, '/replay'), {method: 'POST'});
+      if (epoch !== this.epoch) return;
       this.watch(response.job_id);
     } catch (error) {
+      if (epoch !== this.epoch) return;
       byId('capsule-status').textContent = `Replay not started: ${error.message}`;
       this.setActive(false);
       byId('replay').disabled = !this.ready;

@@ -31,7 +31,8 @@ class ResultTests(unittest.TestCase):
 
     def test_completed_job_builds_and_downloads_local_comparison_reel(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(app.core, "WORK", Path(tmp)), \
-                patch.object(app, "MEDIA_DIR", Path(tmp) / "media"):
+                patch.object(app, "MEDIA_DIR", Path(tmp) / "media"), \
+                patch("output_media.REEL_ASSET_DIR", Path(tmp) / "artwork"):
             root = Path(tmp)
             source, result = root / "source.mp4", root / "result.mp4"
             for path, color in ((source, "navy"), (result, "teal")):
@@ -43,7 +44,10 @@ class ResultTests(unittest.TestCase):
             client = TestClient(app.app)
             created = client.post("/api/jobs/reveal-job/reveal")
             self.assertEqual(created.status_code, 200, created.text)
-            self.assertEqual(created.json()["reveal_url"], "/api/jobs/reveal-job/reveal")
+            self.assertEqual(created.json()["status"], "ready")
+            self.assertEqual(created.json()["layout"], "wipe")
+            self.assertEqual(created.json()["reveal_url"], created.json()["preview_url"])
+            self.assertIn("/reels/", created.json()["reveal_url"])
             downloaded = client.get(created.json()["reveal_url"] + "?download=true")
             self.assertEqual(downloaded.status_code, 200)
             self.assertTrue(downloaded.headers["content-disposition"].startswith("attachment;"))

@@ -28,6 +28,10 @@
 
   function render(job) {
     anchors = Array.isArray(job.anchor_frames) ? job.anchor_frames : [];
+    const references = job.meta?.references || (job.meta?.reference_image ? [{}] : []);
+    $('#take-reference-note').textContent = references.length
+      ? `${references.length} character reference${references.length > 1 ? 's' : ''} recorded with this take. Original reference files remain local.`
+      : 'No character reference recorded with this take.';
     story.hidden = false;
     source.src = job.source_url || '';
     result.src = job.result_url || '';

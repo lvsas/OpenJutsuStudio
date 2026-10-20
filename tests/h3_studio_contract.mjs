@@ -29,6 +29,8 @@ class Element {
 const elements = new Map();
 for (const match of html.matchAll(/<([\w-]+)\b([^>]*\bid="([^"]+)"[^>]*)>/g)) {
   const element = new Element(match[1].toUpperCase());
+  element.id = match[3];
+  element.dataset = {h3Stage: match[2].match(/data-h3-stage="([^"]+)"/)?.[1]};
   element.hidden = /\bhidden\b/.test(match[2]);
   element.disabled = /\bdisabled\b/.test(match[2]);
   element.value = match[2].match(/\bvalue="([^"]*)"/)?.[1] || '';
@@ -46,9 +48,11 @@ const resultActionsAt = html.indexOf('id="h3-result-actions"');
 assert.ok(html.indexOf('id="h3-source-summary"') > frameAt, 'source summary must follow the frame');
 assert.ok(html.indexOf('id="h3-take-story"') > resultActionsAt, 'capsule must sit inside result actions');
 const el = id => elements.get(`h3-${id}`);
-globalThis.document = {getElementById: id => elements.get(id), createElement: tag => new Element(tag.toUpperCase())};
+globalThis.document = {getElementById: id => elements.get(id), createElement: tag => new Element(tag.toUpperCase()),
+  querySelectorAll: selector => selector === '[data-h3-stage]' ? [...elements.values()].filter(e => e.dataset?.h3Stage) : []};
 const toasts = [];
-globalThis.window = {addEventListener() {}};
+const modalOpens = [];
+globalThis.window = {addEventListener() {}, OpenGenjutsuShare: {open: options => modalOpens.push(options)}};
 globalThis.window.OpenGenjutsuStudio = {showToast: (region, message, type) => toasts.push([region && region.id, message, type])};
 // The real shared progress renderer, exercised with the H3 id prefix.
 await import('../src/static/studio-progress.js');
@@ -78,8 +82,8 @@ await assert.rejects(request('/bad'), /HTTP 503/);
 handler = () => { throw Error('offline'); };
 await assert.rejects(request('/bad'), /Connection interrupted/);
 const id = 'a'.repeat(32), child = 'b'.repeat(32);
-const base = {id, engine: 'minimax-h3', created: 1000, started: 1010, finished: 1070};
-const capsule = {job_id: id, engine: 'minimax-h3', recipe: {original: '<img onerror=bad>'}};
+const base = {id, result_url: `/api/jobs/${id}/result`, engine: 'minimax-h3', created: 1000, started: 1010, finished: 1070};
+const capsule = {job_id: id, engine: 'minimax-h3', recipe: {reference_count: 2, original: '<img onerror=bad>'}};
 let job = {...base, status: 'queued', started: null, finished: null};
 handler = url => response(url.endsWith('/capsule') ? capsule : job);
 const take = new H3Take(() => {}, async () => true);
@@ -102,13 +106,32 @@ job = {...base, status: 'done', step: 'done', progress: 1};
 await take.poll(take.epoch);
 assert.equal(take.active, false);
 assert.equal(el('run-overlay').hidden, true);
-// Like LTX: a finished take is not restored by a later refresh.
+// Active tracking ends, but a separate completed key preserves the last success.
 assert.equal(store.has('opengenjutsu.h3.current-job'), false);
+assert.equal(store.get('opengenjutsu.h3.completed-job'), id);
 assert.match(el('run-title').textContent, /Your swap is ready/);
 assert.equal(el('result-preview').src, `/api/jobs/${id}/result`);
 assert.equal(el('result-actions').hidden, false);
 assert.match(el('capsule-manifest').textContent, /<img onerror=bad>/);
 assert.equal(el('replay').disabled, false);
+assert.equal(el('take-reference-2-preview').src, `/api/h3/jobs/${id}/reference/1`);
+const beforePreview = calls.length;
+await el('build-reel').click();
+assert.equal(calls.length, beforePreview, 'studio delegates preview without requesting a reel or downloading');
+assert.equal(modalOpens.at(-1).jobId, id);
+assert.equal(modalOpens.at(-1).resultUrl, base.result_url);
+assert.equal(modalOpens.at(-1).returnFocus, el('build-reel'));
+assert.match(modalOpens.at(-1).caption, /Same moment. New character/);
+const restored = new H3Take(() => {}, async () => true);
+restored.resume(); await settle();
+assert.equal(restored.id, id, 'refresh must restore a completed take');
+assert.equal(el('result-actions').hidden, false);
+restored.reset();
+assert.equal(el('return-last').hidden, false, 'reset preserves an obvious route back');
+assert.equal(store.get('opengenjutsu.h3.completed-job'), id);
+await restored.restoreCompleted();
+assert.equal(el('result-actions').hidden, false);
+
 handler = url => response(url.endsWith('/replay') ? {job_id: child} : {...base, id: child, status: 'queued'});
 await take.replay();
 await settle();
@@ -122,6 +145,8 @@ assert.equal(take.active, false);
 assert.match(el('status').textContent, /Input decode failed/);
 assert.match(toasts.at(-1)[1], /Input decode failed/);
 assert.equal(el('result-actions').hidden, true);
+assert.equal(store.get('opengenjutsu.h3.completed-job'), id, 'failed child cannot erase last success');
+assert.equal(el('return-last').hidden, false);
 handler = () => { throw Error('offline'); };
 take.watch(id);
 await settle();
@@ -133,6 +158,34 @@ store.set('opengenjutsu.h3.current-job', '../bad');
 take.resume();
 assert.equal(store.has('opengenjutsu.h3.current-job'), false);
 assert.equal(store.get('opengenjutsu.ltx.current-job'), child);
+await settle();
+// Old restoration cannot replace a newly selected source.
+let resolveOld;
+handler = () => new Promise(resolve => { resolveOld = resolve; });
+const late = new H3Take(() => {}, async () => true);
+late.resume(); late.reset();
+resolveOld(response({...base, status: 'done'})); await settle();
+assert.equal(el('result-actions').hidden, true);
+handler = () => response({...base, engine: 'ltx25-ripple', status: 'done'});
+await late.restoreCompleted();
+assert.equal(el('result-actions').hidden, true, 'wrong engine cannot restore');
+handler = () => response({...base, status: 'done', result_url: null});
+await late.restoreCompleted();
+assert.equal(el('result-actions').hidden, true, 'missing result cannot restore');
+assert.equal(store.get('opengenjutsu.h3.completed-job'), id);
+handler = () => response({detail:'Job not found'},404);
+late.watch(child); await settle();
+assert.equal(late.active, false, 'stale active id must not lock the last completed swap');
+assert.equal(el('return-last').disabled, false);
+store.delete('opengenjutsu.h3.completed-job');
+const storage = globalThis.localStorage;
+globalThis.localStorage = {getItem(){throw Error('blocked');},setItem(){throw Error('blocked');},removeItem(){throw Error('blocked');}};
+handler = url => response(url.endsWith('/capsule') ? capsule : {...base, status:'done'});
+const privateTake = new H3Take(() => {}, async () => true);
+privateTake.watch(id); await settle();
+assert.equal(el('result-actions').hidden, false, 'storage denial must not break generation');
+privateTake.reset(); globalThis.localStorage = storage;
+
 // Import the actual form controller and test exact multipart values and fail-closed readiness.
 const NativeFormData = globalThis.FormData;
 globalThis.FormData = class extends NativeFormData {
@@ -154,6 +207,12 @@ await import('../src/static/h3-studio.js');
 await settle();
 assert.equal(el('submit').disabled, true);
 assert.equal(el('readiness').textContent, 'Studio ready');
+el('take-reference-preview').src = 'first-reference.png';
+el('take-reference-2-preview').src = 'second-reference.png';
+el('take-reference-2-card').click();
+assert.equal(el('reference-preview').src, 'second-reference.png', 'inspection must select reference 2, not reference 1');
+el('take-reference-card').click();
+assert.equal(el('reference-preview').src, 'first-reference.png');
 // Warnings land in the panel notice line, exactly as in the LTX studio.
 assert.match(el('notices').textContent, /Queue is busy/);
 assert.equal(el('notices').hidden, false);

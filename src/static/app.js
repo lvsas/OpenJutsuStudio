@@ -26,6 +26,57 @@ let pollTimer = null;
 let submission = null;
 let sourceUrl = null;
 let completedJobId = null;
+let epoch = 0, submissionEpoch = 0;
+const validId = id => typeof id === 'string' && /^[a-f0-9]{32}$/.test(id);
+const historyKey = kind => `opengenjutsu.ltx.${kind}-job`;
+function history(kind, value) {
+  try {
+    if (value === undefined) return localStorage.getItem(historyKey(kind));
+    if (value) localStorage.setItem(historyKey(kind), value);
+    else localStorage.removeItem(historyKey(kind));
+  } catch { /* Generation still works without browser storage. */ }
+}
+let lastCompletedId = history('completed');
+if (!validId(lastCompletedId)) lastCompletedId = null;
+function returnAffordance() {
+  $('#return-last').hidden = !lastCompletedId || !resultActions.hidden;
+  $('#return-last').disabled = Boolean(activeJob);
+}
+function detachTracking() {
+  epoch += 1;
+  window.clearTimeout(pollTimer);
+  activeJob = null;
+  history('current', null);
+  runOverlay.hidden = true;
+}
+function validJob(job, id) {
+  if (!validId(id) || job.id !== id || job.engine !== 'ltx25-ripple') throw new Error('This is not a valid saved LTX swap.');
+  if (!['queued', 'running', 'done', 'error', 'failed', 'cancelled'].includes(job.status)) throw new Error('Unknown swap state.');
+  if (job.status === 'done' && job.result_url !== `/api/jobs/${id}/result`) throw new Error('The completed result is unavailable.');
+}
+async function readJob(id) {
+  if (!validId(id)) throw new Error('Invalid swap identifier.');
+  const response = await fetch(`/api/jobs/${id}`);
+  const job = await response.json();
+  if (!response.ok) throw new Error(job.detail || 'Swap not found.');
+  validJob(job, id);
+  return job;
+}
+async function restoreCompleted() {
+  const id = lastCompletedId;
+  if (!validId(id) || activeJob) return;
+  const current = ++epoch;
+  try {
+    const job = await readJob(id);
+    if (job.status !== 'done') throw new Error('The saved swap has no completed result.');
+    const media = await fetch(job.result_url, { headers: { Range: 'bytes=0-0' } });
+    await media.body?.cancel();
+    if (!media.ok) throw new Error('The saved result is no longer available.');
+    if (current === epoch) showResult(job);
+  } catch (error) {
+    if (current === epoch) { showToast(error.message, 'error'); returnAffordance(); }
+  }
+}
 
 function setStage(mode) {
   stageEmpty.hidden = mode !== 'empty';
@@ -53,10 +104,12 @@ function renderSourceMetadata() {
 function previewSource() {
   const file = videoInput.files[0];
   if (!file) return;
+  detachTracking();
   sourceUrl = replaceObjectUrl(sourceUrl, file);
   sourcePreview.src = sourceUrl;
   renderSourceMetadata();
   resultActions.hidden = true;
+  returnAffordance();
   setStage('source');
   submission?.refresh();
 }
@@ -64,13 +117,17 @@ function previewSource() {
 const updateProgress = (job) => window.OpenGenjutsuStudio.renderProgress(job);
 
 function showResult(job) {
-  completedJobId = job.id;
+  completedJobId = lastCompletedId = job.id;
+  history('completed', job.id);
   if (job.source_url) sourcePreview.src = job.source_url;
   resultVideo.src = job.result_url;
   downloadResult.href = `${job.result_url}?download=true`;
   buildReelButton.disabled = false;
   runOverlay.hidden = true;
   resultActions.hidden = false;
+  returnAffordance();
+  $('#completion-more').open = false;
+  $('#take-inspection').open = false;
   window.dispatchEvent(new CustomEvent('opengenjutsu:take-ready', { detail: job }));
   setStage('result');
 }
@@ -100,15 +157,17 @@ function renderJob(job) {
   if (job.status === 'done' && job.result_url) {
     showResult(job);
     activeJob = null;
-    localStorage.removeItem('opengenjutsu_job');
+    history('current', null);
     submission?.refresh();
     return true;
   }
-  if (job.status === 'error') {
+  if (['error', 'failed', 'cancelled'].includes(job.status)) {
     runOverlay.hidden = true;
     activeJob = null;
-    localStorage.removeItem('opengenjutsu_job');
+    history('current', null);
     showToast(job.error || 'Generation failed.', 'error');
+    resultActions.hidden = true;
+    returnAffordance();
     setStage(sourcePreview.src ? 'source' : 'empty');
     submission?.refresh();
     return true;
@@ -117,24 +176,35 @@ function renderJob(job) {
   return false;
 }
 
-async function poll(id) {
+async function poll(id, current = epoch) {
+  if (current !== epoch) return;
   activeJob = id;
-  localStorage.setItem('opengenjutsu_job', id);
+  history('current', id);
+  returnAffordance();
   try {
-    const response = await fetch(`/api/jobs/${encodeURIComponent(id)}`);
-    const job = await response.json();
-    if (!response.ok) throw new Error(job.detail || 'Job not found.');
-    if (!renderJob(job)) pollTimer = window.setTimeout(() => poll(id), 2400);
+    const job = await readJob(id);
+    if (current !== epoch) return;
+    if (job.status === 'done') {
+      const media = await fetch(job.result_url, { headers: { Range: 'bytes=0-0' } });
+      if (current !== epoch) return;
+      await media.body?.cancel();
+      if (current !== epoch) return;
+      if (!media.ok) throw new Error('The completed result is unavailable.');
+    }
+    if (!renderJob(job)) pollTimer = window.setTimeout(() => poll(id, current), 2400);
   } catch (error) {
+    if (current !== epoch) return;
     runOverlay.hidden = true;
     activeJob = null;
+    history('current', null);
+    returnAffordance();
     submission?.refresh();
     showToast(`Unable to track the edit: ${error.message}`, 'error');
   }
 }
 
 async function copyCaption() {
-  const caption = 'Made with OpenGenjutsu — an open-source local video transformation studio built with LTX on ComfyUI.';
+  const caption = 'Same moment. New character. Made with OpenGenjutsu. #OpenGenjutsu #CharacterSwap';
   try {
     await navigator.clipboard.writeText(caption);
     showToast('Caption copied. Add your downloaded result before posting.');
@@ -143,30 +213,31 @@ async function copyCaption() {
   }
 }
 
-async function buildComparisonReel() {
-  if (!completedJobId) return;
-  buildReelButton.disabled = true;
-  buildReelButton.textContent = 'Building reel…';
-  try {
-    const response = await fetch(`/api/jobs/${encodeURIComponent(completedJobId)}/reveal`, { method: 'POST' });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.detail || 'Unable to build the comparison reel.');
-    const download = document.createElement('a');
-    download.href = `${payload.reveal_url}?download=true`;
-    download.download = '';
-    document.body.append(download);
-    download.click();
-    download.remove();
-    showToast('Your local 9:16 comparison reel is downloading.');
-  } catch (error) {
-    showToast(error.message, 'error');
-  } finally {
-    buildReelButton.disabled = !completedJobId;
-    buildReelButton.textContent = 'Build comparison reel';
-  }
+function buildComparisonReel() {
+  if (!completedJobId || resultActions.hidden) return;
+  if (!window.OpenGenjutsuShare?.open) return showToast('Share preview is unavailable. Reload the studio to retry.', 'error');
+  window.OpenGenjutsuShare.open({ jobId: completedJobId, resultUrl: resultVideo.src, returnFocus: buildReelButton });
 }
 
 videoInput.addEventListener('change', previewSource);
+$('#return-last').addEventListener('click', restoreCompleted);
+$('#form').addEventListener('change', () => {
+  detachTracking();
+  resultActions.hidden = true;
+  returnAffordance();
+});
+resultVideo.addEventListener('error', () => {
+  resultActions.hidden = true;
+  returnAffordance();
+  setStage(sourcePreview.src ? 'source' : 'empty');
+  showToast('Result preview unavailable. Return to last swap to retry.', 'error');
+});
+window.addEventListener('opengenjutsu:resume-job', ({ detail }) => {
+  if (!validId(detail?.id)) return;
+  detachTracking();
+  resultActions.hidden = true;
+  poll(detail.id);
+});
 $('#show-source').addEventListener('click', () => setStage('source'));
 $('#show-result').addEventListener('click', () => setStage('result'));
 $('#show-compare').addEventListener('click', showComparison);
@@ -185,13 +256,25 @@ window.addEventListener('beforeunload', () => {
 submission = window.OpenGenjutsuStudio.bindSubmission({
   isBusy: () => Boolean(activeJob),
   onBegin: () => {
+    detachTracking();
+    submissionEpoch = epoch;
     resultActions.hidden = true;
+    returnAffordance();
     runOverlay.hidden = false;
     updateProgress({ status: 'running', progress: .03, step: 'init' });
   },
-  onQueued: (payload) => { renderJob(payload.job); poll(payload.job_id); },
-  onFailure: () => { runOverlay.hidden = true; activeJob = null; },
-  toast: showToast,
+  onQueued: (payload) => {
+    if (submissionEpoch !== epoch) return;
+    validJob(payload.job, payload.job_id);
+    poll(payload.job_id);
+  },
+  onFailure: () => {
+    if (submissionEpoch !== epoch) return;
+    runOverlay.hidden = true; activeJob = null; returnAffordance();
+  },
+  toast: (message, type) => { if (submissionEpoch === epoch) showToast(message, type); },
 });
-const savedJob = localStorage.getItem('opengenjutsu_job');
-if (savedJob) poll(savedJob);
+const savedJob = history('current');
+if (validId(savedJob)) poll(savedJob);
+else { history('current', null); restoreCompleted(); }
+returnAffordance();

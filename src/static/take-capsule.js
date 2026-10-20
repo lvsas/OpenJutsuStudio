@@ -11,6 +11,8 @@
 
   let activeJobId = null;
   let capsule = null;
+  let epoch = 0;
+  $('#form')?.addEventListener('change', () => { epoch += 1; activeJobId = null; capsule = null; });
   const sourcePreview = $('#source-preview');
   const sourceSummary = $('#source-summary');
 
@@ -39,6 +41,7 @@
   async function loadCapsule() {
     const jobId = jobIdFromResultLink();
     if (!jobId || jobId === activeJobId) return;
+    const current = ++epoch;
     activeJobId = jobId;
     capsule = null;
     downloadButton.disabled = true;
@@ -49,7 +52,9 @@
     try {
       const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/capsule`);
       const payload = await response.json();
+      if (current !== epoch || panel.hidden || jobId !== jobIdFromResultLink()) return;
       if (!response.ok) throw new Error(payload.detail || 'Take Capsule is unavailable.');
+      if (payload.job_id !== jobId || payload.engine !== 'ltx25-ripple') throw new Error('Take Passport identity mismatch.');
       capsule = payload;
       downloadButton.disabled = false;
       replayButton.disabled = !payload.replay.available_on_this_machine;
@@ -79,6 +84,7 @@
         }
       }
     } catch (error) {
+      if (current !== epoch) return;
       status.textContent = error.message;
       downloadButton.disabled = true;
       replayButton.disabled = true;
@@ -103,6 +109,7 @@
 
   replayButton.addEventListener('click', async () => {
     if (!activeJobId || replayButton.disabled) return;
+    const current = ++epoch;
     replayButton.disabled = true;
     replayButton.textContent = 'Starting replay…';
     status.textContent = 'Starting a linked local re-run with the recorded recipe and shot boundaries…';
@@ -110,9 +117,10 @@
       const response = await fetch(`/api/jobs/${encodeURIComponent(activeJobId)}/replay`, { method: 'POST' });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.detail || 'Could not start this take again.');
-      localStorage.setItem('opengenjutsu_job', payload.job_id);
-      window.location.reload();
+      if (current !== epoch) return;
+      window.dispatchEvent(new CustomEvent('opengenjutsu:resume-job', { detail: { id: payload.job_id } }));
     } catch (error) {
+      if (current !== epoch) return;
       status.textContent = error.message;
       replayButton.disabled = false;
       replayButton.textContent = 'Re-run this take';
@@ -122,6 +130,7 @@
 
   const observer = new MutationObserver(() => {
     if (!panel.hidden) loadCapsule();
+    else { epoch += 1; activeJobId = null; capsule = null; }
   });
   observer.observe(panel, { attributes: true, attributeFilter: ['hidden'] });
   if (!panel.hidden) loadCapsule();

@@ -104,7 +104,7 @@ function previewInputs() {
 function paintChain() {
   const fromForm = byId('reference-2').files.length === 1 && !byId('reference-2').disabled;
   const fromTake = (take.capsule?.recipe?.reference_count || 0) > 1;
-  const second = fromForm || fromTake;
+  const second = take.capsule ? fromTake : fromForm;
   byId('take-reference-2-card').hidden = !second;
   byId('take-second-arrow').hidden = !second;
   byId('take-result-card').querySelector('span').textContent = second
@@ -143,16 +143,20 @@ async function submit(event) {
   if (pending || take.active) return;
   const data = submission();
   if (!data) return;
+  const epoch = ++take.epoch;
   pending = true;
   update();
   byId('run-overlay').hidden = false;
   try {
     const response = await request('/api/h3/jobs', {method: 'POST', body: data});
+    if (epoch !== take.epoch) return;
     if (!validId(response.job_id)) throw new Error('Server returned an invalid H3 job identifier. Check the service before retrying.');
     take.watch(response.job_id);
     for (const url of blobs.values()) if (url) URL.revokeObjectURL(url);
     blobs.clear();
   } catch (error) {
+    if (epoch !== take.epoch) return;
+    take.returnAffordance();
     notify(`Submission not confirmed: ${error.message}`);
     byId('run-overlay').hidden = true;
   } finally {
@@ -171,7 +175,13 @@ byId('add-second-reference').addEventListener('click', () => {
 });
 // The capsule marks each take stage and selects it in the preview frame.
 for (const card of document.querySelectorAll?.('[data-h3-stage]') || []) {
-  card.addEventListener('click', () => setStage(card.dataset.h3Stage));
+  card.addEventListener('click', () => {
+    if (card.dataset.h3Stage === 'reference') {
+      const second = card.id === 'h3-take-reference-2-card';
+      byId('reference-preview').src = byId(second ? 'take-reference-2-preview' : 'take-reference-preview').src;
+    }
+    setStage(card.dataset.h3Stage);
+  });
 }
 byId('remove-reference').addEventListener('click', () => {
   byId('reference').value = '';
@@ -185,6 +195,7 @@ byId('seed').addEventListener('input', () => byId('seed').setCustomValidity(''))
 for (const kind of ['source', 'reference', 'result']) {
   byId(`${kind}-preview`).addEventListener('error', () => {
     loadStageMedia(kind, '');
+    if (kind === 'result') take.clearResult();
     notify(`${kind} preview unavailable. Retry status.`);
     syncStage();
   });

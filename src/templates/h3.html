@@ -9,6 +9,8 @@
   <link rel="stylesheet" href="/static/design-system.css">
   <link rel="stylesheet" href="/static/app.css">
   <link rel="stylesheet" href="/static/h3-studio.css">
+  <link rel="stylesheet" href="/static/completion.css">
+  <link rel="stylesheet" href="/static/share-reel.css">
 </head>
 <body>
   <header class="site-header">
@@ -117,12 +119,19 @@
           <div><span class="eyebrow">Source</span><strong id="h3-source-summary-name"></strong></div>
           <span id="h3-source-summary-meta" class="muted"></span>
         </div>
+        <button id="h3-return-last" class="btn btn-secondary btn-small return-last" type="button" hidden>Return to last swap</button>
         <div id="h3-result-actions" class="result-actions" hidden>
+          <h2 class="completion-title">Your swap is ready</h2>
+          <div class="export-actions completion-actions">
+            <button id="h3-build-reel" class="btn btn-primary" type="button" disabled>Preview share reel</button>
+            <a id="h3-download" class="btn btn-secondary" download>Download result</a>
+          </div>
           <section id="h3-take-story" class="take-story" aria-labelledby="h3-take-story-title" hidden>
             <div class="take-story-heading">
-              <div><p class="eyebrow">Take Capsule</p><h3 id="h3-take-story-title">Source + reference → H3 result</h3></div>
-              <span id="h3-take-proof" class="badge">Recording take</span>
+              <div><p class="eyebrow">Take Passport</p><h3 id="h3-take-story-title">Your character. Your moment.</h3></div>
             </div>
+            <details id="h3-take-inspection" class="completion-inspection"><summary>Inspect this swap</summary>
+              <span id="h3-take-proof" class="badge">Recorded take</span>
             <div class="take-story-path" aria-label="Visual take stages">
               <button id="h3-take-source-card" class="take-stage-card" type="button" data-h3-stage="source"><video id="h3-take-source-preview" muted playsinline preload="metadata"></video><span>01 · Source</span></button>
               <span class="take-path-arrow" aria-hidden="true">+</span>
@@ -132,13 +141,11 @@
               <span class="take-path-arrow" aria-hidden="true">→</span>
               <button id="h3-take-result-card" class="take-stage-card" type="button" data-h3-stage="result"><video id="h3-take-result-preview" muted playsinline preload="metadata"></video><span>03 · H3 result</span></button>
             </div>
-            <p id="h3-take-copy" class="microcopy">This visual chain is the recipe this take freezes. Select a stage to inspect it in the preview above.</p>
+            <p id="h3-take-copy" class="microcopy">Select a stage to inspect the source, references or finished result.</p>
+            </details>
           </section>
-          <div class="export-actions">
-            <a id="h3-download" class="btn btn-secondary btn-small" download>Download MP4</a>
-            <button id="h3-build-reel" class="btn btn-secondary btn-small" type="button" disabled>Build comparison reel</button>
-            <button id="h3-copy-caption" class="btn btn-secondary btn-small" type="button">Copy caption</button>
-          </div>
+          <details id="h3-completion-more" class="completion-more"><summary>More / technical details</summary>
+          <button id="h3-copy-caption" class="btn btn-secondary btn-small" type="button">Copy caption</button>
           <div class="export-actions">
             <button id="h3-save-capsule" class="btn btn-secondary btn-small" type="button" disabled>Save Capsule JSON</button>
             <button id="h3-replay" class="btn btn-secondary btn-small" type="button" disabled>Re-run this take</button>
@@ -150,6 +157,7 @@
           </details>
           <p class="microcopy">Create a local 9:16 comparison MP4 to post yourself. No public link is created in local mode.</p>
           <p class="microcopy">Source/reference files are not bundled. Replay requires the original local inputs and model setup; pixel-identical output is not guaranteed.</p>
+          </details>
         </div>
         <div id="h3-status" class="sr-status" role="status" aria-live="polite"></div>
       </section>
@@ -164,6 +172,7 @@
   <div id="h3-toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
   <script src="/static/studio-utils.js" defer></script>
   <script src="/static/studio-progress.js" defer></script>
+  <script src="/static/share-reel.js" defer></script>
   <script type="module" src="/static/h3-studio.js"></script>
 </body>
 </html>

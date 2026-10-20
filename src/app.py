@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import subprocess
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -20,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import core
 from api_schema import _public_job, _target_size
 from readiness import check_readiness
-from output_media import LAYOUTS, build_comparison_reel
+from share_reel_api import ReelService, create_router as create_share_reel_router
 from job_api import create_router as create_job_router
 from take_capsule_api import create_router as create_take_capsule_router
 from runtime_inventory import declared_runtime_inventory
@@ -51,6 +50,8 @@ MEDIA_DIR = core.WORK / "media"
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 _EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="opengenjutsu")
 PIPELINE_RUNNER = core.run_pipeline
+_REEL_SERVICE = ReelService(lambda: MEDIA_DIR)
+app.include_router(create_share_reel_router(_REEL_SERVICE))
 
 
 def _dispatch_job(job: core.Job, video_path: Path, opts: dict[str, Any]):
@@ -191,52 +192,6 @@ def get_result(job_id: str, download: bool = False) -> FileResponse:
     if path is None:
         raise HTTPException(status_code=404, detail="The result file is not available on this machine.")
     return FileResponse(path, media_type="video/mp4", filename=f"opengenjutsu-{job_id}.mp4",
-                        content_disposition_type="attachment" if download else "inline")
-
-
-def _reveal_path(job_id: str) -> Path:
-    return MEDIA_DIR / f"reveal_{job_id}.mp4"
-
-
-def _completed_job_media(job_id: str) -> tuple[core.Job, Path, Path]:
-    try:
-        job = core.Job.load(job_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail="Job not found") from exc
-    if job.status != "done" or not job.result:
-        raise HTTPException(status_code=409, detail="The result is not ready yet.")
-    source, result = Path(job.video), _result_path(job.result)
-    if not source.is_file() or result is None:
-        raise HTTPException(status_code=404, detail="The source or result file is not available on this machine.")
-    return job, source.resolve(), result
-
-
-@app.post("/api/jobs/{job_id}/reveal")
-def create_reveal(job_id: str, layout: str = "wipe") -> dict[str, str]:
-    """Create a local 9:16 source/result comparison reel for one completed job.
-
-    The wipe is the default because it is the format meant for sharing: one image is replaced by
-    the other in a single movement. The stacked layout stays available for documentation, where
-    two frames are read side by side rather than watched.
-    """
-    if layout not in LAYOUTS:
-        raise HTTPException(status_code=400, detail=f"Unknown reel layout: {layout}")
-    job, source, result = _completed_job_media(job_id)
-    output = _reveal_path(job_id)
-    try:
-        build_comparison_reel(source, result, output, engine=job.engine, layout=layout)
-    except (OSError, ValueError, subprocess.CalledProcessError) as exc:
-        raise HTTPException(status_code=500, detail=f"Could not build comparison reel: {exc}") from exc
-    return {"reveal_url": f"/api/jobs/{job_id}/reveal"}
-
-
-@app.get("/api/jobs/{job_id}/reveal")
-def get_reveal(job_id: str, download: bool = False) -> FileResponse:
-    _completed_job_media(job_id)
-    path = _reveal_path(job_id)
-    if not path.is_file():
-        raise HTTPException(status_code=404, detail="Build the comparison reel first.")
-    return FileResponse(path, media_type="video/mp4", filename=f"opengenjutsu-{job_id}-comparison.mp4",
                         content_disposition_type="attachment" if download else "inline")
 
 

@@ -1,9 +1,10 @@
 """Output assembly preserves source audio and builds local social artifacts."""
 from pathlib import Path
 import subprocess
+import tempfile
 
 from media import ffprobe
-from reel_design import (BASE, DEFAULT_ENGINE, ENGINES, ensure_assets, fonts,
+from reel_design import (BASE, DEFAULT_ENGINE, ENGINES, SOCIAL, ensure_assets, fonts,
                          theme as design_theme)
 
 # The reel palette is the application's palette; it lives in reel_design next to the tokens it
@@ -63,11 +64,18 @@ def reel_timeline(duration, fps, frames):
     if real_duration < 2.5:
         mode, capture_s, recast_s = "compact", max(0.25 * real_duration, 0.35), max(0.30 * real_duration, 0.40)
     elif real_duration <= 8.0:
+        # Match the approved V2 motion at its two real reference takes (LTX 3.0417 s:
+        # 0.65 s Capture; H3 8 s: 0.75 s Capture; both use a 0.45 s Recast), then
+        # interpolate by actual take duration rather than hardcoding engine-specific timers.
         mode = "standard"
-        capture_s = min(1.25, max(0.85, 0.28 * real_duration))
-        recast_s = min(1.20, max(0.80, 0.30 * real_duration))
+        progress = (real_duration - (73 / 24)) / (8.0 - (73 / 24))
+        capture_s = 0.65 + max(0.0, min(1.0, progress)) * 0.10
+        recast_s = 0.45
     else:
-        mode, capture_s, recast_s = "extended", 1.25, 1.20
+        mode = "extended"
+        progress = min(1.0, (real_duration - 8.0) / 12.0)
+        capture_s = 0.75 + progress * 0.50
+        recast_s = 0.45 + progress * 0.75
     capture_end = max(1, min(frames - 2, round(capture_s * fps)))
     recast_end = max(capture_end + 1, min(frames - 1, capture_end + round(recast_s * fps)))
     return {"mode": mode, "frame_count": frames, "fps": fps,
@@ -144,7 +152,7 @@ def _masthead(font, theme, y, eyeline=EYEBROW):
     ]
 
 
-ASSET_ORDER = ("background", "band_mask", "band_outline", "chip_source", "chip_swap")
+ASSET_ORDER = ("background", "band_mask", "band_outline", "chip_source", "chip_swap", "passport_ticket")
 REEL_ASSET_DIR = Path(__file__).resolve().parents[1] / "work" / "reel-assets"
 
 
@@ -301,6 +309,107 @@ def wipe_filters(duration, font, engine=DEFAULT_REEL_ENGINE, inputs=None, fps=24
         f"[chips]{','.join(texts)}[out]",
     ]
     return ";".join(groups)
+
+
+def social_reel_filters(duration, font, engine=DEFAULT_REEL_ENGINE, inputs=None, fps=24, timeline=None):
+    """Hybrid editorial/showmanship reel with source-first reveal and a collectible Passport."""
+    faces, theme = _faces(font), reel_theme(engine)
+    inputs = inputs or _default_inputs()
+    accent = _hex(theme["accent"])
+    band = WIPE["band"]
+    ticket = inputs["passport_ticket"]
+    if timeline is None:
+        timeline = reel_timeline(duration, fps, round(duration * fps))
+    hold, sweep = timeline["capture_end"], timeline["recast_duration"]
+    collect = timeline["collect_start_frame"] / timeline["fps"]
+    progress_t = f"max(0,min(1,(t-{hold})/{sweep}))"
+    progress_T = f"max(0,min(1,(T-{hold})/{sweep}))"
+    edge_x = f"({band['width']}-(2*floor({band['width'] // 2}*{progress_t})))"
+    blend_x = f"({band['width']}-(2*floor({band['width'] // 2}*{progress_T})))"
+    cover = (f"scale={band['width']}:{band['height']}:force_original_aspect_ratio=increase,"
+             f"crop={band['width']}:{band['height']},gblur=sigma=28,"
+             f"eq=brightness=-0.12:saturation=0.58:contrast=1.03,setsar=1")
+    sharp = (f"scale={band['width']}:{band['height']}:force_original_aspect_ratio=decrease,"
+             f"format=rgba,pad={band['width']}:{band['height']}:(ow-iw)/2:(oh-ih)/2:"
+             f"color=black@0,setsar=1")
+    full_ambient = ("scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
+                    "gblur=sigma=48,eq=brightness=-0.18:saturation=0.58:contrast=1.04,"
+                    f"setsar=1,fps={fps},format=yuv444p,settb=AVTB,setpts=PTS-STARTPTS")
+    ambient_transition = (f"xfade=transition=smoothleft:duration={sweep:.6f}:"
+                          f"offset={hold:.6f}")
+    # The title moves only during the reveal, returning to its resting baseline at both ends.
+    # One small lift keeps the word readable and wholly clear of the adjacent lines.
+    swap, reality, subtitle, passport = (SOCIAL[key] for key in
+                                         ("swap", "reality", "subtitle", "passport"))
+    swap_y = f"'{swap['y']}-{swap['reveal_lift']}*sin(PI*{progress_t})'"
+    passport_y = passport["y"] + (passport["height"] - passport["size"]) // 2
+    texts = [
+        *_masthead(faces, theme, SOCIAL["masthead_y"]),
+        _centred(faces["display"], r"REALITY\,", reality["y"], _hex(BASE["text"]), reality["size"]),
+        _centred(faces["display"], "SWAP.", swap_y, accent, swap["size"]),
+        _centred(faces["body"], "ORIGINAL  →  NEW CHARACTER", subtitle["y"],
+                 _hex(BASE["text"]), subtitle["size"]),
+        _centred(faces["display"], passport["text"], passport_y, _hex(BASE["text"]),
+                 passport["size"], extra=f":enable='gte(t,{collect:.6f})'"),
+    ]
+    groups = [
+        f"[0:v]{full_ambient}[source_ambient]",
+        # xfade starts its second stream at t=hold. Skip those result frames *before* resetting
+        # PTS, otherwise the ambient result lags the sharp hero by the entire source hold.
+        f"[1:v]trim=start_frame={timeline['capture_end_frame']},{full_ambient}[result_ambient]",
+        f"[source_ambient][result_ambient]{ambient_transition}[ambient_mix]",
+        f"[ambient_mix]drawbox=x=0:y=0:w=iw:h=ih:color={_hex(BASE['bg'])}@0.18:t=fill[canvas]",
+        f"[0:v]{cover}[src_cover]",
+        f"[1:v]{cover}[res_cover]",
+        f"[0:v]{sharp}[src_sharp]",
+        f"[1:v]{sharp}[res_sharp]",
+        f"[src_cover][src_sharp]overlay=0:0[src]",
+        f"[res_cover][res_sharp]overlay=0:0[res]",
+        f"color=c={accent}:s={WIPE['edge']}x{band['height']}:r={fps}[mark]",
+        f"[res][mark]overlay=x='{edge_x}':y=0[resmarked]",
+        # blend's X is plane-local: normalize subsampled chroma to the same pixel boundary as
+        # luma/alpha. Otherwise the midpoint shows source-coloured result and a pink wipe edge.
+        f"[src][resmarked]blend=all_expr='if(gte(X/SW,{blend_x}),B,A)'[transition]",
+        f"[transition][{inputs['band_mask']}:v]alphamerge[transition_rounded]",
+        f"[canvas][transition_rounded]overlay={band['x']}:{band['y']}[hero]",
+        f"[hero][{inputs['band_outline']}:v]overlay={band['x']}:{band['y']}[outlined]",
+        f"[outlined][{ticket}:v]overlay={passport['x']}:y={passport['y']}:"
+        f"enable='gte(t,{collect:.6f})'[ticketed]",
+        f"[ticketed]{','.join(texts)}[out]",
+    ]
+    return ";".join(groups)
+
+
+def build_social_reel(source: str | Path, result: str | Path, output: Path,
+                      engine: str = DEFAULT_REEL_ENGINE) -> str:
+    """Render the approved hybrid candidate; full result timeline and audio are preserved."""
+    source, result, output = Path(source), Path(result), Path(output)
+    _, result_info = validate_reel_media(source, result)
+    duration, fps, frame_count = result_info["duration"], result_info["fps"], result_info["frames"]
+    if duration <= 0:
+        raise ValueError("Result video must have a positive duration")
+    timeline = reel_timeline(duration, fps, frame_count)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    # Private artwork avoids mutable shared cache files while another render is reading them.
+    # The small static set is rebuilt for the current design and removed even on FFmpeg failure.
+    with tempfile.TemporaryDirectory(prefix=".reel-artwork-", dir=output.parent) as artwork:
+        assets = ensure_assets(Path(artwork), engine, labels=LABELS, label_ink=CHIP["ink"],
+                               label_size=CHIP["size"],
+                               band=(WIPE["band"]["width"], WIPE["band"]["height"]))
+        asset_paths, inputs = _asset_inputs(assets)
+        filters = social_reel_filters(duration, fonts(), engine, inputs, fps=fps, timeline=timeline)
+        command = ["ffmpeg", "-y", "-v", "error", "-i", str(source), "-i", str(result)]
+        for path in asset_paths:
+            command += ["-loop", "1", "-framerate", str(fps), "-i", str(path)]
+        # Use the frame budget rather than container rounding for the complete take. MP4's default
+        # millisecond movie timescale otherwise trims fractional-millisecond AAC tails in edit lists.
+        command += ["-filter_complex", filters, "-map", "[out]", "-map", "1:a:0?",
+                    "-frames:v", str(frame_count), "-t", str(frame_count / fps), "-r", str(fps),
+                    "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+                    "-c:a", "aac", "-b:a", "192k", "-movie_timescale", "48000",
+                    "-movflags", "+faststart", str(output)]
+        subprocess.run(command, capture_output=True, check=True, timeout=600)
+    return str(output.resolve())
 
 
 def build_comparison_reel(source: str | Path, result: str | Path, output: Path,

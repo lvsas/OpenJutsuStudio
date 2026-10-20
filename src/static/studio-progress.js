@@ -4,7 +4,7 @@
   const ENGINES = {
     'ltx25-ripple': {
       queued: ['Queued for the local studio', 'Your video is ready to start.'],
-      done: ['Your swap is ready', 'Review the result, download it, or copy a caption.'],
+      done: ['Your swap is ready', 'Preview your share reel or save your result.'],
       failed: 'This swap could not finish',
       unknown: ['Preparing your swap', 'Validating media and local models.'],
       steps: {
@@ -21,7 +21,7 @@
     },
     'minimax-h3': {
       queued: ['Queued for the H3 studio', 'Your take is ready to start.'],
-      done: ['Your swap is ready', 'Review the result, download it, or copy a caption.'],
+      done: ['Your swap is ready', 'Preview your share reel or save your result.'],
       failed: 'This swap could not finish',
       unknown: ['Preparing your swap', 'Validating media and the H3 service.'],
       steps: {

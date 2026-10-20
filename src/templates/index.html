@@ -8,6 +8,8 @@
   <meta name="description" content="Open-source local video transformation studio. Character Swap is the first active mode, built with LTX 2.5 and FLUX 2 Klein.">
   <link rel="stylesheet" href="/static/design-system.css">
   <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/completion.css">
+  <link rel="stylesheet" href="/static/share-reel.css">
 </head>
 <body>
   <header class="site-header">
@@ -142,18 +144,24 @@
           <span id="source-summary-meta" class="muted"></span>
         </div>
 
+        <button id="return-last" class="btn btn-secondary btn-small return-last" type="button" hidden>Return to last swap</button>
         <div id="result-actions" class="result-actions" hidden>
-          <div class="result-switch" role="group" aria-label="Preview mode">
+          <h2 class="completion-title">Your swap is ready</h2>
+          <div class="export-actions completion-actions">
+            <button id="build-reel" class="btn btn-primary" type="button" disabled>Preview share reel</button>
+            <a id="download-result" class="btn btn-secondary" download>Download result</a>
+          </div>
+          <div class="result-switch" role="group" aria-label="Preview mode" hidden>
             <button id="show-source" class="btn btn-secondary btn-small" type="button">Source</button>
             <button id="show-anchor" class="btn btn-secondary btn-small" type="button" data-take-stage="anchor" disabled>FLUX anchor</button>
             <button id="show-result" class="btn btn-primary btn-small" type="button">Result</button>
-            <button id="show-compare" class="btn btn-secondary btn-small" type="button">Compare</button>
           </div>
           <section id="take-story" class="take-story" aria-labelledby="take-story-title" hidden>
             <div class="take-story-heading">
-              <div><p class="eyebrow">Take Capsule</p><h3 id="take-story-title">Your swap, with its visual truth.</h3></div>
-              <span id="take-story-proof" class="badge">Recording take</span>
+              <div><p class="eyebrow">Take Passport</p><h3 id="take-story-title">Your character. Your moment.</h3></div>
             </div>
+            <details id="take-inspection" class="completion-inspection"><summary>Inspect this swap</summary>
+              <span id="take-story-proof" class="badge">Recording take</span>
             <div class="take-story-path" aria-label="Visual take stages">
               <button class="take-stage-card" type="button" data-take-stage="source">
                 <video id="take-source-preview" muted playsinline preload="metadata"></video><span>01 · Source</span>
@@ -168,13 +176,13 @@
               </button>
             </div>
             <label id="anchor-select-wrap" class="anchor-select" hidden><span>View anchor</span><select id="anchor-select"></select></label>
-            <p id="take-story-copy" class="microcopy">This visual chain becomes the local recipe you can inspect or re-run.</p>
+            <button id="show-compare" class="btn btn-secondary btn-small" type="button">Compare source / result</button>
+            <p id="take-reference-note" class="microcopy"></p>
+            <p id="take-story-copy" class="microcopy">Inspect the source, recorded anchor and finished result.</p>
+            </details>
           </section>
-          <div class="export-actions">
-            <a id="download-result" class="btn btn-secondary btn-small" href="#" download>Download MP4</a>
-            <button id="build-reel" class="btn btn-secondary btn-small" type="button" disabled>Build comparison reel</button>
-            <button id="copy-caption" class="btn btn-secondary btn-small" type="button">Copy caption</button>
-          </div>
+          <details id="completion-more" class="completion-more"><summary>More / technical details</summary>
+          <button id="copy-caption" class="btn btn-secondary btn-small" type="button">Copy caption</button>
           <div class="export-actions">
             <button id="download-capsule" class="btn btn-secondary btn-small" type="button" disabled>Save Capsule JSON</button>
             <button id="replay-capsule" class="btn btn-secondary btn-small" type="button" disabled>Re-run this take</button>
@@ -184,7 +192,8 @@
             <summary>Technical provenance: recipe and local fingerprints</summary>
             <pre id="capsule-manifest" class="capsule-manifest"></pre>
           </details>
-          <p class="microcopy">Create a local 9:16 comparison MP4 to post yourself. No public link is created in local mode.</p>
+          <p class="microcopy">Preview a local 9:16 comparison MP4 to post yourself. No public link is created in local mode.</p>
+          </details>
         </div>
         <div id="status" class="sr-status" role="status" aria-live="polite"></div>
       </section>
@@ -195,6 +204,7 @@
   <script src="/static/reference-controls.js" defer></script>
   <script src="/static/studio-submission.js" defer></script>
   <script src="/static/studio-progress.js" defer></script>
+  <script src="/static/share-reel.js" defer></script>
   <script src="/static/app.js" defer></script>
   <script src="/static/take-visual-story.js" defer></script>
   <script src="/static/take-capsule.js" defer></script>

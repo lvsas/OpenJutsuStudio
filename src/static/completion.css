@@ -1,0 +1,30 @@
+/* Completed takes keep one canvas and one next gesture. */
+.studio-stage:has(.result-actions:not([hidden])) .stage-header,
+.studio-stage:has(.result-actions:not([hidden])) .source-summary { display: none; }
+.studio-stage:has(.result-actions:not([hidden])) .stage-frame { margin-top: 0; }
+.result-actions:not([hidden]) { animation: completion-arrive 360ms ease-out both; }
+.completion-title { font-family: var(--font-display); font-size: clamp(1.4rem, 3vw, 1.85rem); letter-spacing: -.035em; margin: 0; }
+.completion-actions { align-items: center; gap: var(--space-3); }
+.completion-actions .btn { min-height: 2.75rem; }
+.result-actions .take-story { gap: var(--space-2); margin: 0; }
+.completion-inspection, .completion-more { min-width: 0; }
+.completion-inspection summary, .completion-more > summary { color: var(--muted); cursor: pointer; font-size: .8rem; padding: .5rem 0; }
+.completion-inspection[open] > :not(summary), .completion-more[open] > :not(summary) { margin-top: var(--space-3); }
+.completion-more { border-top: 1px solid var(--line); padding-top: var(--space-2); }
+.completion-inspection .take-story-path { margin-top: var(--space-3); }
+.completion-more .export-actions { margin-top: var(--space-3); }
+.return-last { margin-top: var(--space-4); }
+.completion-inspection .badge { max-width: 100%; white-space: normal; }
+.completion-more .capsule-manifest { overflow: auto; max-width: 100%; }
+@keyframes completion-arrive { from { opacity: 0; transform: translateY(.5rem); } to { opacity: 1; transform: none; } }
+@media (max-width: 520px) {
+  .completion-actions { align-items: stretch; flex-direction: column; }
+  .completion-actions .btn { justify-content: center; width: 100%; }
+  .completion-inspection .take-story-path { display: flex; flex-wrap: wrap; }
+  .completion-inspection .take-stage-card { flex: 1 1 40%; }
+  .completion-inspection .take-path-arrow { display: none; }
+  .completion-more .btn { max-width: 100%; white-space: normal; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .result-actions:not([hidden]) { animation: none; }
+}

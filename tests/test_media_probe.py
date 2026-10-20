@@ -60,7 +60,7 @@ class MediaProbeTests(unittest.TestCase):
         self.assertEqual(ffprobe(result)["frames"], 24)
 
     def test_the_reel_labels_the_swap_and_carries_the_studio_colour(self):
-        for engine, accent, stack in (("ltx25-ripple", "0xD8FF3E", "FLUX 2 Klein + LTX 2.5 + Ripple"),
+        for engine, accent, stack in (("ltx25-ripple", "0x22D3EE", "FLUX 2 Klein + LTX 2.5 + Ripple"),
                                       ("minimax-h3", "0xFF4F2E", "MiniMax H3 + Character Swap LoRA")):
             with self.subTest(engine=engine):
                 graph = reel_filters(1.0, "Sans", engine)
@@ -73,7 +73,7 @@ class MediaProbeTests(unittest.TestCase):
         # The brand is the application wordmark, in its two tones and its own display face.
         brand = reel_filters(1.0, "Sans")
         self.assertIn("text=OPEN:fontcolor=0xF7F5F1", brand)
-        self.assertIn("text=GENJUTSU:fontcolor=0xD8FF3E", brand)
+        self.assertIn("text=GENJUTSU:fontcolor=0x22D3EE", brand)
         # The two studios must not share a colour, and an unknown engine falls back.
         self.assertNotEqual(reel_filters(1.0, "Sans", "ltx25-ripple"),
                             reel_filters(1.0, "Sans", "minimax-h3"))

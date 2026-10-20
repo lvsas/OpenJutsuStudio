@@ -97,7 +97,7 @@ class ReelTests(unittest.TestCase):
             self.assertIsNone(state["download_url"])
             ready = self.terminal(state)
             self.assertEqual(ready["status"], "ready", ready)
-            self.assertEqual(ready["renderer_version"], "social-v2")
+            self.assertEqual(ready["renderer_version"], "social-v3")
             repeated = self.post()
             self.assertEqual(repeated.status_code, 200)
             self.assertEqual(repeated.json(), ready)

@@ -1,8 +1,8 @@
 """Design tokens and static artwork for the comparison reel.
 
 The reel has to speak the same visual language as the application, so the values below are the
-ones in design-system.css and h3-studio.css: the same background, the same accent ramp per
-engine, the same condensed display face, the same rounded surfaces and muted microcopy.
+ones in design-system.css, ltx-studio.css and h3-studio.css: the same background, the same accent
+ramp per engine, the same condensed display face, the same rounded surfaces and muted microcopy.
 
 ffmpeg cannot draw a radial falloff, a rounded corner or a chip, so those are generated once as
 images and composited. Everything here is deterministic: the same tokens produce byte-identical
@@ -27,7 +27,7 @@ BASE = {
 }
 ENGINES = {
     "ltx25-ripple": {
-        "accent": (0xD8, 0xFF, 0x3E),
+        "accent": (0x22, 0xD3, 0xEE),
         "accent_soft": 0.13,     # --accent-soft, the ambient glow
         "accent_glow": 0.25,     # --accent-glow, the tighter one
         "stack": "FLUX 2 Klein + LTX 2.5 + Ripple",

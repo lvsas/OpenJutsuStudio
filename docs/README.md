@@ -4,10 +4,11 @@ Start with the [project README](../README.md) — what the product does, the two
 how to run it and how each competition requirement is met. This page is the map of everything
 under `docs/`.
 
-**Reading convention.** Files dated `2026-10-15` and `2026-10-16` are the record of how the
-product got here: measurements, rejected approaches and superseded plans. They are kept because
-a claim without its failed attempts is not evidence. Files dated `2026-10-17` and later describe
-what the product **is now**. Where an older file contradicts a newer one, the newer one wins.
+**Reading convention.** Dates do not establish delivery. Plans describe intended work;
+source, tests and explicitly scoped validation records establish implemented behavior.
+Historical and superseded documents remain available as evidence, but their assumptions
+must not override a newer validated contract. A passing mocked test is not a GPU or
+browser-quality result.
 
 ---
 
@@ -34,7 +35,10 @@ what the product **is now**. Where an older file contradicts a newer one, the ne
 | [Viral Character plan](plans/2026-10-18-viral-character-phase.md) | historical Phase B exploration: trend library, recipe, graph, capsule, page |
 | [Character Studio production plan](plans/2026-10-18-character-studio-production.md) | Phase 0 implementation contract for the FLUX 3 Character Studio: vendor graph adapter, SDK artifacts, recipe/capsule and async jobs |
 | [New MVP product contract](plans/2026-10-18-new-mvp-product.md) | current scope: Viral Character Maker → Character Swap → Timeline Editor, shared capsule/sidecar contracts and phased gates |
-| [Timeline plan](plans/2026-10-18-timeline-latent-phase.md) | extend, prepend and bridge from the latent capsules, with the pack's traps as test assertions |
+| [Timeline SDK-native plan](plans/2026-10-20-timeline-sdk-product.md) | current integration gates; H3 and LTX product scope, not a delivered editor |
+| [Timeline SDK/H3 audit](validation/timeline-sdk-audit.md) | inspected source, artifact evidence and the remaining SDK round-trip gate |
+| [H3 artifact integrity](architecture/timeline-artifacts.md) | implemented read-only MP4/MCTX/COND inspection, CLI, tests and explicit limits |
+| [Historical Timeline plan](plans/2026-10-18-timeline-latent-phase.md) | superseded assumptions; do not implement directly |
 | [Dependencies](dependencies.md) | every node class and model file this repository needs, verified against a live ComfyUI |
 | [`dependencies.json`](../dependencies.json) | the same list machine-readably, with `scripts/check_dependencies.py` to verify a machine |
 | [Character reference probe](validation/character-reference-probe.md) | historical visual/model experiments that established the FLUX 3 prompt and identity constraints |

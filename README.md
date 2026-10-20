@@ -7,6 +7,10 @@ This project rebuilds it in the open, on top of open-weight models.
 
 Built for the **Open Source Higgsfield Competition** (ComfyUI · NVIDIA · Runpod).
 
+**For developers:** start with [Contributing](CONTRIBUTING.md) for setup, GPU-free tests,
+module boundaries and review requirements. The [H3 artifact integrity contract](docs/architecture/timeline-artifacts.md)
+documents the first Timeline foundation; it does not claim a working Timeline editor.
+
 ---
 
 ## What it does

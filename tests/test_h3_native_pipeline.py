@@ -105,15 +105,20 @@ class NativePipelineTests(unittest.TestCase):
         self.assertEqual(args.args[1], 'native_swap_family')
         self.assertEqual(job.meta['native_take_id'], 'c' * 32)
 
-    def test_missing_or_incomplete_weight_profile_refuses_before_any_submission(self):
-        for weights in (None, {}, dict(self.weights, swap_lora=None),
-                        {role: {'filename': name, 'sha256': 'short'}
-                         for role, name in WEIGHT_ROLES.items()}):
-            with self.subTest(weights=weights):
+    def test_absent_weight_profile_is_recorded_as_filename_identity_only(self):
+        """Nobody can hash tens of gigabytes on a hosted target; that must not block."""
+        job = self.run_job(native_capture=True)
+        self.assertEqual(job.status, 'done')
+        self.assertEqual(self.client.run.call_count, 1)
+        self.assertIn('native_take_id', job.meta)
+
+    def test_a_supplied_profile_never_invents_a_measured_hash(self):
+        for weights in ({}, {'unet': {'filename': WEIGHT_ROLES['unet']}},
+                        {'unet': {'filename': WEIGHT_ROLES['unet'], 'sha256': 42}}):
+            with self.subTest(weights=str(weights)[:40]):
                 job = self.run_job(native_capture=True, weights=weights)
                 self.assertEqual(job.status, 'error')
                 self.client.run.assert_not_called()
-                self.download.assert_not_called()
 
     def test_the_visible_result_and_the_native_take_stay_distinct(self):
         job = self.run_job(native_capture=True, weights=self.weights)

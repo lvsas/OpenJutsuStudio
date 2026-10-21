@@ -81,18 +81,26 @@ def native_operation_id(job):
     return hashlib.sha256(f'opengenjutsu-native-swap:{job.id}'.encode('utf-8')).hexdigest()[:32]
 
 
-def _weight_profile(opts):
-    """The caller's measured weight attestations, before any GPU work is submitted."""
+def _weight_profile(opts, recipe):
+    """Which weights are used — by filename, with a byte hash only if one exists.
+
+    The target resolves identity by filename; nobody can hash tens of gigabytes on
+    a hosted machine, so a measured hash is an optional enrichment, never a
+    prerequisite. The captured record states which of the two it holds.
+    """
     raw = opts.get('weights')
+    if raw is None:
+        return {role: Weight(name) for role, name in recipe['model_files'].items()}
     if not isinstance(raw, dict) or set(raw) != set(asdict(H3Models())):
-        raise ValueError('Native capture requires an attested profile for every effective weight')
+        raise ValueError('A supplied weight profile must name every effective role')
     profile = {}
     for role, value in raw.items():
-        if (not isinstance(value, dict)
-                or not isinstance(value.get('filename'), str)
-                or not isinstance(value.get('sha256'), str)):
-            raise ValueError('A native weight attestation must name a file and its hash')
-        profile[role] = Weight(value.get('filename'), value.get('sha256'))
+        if not isinstance(value, dict) or not isinstance(value.get('filename'), str):
+            raise ValueError('A weight profile entry must name its file')
+        digest = value.get('sha256')
+        if digest is not None and not isinstance(digest, str):
+            raise ValueError('A measured weight hash must be a string')
+        profile[role] = Weight(value['filename'], digest)
     return profile
 
 
@@ -218,7 +226,7 @@ def run_h3_pipeline(job, video_path, opts):
             graph['156']['inputs']['filename_prefix'] = f'OpenGenjutsu/h3-{operation_id}'
             capture = build_swap_native_capture(
                 recipe, graph, operation_id=operation_id,
-                weights=_weight_profile(opts), publish_family=True)
+                weights=_weight_profile(opts, recipe), publish_family=True)
             submitted = capture.graph
             job.meta['native_capture_digest'] = capture.digest
         remote = _submit(client, submitted)

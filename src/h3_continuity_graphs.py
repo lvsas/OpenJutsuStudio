@@ -41,7 +41,10 @@ _PARENT_CLIP = re.compile(r'[^\x00\r\n:]{1,512}\.mp4\Z')
 @dataclass(frozen=True)
 class Weight:
     filename: str
-    sha256: str
+    # The server resolves identity by filename. A byte hash is recorded only when
+    # it was actually measured on a machine that owns the files; on a hosted
+    # target nobody can hash 40 GB, so it is optional and never invented.
+    sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -145,8 +148,9 @@ def _models(models):
         if not isinstance(weight, Weight):
             raise ValueError('An effective model is not a Weight')
         _filename(weight.filename)
-        if not isinstance(weight.sha256, str) or not _HEX64.fullmatch(weight.sha256):
-            raise ValueError('Every effective weight requires a captured SHA-256')
+        if weight.sha256 is not None and (not isinstance(weight.sha256, str)
+                                          or not _HEX64.fullmatch(weight.sha256)):
+            raise ValueError('A measured weight hash must be 64 lowercase hexadecimal characters')
 
 
 def _reference(reference):

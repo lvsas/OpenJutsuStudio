@@ -107,12 +107,15 @@ def build_swap_native_capture(recipe, graph, *, operation_id, weights, publish_f
     if not isinstance(weights, Mapping) or set(weights) != set(asdict(H3Models())):
         raise ValueError('All effective Swap weight roles must be attested')
     captured_weights = {}
+    measured = True
     for role, filename in files.items():
         weight = weights[role]
         if (not isinstance(weight, Weight) or weight.filename != filename
-                or not isinstance(weight.sha256, str) or not _HEX64.fullmatch(weight.sha256)):
+                or (weight.sha256 is not None and (not isinstance(weight.sha256, str)
+                                                  or not _HEX64.fullmatch(weight.sha256)))):
             raise ValueError('Swap weight identity differs from its effective recipe')
         captured_weights[role] = asdict(weight)
+        measured = measured and weight.sha256 is not None
 
     raw, visible = recipe['inference_frames'], recipe['source_frames_24fps']
     record = {
@@ -133,7 +136,9 @@ def build_swap_native_capture(recipe, graph, *, operation_id, weights, publish_f
         'seed': recipe['seed'], 'steps': recipe['steps'], 'split_step': recipe['split_step'],
         'runtime_verified': False, 'forward_verified': False,
         'artifact_relation': 'native-raw-family-and-distinct-finished-swap',
-        'weight_verification': 'caller-attested; service-must-measure',
+        # Never claim a measured identity the caller did not actually measure.
+        'weight_verification': ('measured-on-owning-machine' if measured
+                                else 'filename-only; bytes not measured'),
         'family_node': 'native_swap_family' if publish_family else None,
     }
     native = {

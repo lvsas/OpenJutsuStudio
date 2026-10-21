@@ -88,13 +88,22 @@ def collect_forward(work: str | Path, folder: Path, *, compiled_graph,
 
     def collect(remote_job, intent, operation_id):
         download_h3_artifacts(remote_job, FAMILY_NODE, folder)
+        # The reference comes from the parent take, which is outside this import
+        # root by construction. Bring it into the folder first, so the take can
+        # carry it and the source-root confinement still means something.
+        carried = ()
+        if reference_path is not None:
+            suffix = Path(reference_path).suffix.lower()
+            target = folder / f'reference-1{suffix}'
+            target.write_bytes(Path(reference_path).read_bytes())
+            carried = (target,)
         record = import_family(
             folder / 'take.mp4', folder / 'take.mctx.safetensors',
             folder / 'take.cond.safetensors', root=folder, work=work,
             captured_graph=compiled_graph, take_id=operation_id,
             graph_completeness='complete', graph_source='operator_capture',
             source_job=remote_job.id, operator_label='native-forward',
-            references=(reference_path,) if reference_path is not None else ())
+            references=carried)
         return record.take_id
     return collect
 

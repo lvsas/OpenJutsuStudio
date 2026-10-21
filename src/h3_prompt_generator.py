@@ -31,6 +31,14 @@ MAX_DIRECTION = 4000
 MAX_PROMPT_BYTES = 20000
 _ASSET = re.compile(r'[A-Za-z0-9_.:-]{1,256}\Z')
 
+# The guide defines labels from what the text says, not from what the model sees.
+# Without this line the generator answers that no reference assets were provided
+# and never cites the attached picture. The wording follows the guide's own
+# subject-definition form instead of inventing a new syntax.
+REFERENCE_DECLARATION = (
+    '<Subject 1> is the person shown in the attached reference image <Picture 1>, '
+    'whose appearance must be preserved.')
+
 
 def _asset(value):
     info = value.get('info') if isinstance(value, dict) else None
@@ -57,7 +65,8 @@ def build_prompt_graph(direction: str, reference: dict, *, mode: str = 'rewrite'
         raise ValueError(f'Mode must be one of {MODES}')
     graph = copy.deepcopy(json.loads(TEMPLATE.read_text()))
 
-    graph[DIRECTION_NODE]['inputs']['string'] = direction
+    graph[DIRECTION_NODE]['inputs']['string'] = (
+        f'{REFERENCE_DECLARATION}\n\nDirection:\n{direction}')
     graph[MODE_NODE]['inputs']['choice'] = mode
     graph[REFERENCE_NODE]['inputs']['image'] = _asset(reference)
 

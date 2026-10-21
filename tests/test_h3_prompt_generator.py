@@ -20,7 +20,15 @@ class PromptGraphTests(unittest.TestCase):
     def test_the_direction_lands_in_the_user_slot_only(self):
         direction = '  she turns toward the door and leaves  '
         graph = gen.build_prompt_graph(direction, REF)
-        self.assertEqual(graph['5833_15']['inputs']['string'], direction)
+        text = graph['5833_15']['inputs']['string']
+        self.assertTrue(text.endswith(direction), 'the direction must be carried verbatim')
+        self.assertTrue(text.startswith(gen.REFERENCE_DECLARATION))
+
+    def test_the_reference_is_declared_so_the_prompt_can_cite_it(self):
+        """Without a declaration the generator reports that no assets were provided."""
+        text = gen.build_prompt_graph('walk on', REF)['5833_15']['inputs']['string']
+        self.assertIn('<Picture 1>', text)
+        self.assertIn('<Subject 1>', text)
 
     def test_the_reference_is_a_committed_asset_not_a_path(self):
         graph = gen.build_prompt_graph('walk on', REF)

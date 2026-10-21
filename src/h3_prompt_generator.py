@@ -1,0 +1,117 @@
+"""Turn a human direction into a structured H3 R2VA prompt.
+
+The policy already exists as a ComfyUI workflow: a local Qwen3-4B reads the
+Full-Reference Mode guide, the direction and one reference image, and writes the
+prompt. This module only fills the user-owned slot, keeps the policy text byte for
+byte, and captures the produced text through an actual SDK output.
+
+It does not invent a prompt policy and does not run on the CPU: generation needs
+the target's text model.
+"""
+from __future__ import annotations
+
+import copy
+import io
+import json
+from pathlib import Path
+import re
+
+TEMPLATE = Path(__file__).resolve().parents[1] / 'workflows/h3-prompt-r2va.api.json'
+POLICY_VERSION = 'h3-r2va-v1'
+OUTPUT_NODE = 'prompt_text'
+DIRECTION_NODE = '5833_15'      # the user-owned subject/description slot
+MODE_NODE = '5833_28'           # from-prompt | rewrite
+REFERENCE_NODE = '5836'
+BATCH_NODE = '5837'
+GENERATE_NODE = '5833_6'
+PREVIEW_NODES = ('5839', '5833_14', '5833_7')
+UNUSED_NODES = ('5838',)
+MODES = ('from-prompt', 'rewrite')
+MAX_DIRECTION = 4000
+MAX_PROMPT_BYTES = 20000
+_ASSET = re.compile(r'[A-Za-z0-9_.:-]{1,256}\Z')
+
+
+def _asset(value):
+    info = value.get('info') if isinstance(value, dict) else None
+    identifier = info.get('id') if isinstance(info, dict) else None
+    if (not isinstance(value, dict) or value.get('__type') != 'core/ASSET'
+            or not isinstance(identifier, str) or not _ASSET.fullmatch(identifier)):
+        raise ValueError('The prompt reference must be a committed SDK asset')
+    return {'__type': 'core/ASSET', 'info': {'id': identifier}}
+
+
+def policy_text() -> str:
+    """The frozen guide. Exposed so a test can prove it is never rewritten."""
+    return json.loads(TEMPLATE.read_text())['5833_26']['inputs']['string']
+
+
+def build_prompt_graph(direction: str, reference: dict, *, mode: str = 'rewrite',
+                       filename_prefix: str = 'OpenGenjutsu/prompts/h3') -> dict:
+    """Compile the prompt job. One reference image, one captured text output."""
+    if not isinstance(direction, str) or not direction.strip():
+        raise ValueError('A direction is required')
+    if len(direction) > MAX_DIRECTION:
+        raise ValueError(f'A direction is limited to {MAX_DIRECTION} characters')
+    if mode not in MODES:
+        raise ValueError(f'Mode must be one of {MODES}')
+    graph = copy.deepcopy(json.loads(TEMPLATE.read_text()))
+
+    graph[DIRECTION_NODE]['inputs']['string'] = direction
+    graph[MODE_NODE]['inputs']['choice'] = mode
+    graph[REFERENCE_NODE]['inputs']['image'] = _asset(reference)
+
+    # One reference image, not the two the authoring graph carried.
+    batch = graph[BATCH_NODE]['inputs']
+    batch['inputcount'] = 1
+    batch['image_1'] = [REFERENCE_NODE, 0]
+    batch.pop('image_2', None)
+    for node in (*PREVIEW_NODES, *UNUSED_NODES):
+        graph.pop(node, None)
+
+    # The produced text is read back through a real SDK output, never a preview.
+    graph[OUTPUT_NODE] = {'class_type': 'SaveText', 'inputs': {
+        'text': [GENERATE_NODE, 0], 'format': 'txt',
+        'filename_prefix': filename_prefix,
+    }}
+    return graph
+
+
+class _BoundedText:
+    def __init__(self):
+        self.data = io.BytesIO()
+
+    def write(self, block):
+        if len(block) > MAX_PROMPT_BYTES - self.data.tell():
+            raise ValueError('Generated prompt exceeded its byte limit')
+        return self.data.write(block)
+
+
+def read_prompt_text(job, node: str = OUTPUT_NODE) -> str:
+    """Read the exact generated text from an actual SDK output."""
+    from comfy_sdk.outputs import Output
+
+    if getattr(job, 'status', None) != 'succeeded' or not isinstance(getattr(job, 'id', None), str):
+        raise ValueError('A succeeded prompt job is required')
+    outputs = list(job.get_outputs(node) or [])
+    if len(outputs) != 1 or not isinstance(outputs[0], Output):
+        raise ValueError('Exactly one generated prompt output is required')
+    output = outputs[0]
+    if (output.node_id != node or output.job_id != job.id
+            or not isinstance(output.name, str) or not output.name.endswith('.txt')
+            or any(c in output.name for c in ('/', '\\', '\x00'))
+            or output.type not in {'file', 'text'}
+            or type(output.size_bytes) is not int or not 0 <= output.size_bytes <= MAX_PROMPT_BYTES):
+        raise ValueError('Generated prompt output identity or metadata is invalid')
+    sink = _BoundedText()
+    output.to_stream(sink)
+    raw = sink.data.getvalue()
+    if not raw or (output.size_bytes and len(raw) != output.size_bytes):
+        raise ValueError('Generated prompt size differs from its output metadata')
+    try:
+        text = raw.decode('utf-8')
+    except UnicodeDecodeError:
+        raise ValueError('Generated prompt is not UTF-8') from None
+    if not text.strip():
+        raise ValueError('Generated prompt is empty')
+    return text

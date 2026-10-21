@@ -21,16 +21,12 @@ class ForwardRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     request_id: str = Field(pattern=r"^[0-9a-f]{32}$")
-    prompt: str = Field(min_length=1, max_length=4000)
+    # An empty direction is legitimate: the shot must still move, and the server
+    # supplies a real continuation instruction instead of letting the model invent.
+    prompt: str = Field(default='', max_length=4000)
     seed: StrictInt = Field(ge=0, le=(1 << 64) - 1)
     raw_frames: StrictInt = Field(ge=5, le=3600)
 
-    @field_validator("prompt")
-    @classmethod
-    def nonblank_prompt(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("Prompt must not be blank")
-        return value
 
     @field_validator("raw_frames")
     @classmethod

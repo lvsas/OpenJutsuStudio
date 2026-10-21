@@ -127,7 +127,30 @@ function openForward() {
   byId('forward-open').disabled = true;
   byId('forward-seed').value = randomSeed();
   forwardState('');
+  loadReferences(active.take.take_id);
   byId('forward-prompt').focus();
+}
+async function loadReferences(takeId) {
+  const figure = byId('forward-references'), list = byId('forward-reference-list');
+  list.replaceChildren(); figure.hidden = true;
+  try {
+    const data = await getJSON(`/api/continuity/takes/${takeId}/references`);
+    const items = Array.isArray(data.references) ? data.references : [];
+    if (!items.length) return;
+    for (const item of items) {
+      const img = document.createElement('img');
+      // Build the URL here rather than trusting a field: a missing one left an
+      // <img> with no source, visible as an empty box.
+      img.src = `/api/continuity/takes/${takeId}/references/${item.index}`;
+      img.alt = `Character reference ${item.index}`;
+      img.width = 56; img.height = 56;
+      img.loading = 'lazy'; img.className = 'forward-reference';
+      list.append(img);
+    }
+    byId('forward-reference-count').textContent = items.length > 1
+      ? ` · ${items.length}` : '';
+    figure.hidden = false;
+  } catch { figure.hidden = true; }
 }
 function closeForward() {
   byId('forward-form').hidden = true;

@@ -45,10 +45,14 @@
         <button id="forward-open" class="btn btn-primary" type="button" disabled>Continue this take</button>
       </div>
       <form id="forward-form" class="forward-form" hidden>
+        <figure id="forward-references" class="forward-references" hidden>
+          <figcaption>Character reference<span id="forward-reference-count"></span></figcaption>
+          <div id="forward-reference-list" class="forward-reference-list"></div>
+        </figure>
         <label class="forward-field forward-direction">
           <span>What happens next?</span>
-          <textarea id="forward-prompt" rows="2" maxlength="4000" required
-            placeholder="She keeps walking, then stops and looks back."></textarea>
+          <textarea id="forward-prompt" rows="2" maxlength="4000"
+            placeholder="Leave empty and the shot keeps moving on its own."></textarea>
         </label>
         <label class="forward-field"><span>Length</span>
           <select id="forward-length">

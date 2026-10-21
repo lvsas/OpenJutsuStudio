@@ -27,10 +27,14 @@ class ForwardRequestTests(unittest.TestCase):
 
     def test_refuses_bad_identifiers_boolean_seed_and_invalid_grid(self):
         for patch in ({"request_id": "../outside"}, {"seed": True},
-                      {"seed": -1}, {"raw_frames": 55}, {"raw_frames": True},
-                      {"prompt": "   "}):
+                      {"seed": -1}, {"raw_frames": 55}, {"raw_frames": True}):
             with self.subTest(patch=patch), self.assertRaises(ValidationError):
                 ForwardRequest(**(self.valid() | patch))
+
+    def test_an_empty_direction_is_accepted_because_the_shot_must_still_move(self):
+        for value in ("", "   "):
+            with self.subTest(value=value):
+                self.assertEqual(ForwardRequest(**(self.valid() | {"prompt": value})).prompt, value)
 
 
 if __name__ == "__main__":

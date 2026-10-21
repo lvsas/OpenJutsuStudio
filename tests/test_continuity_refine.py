@@ -19,6 +19,9 @@ class FakeRequest:
     def __init__(self, **values):
         self.__dict__.update(values)
 
+    def model_copy(self, update):
+        return FakeRequest(**dict(self.__dict__, **update))
+
 
 def fake_client():
     class Client:
@@ -43,12 +46,24 @@ class ContinuationPromptTests(unittest.TestCase):
                                        models_factory=lambda: 'models',
                                        fingerprint='f' * 64, work_root='/ops')
 
-    def test_the_operator_direction_reaches_the_graph_unchanged(self):
+    def test_the_operator_direction_is_wrapped_in_a_continuation_instruction(self):
         request = FakeRequest(request_id='a' * 32, prompt=DIRECTION, seed=7, raw_frames=158)
         with patch.object(api, 'parent_references', return_value=[Path('/ref.png')]), \
              patch.object(api, 'submit_forward', return_value={'take_id': 'f' * 32}) as submit:
             self.runner(fake_client())('/work', 'b' * 32, request)
-        self.assertEqual(submit.call_args.args[2].prompt, DIRECTION)
+        sent = submit.call_args.args[2].prompt
+        self.assertIn(DIRECTION, sent)
+        self.assertTrue(sent.startswith('Continue this shot:'))
+        self.assertIn('Do not cut to a new shot', sent)
+        self.assertNotIn('subject_definitions', sent)
+
+    def test_an_empty_direction_still_produces_a_real_instruction(self):
+        request = FakeRequest(request_id='a' * 32, prompt='  ', seed=7, raw_frames=158)
+        with patch.object(api, 'parent_references', return_value=[Path('/ref.png')]), \
+             patch.object(api, 'submit_forward', return_value={'take_id': 'f' * 32}) as submit:
+            self.runner(fake_client())('/work', 'b' * 32, request)
+        sent = submit.call_args.args[2].prompt
+        self.assertIn('continues naturally', sent)
 
     def test_no_refinement_job_is_submitted(self):
         """The client raises if anything runs a job before the forward itself."""

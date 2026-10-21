@@ -12,11 +12,13 @@ import json
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 
 from continuable_take import get_take
 from continuable_take_api import TakeId
 from continuity_pipeline import submit_forward
 from continuity_requests import ForwardRequest
+from h3_continuation_prompt import continuation_prompt
 
 FORWARD_PATH = '/{take_id}/forward'
 
@@ -96,6 +98,8 @@ def make_forward_runner(*, client_factory, models_factory, fingerprint, work_roo
         # The R2VA refiner writes a complete new video description (six sections,
         # style, camera): sending it here makes the model cut to a new shot, which
         # is measurable in the delivered clip. Refinement belongs to root takes.
+        request = request.model_copy(update={
+            'prompt': continuation_prompt(request.prompt, references=len(paths))})
         return submit_forward(work, take_id, request, client=client,
                               models=models_factory(), reference=reference,
                               target_fingerprint=fingerprint, work_root=work_root,
@@ -105,6 +109,36 @@ def make_forward_runner(*, client_factory, models_factory, fingerprint, work_roo
 
 def create_forward_router(get_work_dir, *, runner=None) -> APIRouter:
     router = APIRouter(prefix='/api/continuity/takes', tags=['continuity'])
+
+    @router.get('/{take_id}/references')
+    def references(take_id: TakeId):
+        """What this take was generated with, in the order the prompt numbered it."""
+        try:
+            paths = parent_references(str(get_work_dir()), take_id)
+        except FileNotFoundError:
+            raise HTTPException(404, 'Unknown take') from None
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from None
+        return {'references': [
+            {'index': position, 'sha256': _sha256(path),
+             'url': f'/api/continuity/takes/{take_id}/references/{position}'}
+            for position, path in enumerate(paths, start=1)]}
+
+    @router.get('/{take_id}/references/{index}')
+    def reference_image(take_id: TakeId, index: int):
+        if not 1 <= index <= 64:
+            raise HTTPException(404, 'Unknown reference')
+        try:
+            paths = parent_references(str(get_work_dir()), take_id)
+        except FileNotFoundError:
+            raise HTTPException(404, 'Unknown take') from None
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from None
+        if index > len(paths):
+            raise HTTPException(404, 'Unknown reference')
+        path = paths[index - 1]
+        return FileResponse(path, media_type=_image_type(path),
+                            headers={'Cache-Control': 'private, max-age=60'})
 
     @router.post(FORWARD_PATH, status_code=202)
     def forward(take_id: TakeId, request: ForwardRequest):
@@ -119,3 +153,8 @@ def create_forward_router(get_work_dir, *, runner=None) -> APIRouter:
         return view
 
     return router
+
+
+def _image_type(path: Path) -> str:
+    return {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+            '.webp': 'image/webp'}.get(path.suffix.lower(), 'application/octet-stream')

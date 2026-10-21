@@ -87,3 +87,10 @@
 /* The composer owns the full width of its section, whatever the section was. */
 .native-next{display:block}
 .native-next .forward-form,.native-next .forward-head{width:100%}
+
+/* The references are the identity of the shot: show them before asking for words. */
+.forward-references{grid-column:1/-1;margin:0 0 .2rem;display:flex;align-items:center;gap:.9rem;flex-wrap:wrap}
+.forward-references figcaption{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted,#9aa0b4)}
+.forward-reference-list{display:flex;gap:.5rem;flex-wrap:wrap}
+.forward-reference{width:56px;height:56px;object-fit:cover;border-radius:.55rem;
+  border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.04)}

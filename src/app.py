@@ -29,6 +29,15 @@ from config import comfy_base_url
 from continuity_forward_api import (create_forward_router, make_forward_runner,
                                     target_fingerprint)
 from h3_recipe import H3Models
+from h3_continuity_graphs import H3ContinuityModels, Weight
+
+
+def _continuity_models() -> H3ContinuityModels:
+    """The continuity compiler needs Weight objects, not the recipe's filenames."""
+    recipe = H3Models()
+    return H3ContinuityModels(unet=Weight(recipe.unet), clip=Weight(recipe.clip),
+                              video_vae=Weight(recipe.video_vae),
+                              audio_vae=Weight(recipe.audio_vae))
 from character_studio_app import register_optional_characters
 from timeline_api import create_router as create_timeline_router
 from continuable_take_api import create_router as create_continuity_router
@@ -64,7 +73,7 @@ app.include_router(create_continuity_router(lambda: core.WORK))
 app.include_router(create_forward_router(
     lambda: core.WORK,
     runner=make_forward_runner(
-        client_factory=make_client, models_factory=H3Models,
+        client_factory=make_client, models_factory=_continuity_models,
         fingerprint=target_fingerprint(comfy_base_url(), H3Models()),
         work_root=Path(core.WORK) / 'native-operations')))
 

@@ -96,3 +96,26 @@ class SubmitForwardOrderingTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ParentContextShapeTests(unittest.TestCase):
+    """The validated wrapper, not only the raw artifact set, must be accepted."""
+
+    def test_a_validated_family_wrapper_is_read_through_its_artifacts(self):
+        import continuity_pipeline as pipeline
+        import types
+
+        measured = types.SimpleNamespace(to_manifest=lambda: {'context': {
+            'width': 960, 'height': 544, 'delivered_frames': 157, 'fps': 24}})
+        wrapper = types.SimpleNamespace(artifacts=measured)
+        context = pipeline.parent_context(wrapper)
+        self.assertEqual(context['delivered_frames'], 157)
+
+    def test_a_short_parent_is_still_refused_through_the_wrapper(self):
+        import continuity_pipeline as pipeline
+        import types
+
+        measured = types.SimpleNamespace(to_manifest=lambda: {'context': {
+            'width': 960, 'height': 544, 'delivered_frames': 20, 'fps': 24}})
+        with self.assertRaisesRegex(ValueError, 'tail pin'):
+            pipeline.parent_context(types.SimpleNamespace(artifacts=measured))

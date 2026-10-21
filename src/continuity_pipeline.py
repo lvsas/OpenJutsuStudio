@@ -26,7 +26,11 @@ FORWARD_TIMEOUT = 7200
 
 def parent_context(artifacts):
     """The measured facts a parent must provide, checked before any upload."""
-    context = artifacts.to_manifest()['context']
+    # ``get_validated_family`` returns ValidatedTakeFamily, whose measured set is
+    # ``.artifacts``; a bare H3ArtifactSet is also accepted so the unit doubles
+    # keep exercising the same refusal path.
+    family = getattr(artifacts, 'artifacts', artifacts)
+    context = family.to_manifest()['context']
     delivered = context['delivered_frames']
     if delivered < PIN_WINDOW:
         raise ValueError(
@@ -73,7 +77,9 @@ def restage_parent(client, artifacts, family_name):
 def collect_forward(work: str | Path, folder: Path, *, compiled_graph,
                     reference_path: str | Path | None = None):
     """Return the collector ``execute_operation`` expects, idempotent by Take id."""
-    folder = Path(folder)
+    # Absolute, because the source-root confinement compares resolved paths and a
+    # relative root made every freshly downloaded artifact look like an escape.
+    folder = Path(folder).resolve()
 
     def collect(remote_job, intent, operation_id):
         download_h3_artifacts(remote_job, FAMILY_NODE, folder)

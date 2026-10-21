@@ -4,16 +4,25 @@ Only supports single-shot inputs. Never calls the LTX engine registry or cancels
 other jobs. Dispatch this function in the application's normal worker queue.
 """
 import copy
+import hashlib
 import time
+from dataclasses import asdict
 from pathlib import Path
 import core
 from comfy_transport import make_client
-from h3_graphs import REFERENCE_NODE
+from continuable_take import get_take, import_family
+from h3_artifact_transport import download_h3_artifacts
+from h3_continuity_graphs import Weight
+from h3_graphs import H3Models, REFERENCE_NODE
+from h3_swap_native import build_swap_native_capture
 from h3_media import prepare_source, finish_result, validate_result, has_audio
 from h3_capsule import contained, digest_file, freeze_capsule
 from h3_preserve import describe_character, describe_preserved
 from h3_recipe import ENGINE, bind_frames, validate_recipe, with_preserve_clip, with_reference_description
 from media import ffprobe
+
+# The node pack publishes the MP4/MCTX/COND triplet on this SDK output node.
+NATIVE_FAMILY_NODE = 'native_swap_family'
 
 
 def _reference_paths(opts):
@@ -63,9 +72,36 @@ def _complete_preserve_clip(client, recipe, prepared, folder):
     return with_preserve_clip(recipe, described['text'], 'generated'), None
 
 
-def _download_mp4(client, graph, folder):
-    workflow = client.workflows.from_json(graph)
-    remote = client.run(workflow, timeout=1800)
+def native_operation_id(job):
+    """Deterministic server-side identity for one Swap's native capture.
+
+    Derived from the job, so a retried collection reuses the same Take instead of
+    publishing a second one. It is not a client-supplied value.
+    """
+    return hashlib.sha256(f'opengenjutsu-native-swap:{job.id}'.encode('utf-8')).hexdigest()[:32]
+
+
+def _weight_profile(opts):
+    """The caller's measured weight attestations, before any GPU work is submitted."""
+    raw = opts.get('weights')
+    if not isinstance(raw, dict) or set(raw) != set(asdict(H3Models())):
+        raise ValueError('Native capture requires an attested profile for every effective weight')
+    profile = {}
+    for role, value in raw.items():
+        if (not isinstance(value, dict)
+                or not isinstance(value.get('filename'), str)
+                or not isinstance(value.get('sha256'), str)):
+            raise ValueError('A native weight attestation must name a file and its hash')
+        profile[role] = Weight(value.get('filename'), value.get('sha256'))
+    return profile
+
+
+def _submit(client, graph):
+    """Exactly one SDK submission. Every output is read from the returned job."""
+    return client.run(client.workflows.from_json(graph), timeout=1800)
+
+
+def _published_mp4(remote, folder):
     outputs = remote.get_outputs('156')
     output = next((item for item in outputs if Path(str(item.name)).suffix.lower() == '.mp4'), None)
     if output is None:
@@ -80,6 +116,26 @@ def _download_mp4(client, graph, folder):
     finally:
         partial.unlink(missing_ok=True)
     return destination
+
+
+def _publish_native_take(job, remote, folder, media_dir, graph):
+    """Download the family from this job and register it as an immutable Take."""
+    destination = folder / 'native'
+    download_h3_artifacts(remote, NATIVE_FAMILY_NODE, destination)
+    take_id = native_operation_id(job)
+    try:
+        record = import_family(
+            destination / 'take.mp4',
+            destination / 'take.mctx.safetensors',
+            destination / 'take.cond.safetensors',
+            root=media_dir, work=core.WORK, captured_graph=graph,
+            take_id=take_id, graph_completeness='complete',
+            graph_source='operator_capture', source_job=job.id,
+            operator_label='native-swap')
+    except FileExistsError:
+        # A retried collection reuses what is already published.
+        return get_take(core.WORK, take_id).take_id
+    return record.take_id
 
 
 def run_h3_pipeline(job, video_path, opts):
@@ -151,7 +207,22 @@ def run_h3_pipeline(job, video_path, opts):
         for index, image_ref in enumerate(image_refs):
             graph[str(REFERENCE_NODE + index)]['inputs']['image'] = image_ref
         graph['156']['inputs']['filename_prefix'] = f'OpenGenjutsu/h3-{job.id}'
-        rendered = _download_mp4(client, graph, folder)
+        # The native capture is an explicit opt-in. It appends publication nodes to
+        # the same graph, so the Swap is still sampled exactly once.
+        native = opts.get('native_capture') is True
+        submitted = graph
+        if native:
+            # The capture contract owns the server-side output prefix: it must
+            # match the operation the Take is registered under.
+            operation_id = native_operation_id(job)
+            graph['156']['inputs']['filename_prefix'] = f'OpenGenjutsu/h3-{operation_id}'
+            capture = build_swap_native_capture(
+                recipe, graph, operation_id=operation_id,
+                weights=_weight_profile(opts), publish_family=True)
+            submitted = capture.graph
+            job.meta['native_capture_digest'] = capture.digest
+        remote = _submit(client, submitted)
+        rendered = _published_mp4(remote, folder)
         if ffprobe(rendered)['frames'] < count:
             raise ValueError('H3 inference returned fewer than the source frames')
         job.step, job.progress = 'h3_assemble', 0.9
@@ -161,6 +232,9 @@ def run_h3_pipeline(job, video_path, opts):
         if any(digest_file(path) != input_hashes[role] for role, path in inputs):
             raise ValueError('An H3 input changed during rendering')
         freeze_capsule(job, recipe, source, references, result, media_dir)
+        if native:
+            job.meta['native_take_id'] = _publish_native_take(
+                job, remote, folder, media_dir, submitted)
         job.result, job.status, job.step, job.progress = str(result.resolve()), 'done', 'done', 1.0
     except Exception as exc:
         job.status, job.step = 'error', 'h3_error'

@@ -13,6 +13,9 @@ describes media editing/export; the separate [H3 artifact integrity contract](do
 validates native-family files. Neither implies execution-proven native continuation.
 The [delivered native recovery slice](docs/validation/native-take-workspace.md) records what the
 current Work-in-progress interface actually supports and what remains unavailable.
+**Next delivery:** the [feature-complete MVP plan](docs/plans/2026-10-21-mvp-feature-complete.md)
+tracks Swap → forward, seed hunting/choice, prepend/bridge, direct creation, refine and engine
+capabilities, followed by stabilization, Cloud/SDK validation, UX polish and the two-minute demo.
 
 ---
 

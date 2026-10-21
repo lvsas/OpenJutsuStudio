@@ -16,6 +16,7 @@ browser-quality result.
 
 | Document | What it answers |
 | --- | --- |
+| [Feature-complete MVP delivery plan](plans/2026-10-21-mvp-feature-complete.md) | primary delivery checklist: functional features and dependencies, then stabilization, Cloud/SDK, UX/innovation and two-minute video; supersedes older delivery ordering |
 | [Local setup](local-setup.md) | how to run this on your own machine: Python 3.12, FFmpeg, the SDK proxy, a remote upstream, and the usual failures |
 | [Creative Studio UI architecture](ui-architecture.md) | how the interface is organised, why the two studios share one language, and where local sharing stops |
 | [Open Weights runtime contract](validation/open-weights-runtime-contract.md) | which models, nodes and transport are declared, and what "ready" actually verifies |
@@ -35,7 +36,7 @@ browser-quality result.
 | [Viral Character plan](plans/2026-10-18-viral-character-phase.md) | historical Phase B exploration: trend library, recipe, graph, capsule, page |
 | [Character Studio production plan](plans/2026-10-18-character-studio-production.md) | Phase 0 implementation contract for the FLUX 3 Character Studio: vendor graph adapter, SDK artifacts, recipe/capsule and async jobs |
 | [New MVP product contract](plans/2026-10-18-new-mvp-product.md) | current scope: Viral Character Maker → Character Swap → Timeline Editor, shared capsule/sidecar contracts and phased gates |
-| [Timeline SDK-native plan](plans/2026-10-20-timeline-sdk-product.md) | current integration gates; H3 and LTX product scope, not a delivered editor |
+| [Timeline SDK-native plan](plans/2026-10-20-timeline-sdk-product.md) | technical reference for H3/LTX contracts; delivery order is now governed by the feature-complete plan |
 | [Timeline SDK/H3 audit](validation/timeline-sdk-audit.md) | inspected source, artifact evidence and the remaining SDK round-trip gate |
 | [Visible product slices](validation/visible-product-slices.md) | actual Character/library/handoff and Timeline browser/persistence/export evidence, with remaining release gates |
 | [Timeline editor](architecture/timeline-editor.md) | implemented project/revision/immutable-media/import/export contract, independent of native generation |

@@ -49,6 +49,7 @@ browser-quality result.
 | [Historical Timeline plan](plans/2026-10-18-timeline-latent-phase.md) | superseded assumptions; do not implement directly |
 | [Pack SDK roundtrip](validation/pack-sdk-roundtrip.md) | real job proving the installed pack publishes a downloadable family; transport only |
 | [Native Swap capture](validation/native-swap-capture.md) | first real GPU Swap with native capture: one submit, family retrieved, Take re-validated |
+| [Native forward](validation/native-forward.md) | first real continuation: restaged parent, loader consumed its state, child linked by native identity |
 | [Dependencies](dependencies.md) | every node class and model file this repository needs, verified against a live ComfyUI |
 | [`dependencies.json`](../dependencies.json) | the same list machine-readably, with `scripts/check_dependencies.py` to verify a machine |
 | [Character reference probe](validation/character-reference-probe.md) | historical visual/model experiments that established the FLUX 3 prompt and identity constraints |

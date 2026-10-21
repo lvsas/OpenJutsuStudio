@@ -22,6 +22,11 @@ from h3_family_graphs import build_restage_graph, read_clip_handle
 FAMILY_NODE = 'native_family'
 RESTAGE_TIMEOUT = 900
 FORWARD_TIMEOUT = 7200
+# The pin holds the parent verbatim; these frames are the model's runway to
+# arrive. The node's own guidance recommends one frame past a latent step offset
+# (6/10/14/19/23), and 23 is about one second at 24 fps.
+PIN_RAMP_FRAMES = 23
+PIN_RAMP_EDGE = 0.6
 
 
 def parent_context(artifacts):
@@ -116,7 +121,7 @@ def submit_forward(work: str | Path, take_id: str, request, *, client, models,
         'forward', reference, request.prompt, operation_id=operation_id,
         seed=request.seed, width=context['width'], height=context['height'],
         raw_frames=request.raw_frames, models=models, parents=(parent,),
-        publish_family=True)
+        publish_family=True, ramp_frames=PIN_RAMP_FRAMES, ramp_edge=PIN_RAMP_EDGE)
 
     create_operation(work_root, operation_id, mode='forward', graph=compiled.graph,
                      seed=request.seed, parents=(take_id,),

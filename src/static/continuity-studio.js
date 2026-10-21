@@ -70,7 +70,9 @@ function choose(entry) {
   byId('native-capsule-json').textContent = 'Open to inspect this take’s public capsule.';
   drawShelf(); if (capsule.open) inspect();
   byId('forward-open').disabled = false;
-  byId('forward-form').hidden = true;
+  // Switching take must not close the composer: the operator is choosing where
+  // to continue from, not starting over.
+  if (!byId('forward-form').hidden) loadReferences(record.take_id);
   byId('forward-state').textContent = '';
 }
 async function refresh() {
@@ -132,26 +134,77 @@ function openForward() {
 }
 async function loadReferences(takeId) {
   const figure = byId('forward-references'), list = byId('forward-reference-list');
-  list.replaceChildren(); figure.hidden = true;
+  list.replaceChildren();
+  figure.hidden = false;
   try {
-    const data = await getJSON(`/api/continuity/takes/${takeId}/references`);
+    const response = await fetch(`/api/continuity/takes/${takeId}/references`,
+      {credentials: 'same-origin', cache: 'no-store'});
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const hint = document.createElement('span');
+      hint.className = 'microcopy';
+      hint.textContent = data.detail
+        || 'This take does not record a reference. Add one to keep a character.';
+      list.append(hint);
+      byId('forward-reference-count').textContent = '';
+      return;
+    }
     const items = Array.isArray(data.references) ? data.references : [];
-    if (!items.length) return;
+    if (!items.length) {
+      const hint = document.createElement('span');
+      hint.className = 'microcopy';
+      hint.textContent = 'No reference recorded for this shot. Add one to keep a character.';
+      list.append(hint);
+      byId('forward-reference-count').textContent = '';
+      return;
+    }
     for (const item of items) {
+      const holder = document.createElement('span');
+      holder.className = 'forward-reference-slot';
       const img = document.createElement('img');
       // Build the URL here rather than trusting a field: a missing one left an
       // <img> with no source, visible as an empty box.
       img.src = `/api/continuity/takes/${takeId}/references/${item.index}`;
-      img.alt = `Character reference ${item.index}`;
+      img.alt = `Reference ${item.index}`;
       img.width = 56; img.height = 56;
       img.loading = 'lazy'; img.className = 'forward-reference';
-      list.append(img);
+      const drop = document.createElement('button');
+      drop.type = 'button'; drop.className = 'forward-reference-drop';
+      drop.setAttribute('aria-label', `Remove reference ${item.index}`);
+      drop.textContent = '×';
+      drop.addEventListener('click', () => changeReference(takeId, item.index, null));
+      holder.append(img, drop);
+      list.append(holder);
     }
     byId('forward-reference-count').textContent = items.length > 1
       ? ` · ${items.length}` : '';
-    figure.hidden = false;
   } catch { figure.hidden = true; }
 }
+async function changeReference(takeId, index, file) {
+  try {
+    let response;
+    if (file) {
+      const body = new FormData(); body.append('image', file);
+      response = await fetch(`/api/continuity/takes/${takeId}/references`,
+        {method: 'POST', body, credentials: 'same-origin'});
+    } else {
+      response = await fetch(`/api/continuity/takes/${takeId}/references/${index}`,
+        {method: 'DELETE', credentials: 'same-origin'});
+    }
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      forwardState(data.detail || 'The reference could not be changed.');
+      return;
+    }
+    await loadReferences(takeId);
+    forwardState(file ? 'Reference added for the next shot.' : 'Reference removed.');
+  } catch { forwardState('The reference could not be changed.'); }
+}
+byId('forward-reference-input').addEventListener('change', event => {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (file && active) changeReference(active.take.take_id, 0, file);
+});
 function closeForward() {
   byId('forward-form').hidden = true;
   byId('forward-open').disabled = !active;

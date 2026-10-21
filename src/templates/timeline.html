@@ -46,8 +46,13 @@
       </div>
       <form id="forward-form" class="forward-form" hidden>
         <figure id="forward-references" class="forward-references" hidden>
-          <figcaption>Character reference<span id="forward-reference-count"></span></figcaption>
+          <figcaption>References for this shot<span id="forward-reference-count"></span></figcaption>
           <div id="forward-reference-list" class="forward-reference-list"></div>
+          <label class="forward-reference-add">
+            <input id="forward-reference-input" type="file" hidden
+              accept="image/png,image/jpeg,image/webp">
+            <span class="btn btn-secondary">Add a reference</span>
+          </label>
         </figure>
         <label class="forward-field forward-direction">
           <span>What happens next?</span>

@@ -26,7 +26,7 @@ by group/others. Do not expose a shared hostile filesystem as a Comfy root.
 Normal managed/developer-API workflow remains required: enable/use the target's
 supported Comfy API v2 service (on self-hosted instances, the official proxy
 must already target the intended Comfy instance), confirm authenticated node
-inventory shows both classes, upload all assets through that service, submit
+inventory shows the required classes, upload all assets through that service, submit
 API-format graphs through the official SDK, poll and retrieve the completed
 job's node outputs. Installation in Manager or a successful restart alone is
 not SDK or native-H3 roundtrip proof. This pack is not registered in Manager or
@@ -34,9 +34,10 @@ approved for Comfy Cloud; neither availability nor deployment is implied.
 
 ## Node contracts
 
-Both nodes are terminal `OUTPUT_NODE=True`, function `execute`, category
-`OpenGenjutsu/Continuity`. Required `video`, `mctx`, `conditioning` are separate
-`STRING` inputs. They return `(clip: STRING, manifest_json: STRING)` and actual
+All three nodes are terminal `OUTPUT_NODE=True`, function `execute`, category
+`OpenGenjutsu/Continuity`. PublishFamily/RestageFamily take separate
+`video`, `mctx`, `conditioning` STRING inputs; PublishClip takes the actual
+native saver `clip` STRING. They return `(clip: STRING, manifest_json: STRING)` and actual
 `ui.files` descriptors **on the same output node**, for example:
 
 ```json
@@ -63,6 +64,18 @@ actual files and returns their real descriptors without copying them.
 `clip` is returned only when both sidecars are actually adjacent with the
 video radical; otherwise `clip` is the empty string, never a guessed handle.
 Publish only stable, completed files; do not overwrite them after publication.
+
+### `OpenGenjutsuH3PublishClip`
+
+Wire the actual `H3TrimAndSaveVideoWithMCtx` clip STRING into `clip`. It accepts
+the saver's absolute path only beneath the configured output root, or an exact
+output-relative path. The two adjacent sidecars follow the verified stock
+`mctx.sidecar_path` and `condstore.cond_path` conventions. Every file and its
+shared identity is then validated by the same PublishFamily implementation.
+Missing/corrupt state is an error. No counter guessing, directory scan or input
+asset-name inference occurs. The returned handle is output-relative; capture
+that output through SaveText for a subsequent loader job, not the stock saver's
+absolute path. This closes graph publication wiring, not GPU or Cloud proof.
 
 ### `OpenGenjutsuH3RestageFamily`
 

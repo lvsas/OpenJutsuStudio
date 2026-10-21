@@ -170,6 +170,22 @@ def publish(video, mctx, conditioning):
             return _result(relative, family, clip)
 
 
+def publish_clip(clip):
+    """Publish the exact native saver's returned clip, never a guessed counter.
+
+    Verified stock conventions: mctx.sidecar_path / condstore.cond_path
+    replace the final .mp4 suffix with .mctx.safetensors / .cond.safetensors.
+    The complete family is still opened, hashed and validated by publish().
+    """
+    with safe_errors():
+        _, output = roots()
+        video = _relative(clip, output, True)
+        if not video.endswith('.mp4'):
+            raise _error('unsupported_suffix')
+        radical = video[:-4]
+        return publish(video, radical + SUFFIXES[1], radical + SUFFIXES[2])
+
+
 def _copy_file(source_fd, directory_fd, name):
     """Exclusive destination creation and fixed-memory stream, never tensor load."""
     destination = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,

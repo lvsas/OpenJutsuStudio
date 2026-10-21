@@ -1,5 +1,5 @@
 """Legacy ComfyUI node API, CPU-only and importable without ComfyUI."""
-from .family import publish, restage
+from .family import publish, publish_clip, restage
 
 
 class _FamilyNode:
@@ -27,6 +27,18 @@ class OpenGenjutsuH3PublishFamily(_FamilyNode):
 
     def execute(self, video, mctx, conditioning):
         return publish(video, mctx, conditioning)
+
+
+class OpenGenjutsuH3PublishClip(_FamilyNode):
+    DESCRIPTION = ('Consume the actual stock native saver clip STRING, validate its complete '
+                   'MP4/MCTX/COND family and expose three API-v2 file assets. No directory scan.')
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {'required': {'clip': ('STRING', {'forceInput': True})}}
+
+    def execute(self, clip):
+        return publish_clip(clip)
 
 
 class OpenGenjutsuH3RestageFamily(_FamilyNode):

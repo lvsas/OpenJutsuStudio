@@ -87,6 +87,40 @@ class ContinuityTests(unittest.TestCase):
         self.assertNotIn(str(self.root), manifest)
         self.assertFalse(json.loads(manifest)['verification']['model_runtime_compatibility'])
 
+    def test_clip_publisher_consumes_actual_saved_path_without_scanning(self):
+        first = self.restage()
+        clip = first['result'][0]
+        publisher = self.nodes.OpenGenjutsuH3PublishClip()
+        self.assertEqual(publisher.INPUT_TYPES()['required']['clip'][0], 'STRING')
+        self.assertTrue(math.isnan(publisher.IS_CHANGED()))
+        for supplied in (clip, str(self.output / clip)):
+            with self.subTest(supplied=supplied), patch.object(Path, 'glob', side_effect=AssertionError('scan')), \
+                    patch.object(Path, 'iterdir', side_effect=AssertionError('scan')):
+                self.assertEqual(publisher.execute(supplied), first)
+
+    def test_clip_publisher_refuses_missing_state_unsafe_path_and_wrong_identity(self):
+        clip = self.restage()['result'][0]
+        publisher = self.nodes.OpenGenjutsuH3PublishClip()
+        for value in ('../escape.mp4', str(self.paths[0]), 'x\\\\y.mp4', 'x.webm', '', None):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                publisher.execute(value)
+        cond = self.output / clip.replace('.mp4', '.cond.safetensors')
+        original = cond.read_bytes()
+        cond.unlink()
+        with self.assertRaises(ValueError):
+            publisher.execute(clip)
+        cond.write_bytes(original.replace(hashlib.sha256(self.paths[0].read_bytes()).hexdigest().encode(),
+                                          b'0' * 64))
+        with self.assertRaises(ValueError):
+            publisher.execute(clip)
+
+    def test_clip_publisher_refuses_symlink_components(self):
+        clip = self.restage()['result'][0]
+        publisher = self.nodes.OpenGenjutsuH3PublishClip()
+        (self.output / 'linked').symlink_to((self.output / clip).parent, target_is_directory=True)
+        with self.assertRaises(ValueError):
+            publisher.execute('linked/take.mp4')
+
     def test_publisher_literal_descriptors_explicit_paths(self):
         result = self.restage()
         folder = self.output / 'opengenjutsu_continuity/proof'
@@ -354,7 +388,7 @@ import sys
 before = list(sys.path)
 import opengenjutsu_continuity as pack
 assert sys.path == before
-assert set(pack.NODE_CLASS_MAPPINGS) == {'OpenGenjutsuH3PublishFamily', 'OpenGenjutsuH3RestageFamily'}
+assert set(pack.NODE_CLASS_MAPPINGS) == {'OpenGenjutsuH3PublishFamily', 'OpenGenjutsuH3RestageFamily', 'OpenGenjutsuH3PublishClip'}
 for name in ('src', 'core', 'timeline_artifacts', 'safetensor_header', 'h3_conditioning', 'media_probe',
              'folder_paths', 'torch', 'safetensors', 'comfy_sdk', 'comfy_api_proxy'):
     assert name not in sys.modules, name

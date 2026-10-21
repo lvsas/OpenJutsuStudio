@@ -69,6 +69,14 @@ the separate native compiler. GET-only class/schema checks do **not** establish 
 The application's CPU publisher/restager pack and desktop deployment gate are documented separately
 in [continuity nodes](architecture/continuity-nodes.md). Native generation is still work in progress.
 
+The project-owned pack currently registers `OpenGenjutsuH3PublishFamily`,
+`OpenGenjutsuH3RestageFamily` and `OpenGenjutsuH3PublishClip` in source, but none is installed on
+the inspected target. They are not OBVPM nodes and do not replace its H3 temporal operations.
+The [ownership audit](validation/2026-10-21-dependency-ownership-audit.md) records a central-manifest
+coverage gap and the checker's optional-pack limitation; these must be fixed together during
+extraction, not concealed as complete readiness. The [parallel Capsules/app plan](plans/2026-10-21-capsule-pack-innovation.md)
+defines the standalone pack, progressive H3 dependency replacement and separately verified LTX/FLUX adapters.
+
 ### Models — 12 files, in ComfyUI's own folders
 
 | Folder | File | Role |

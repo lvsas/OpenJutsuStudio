@@ -17,6 +17,8 @@ browser-quality result.
 | Document | What it answers |
 | --- | --- |
 | [Feature-complete MVP delivery plan](plans/2026-10-21-mvp-feature-complete.md) | primary delivery checklist: functional features and dependencies, then stabilization, Cloud/SDK, UX/innovation and two-minute video; supersedes older delivery ordering |
+| [Capsules pack and app — parallel innovation plan](plans/2026-10-21-capsule-pack-innovation.md) | standalone project-owned pack, H3 backend replacement, LTX/FLUX adapter boundaries and synchronized visible app milestones; proposed, not delivered |
+| [Dependency and ownership audit](validation/2026-10-21-dependency-ownership-audit.md) | earlier capsule proposal vs implemented code; current dependencies, OBVPM overlap and explicit tracking/deployment gaps |
 | [Local setup](local-setup.md) | how to run this on your own machine: Python 3.12, FFmpeg, the SDK proxy, a remote upstream, and the usual failures |
 | [Creative Studio UI architecture](ui-architecture.md) | how the interface is organised, why the two studios share one language, and where local sharing stops |
 | [Open Weights runtime contract](validation/open-weights-runtime-contract.md) | which models, nodes and transport are declared, and what "ready" actually verifies |

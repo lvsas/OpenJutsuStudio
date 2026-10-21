@@ -47,6 +47,8 @@ browser-quality result.
 | [Native LTX capabilities](validation/timeline-ltx-capabilities.md) | official/installed candidate matrix, native state limits and next isolated root-I2V gate |
 | [H3 artifact integrity](architecture/timeline-artifacts.md) | implemented read-only MP4/MCTX/COND inspection, CLI, tests and explicit limits |
 | [Historical Timeline plan](plans/2026-10-18-timeline-latent-phase.md) | superseded assumptions; do not implement directly |
+| [Pack SDK roundtrip](validation/pack-sdk-roundtrip.md) | real job proving the installed pack publishes a downloadable family; transport only |
+| [Native Swap capture](validation/native-swap-capture.md) | first real GPU Swap with native capture: one submit, family retrieved, Take re-validated |
 | [Dependencies](dependencies.md) | every node class and model file this repository needs, verified against a live ComfyUI |
 | [`dependencies.json`](../dependencies.json) | the same list machine-readably, with `scripts/check_dependencies.py` to verify a machine |
 | [Character reference probe](validation/character-reference-probe.md) | historical visual/model experiments that established the FLUX 3 prompt and identity constraints |

@@ -39,7 +39,35 @@
       <section class="native-canvas" aria-label="Selected native take"><div class="native-stage"><div id="native-empty" class="native-empty"><strong>A take is more than a video.</strong><p>Recover its visible result, captured recipe, MCTX, conditioning and lineage together.</p></div><video id="native-video" controls playsinline preload="metadata" hidden></video></div><p id="native-status" class="native-caption" role="status" aria-live="polite">No generation starts on this page.</p></section>
       <aside class="native-inspector"><p class="eyebrow">What this take keeps</p><h2 id="native-title">Select a native take</h2><dl><dt>Visible result</dt><dd id="native-geometry">—</dd><dt>Native state</dt><dd id="native-state">—</dd><dt>Lineage</dt><dd id="native-lineage">—</dd><dt>Recipe evidence</dt><dd id="native-recipe">—</dd><dt>Replay compatibility</dt><dd id="native-compatibility">Not verified</dd></dl><details id="native-capsule" class="native-capsule"><summary>Inspect capsule</summary><pre id="native-capsule-json">Select a take to inspect its public capsule.</pre><a id="native-capsule-download" class="btn btn-secondary" hidden download>Download capsule JSON</a><p class="microcopy">This public JSON is not a complete Take backup. Private native files remain stored on the server.</p></details></aside>
     </section>
-    <section class="native-next" aria-label="Generation availability"><strong>Next: create from this take</strong><p>Forward · prepend · bridge · compare seeds.<br>These generative operations are being connected. There is no render button here until the complete native SDK path is available.</p></section>
+    <section class="native-next" aria-label="Continue this take">
+      <div class="forward-head">
+        <div><p class="eyebrow">Next</p><h2>Continue this take</h2></div>
+        <button id="forward-open" class="btn btn-primary" type="button" disabled>Continue this take</button>
+      </div>
+      <form id="forward-form" class="forward-form" hidden>
+        <label class="forward-field forward-direction">
+          <span>What happens next?</span>
+          <textarea id="forward-prompt" rows="2" maxlength="4000" required
+            placeholder="She keeps walking, then stops and looks back."></textarea>
+        </label>
+        <label class="forward-field"><span>Length</span>
+          <select id="forward-length">
+            <option value="56" selected>2 s</option>
+            <option value="107">4 s</option>
+            <option value="124">5 s</option>
+          </select>
+        </label>
+        <label class="forward-field"><span>Seed</span>
+          <input id="forward-seed" type="text" inputmode="numeric" pattern="[0-9]{1,20}" autocomplete="off">
+        </label>
+        <div class="forward-actions">
+          <button id="forward-submit" class="btn btn-primary" type="submit">Generate continuation</button>
+          <button id="forward-cancel" class="btn btn-secondary" type="button">Cancel</button>
+        </div>
+        <p id="forward-state" class="forward-state" role="status" aria-live="polite"></p>
+      </form>
+      <p class="microcopy">Prepend and bridge arrive with the same composer. The take you start from is never replaced.</p>
+    </section>
     <details id="supporting-tools" class="timeline-supporting"><summary>Assembly &amp; export — supporting tools</summary>
     <span id="save-status" class="badge" role="status" aria-live="polite">Local assembly workspace</span>
     <section class="timeline-intro">

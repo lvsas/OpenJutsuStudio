@@ -69,6 +69,9 @@ function choose(entry) {
   const link = byId('native-capsule-download'); link.href = entry.capsule_url + '?download=true'; link.hidden = false;
   byId('native-capsule-json').textContent = 'Open to inspect this take’s public capsule.';
   drawShelf(); if (capsule.open) inspect();
+  byId('forward-open').disabled = false;
+  byId('forward-form').hidden = true;
+  byId('forward-state').textContent = '';
 }
 async function refresh() {
   if (loading) return;
@@ -94,6 +97,8 @@ async function refresh() {
       byId('native-capsule-download').hidden = true;
       byId('native-capsule-json').textContent = 'Select a take to inspect its public capsule.';
       byId('native-status').textContent = 'No generation starts on this page.';
+      byId('forward-open').disabled = true;
+      byId('forward-form').hidden = true;
       drawShelf();
     }
   } catch (error) { notice(error.message); }
@@ -109,6 +114,71 @@ video.addEventListener('error', () => {
 });
 capsule.addEventListener('toggle', inspect);
 byId('native-refresh').addEventListener('click', refresh);
+
+/* Continuation: one decision, one button, nothing sent before it is asked for. */
+const randomSeed = () => {
+  const buffer = new Uint32Array(2); crypto.getRandomValues(buffer);
+  return ((BigInt(buffer[0]) << 32n) | BigInt(buffer[1])).toString();
+};
+const forwardState = message => { byId('forward-state').textContent = message; };
+function openForward() {
+  if (!active) return;
+  byId('forward-form').hidden = false;
+  byId('forward-open').disabled = true;
+  byId('forward-seed').value = randomSeed();
+  forwardState('');
+  byId('forward-prompt').focus();
+}
+function closeForward() {
+  byId('forward-form').hidden = true;
+  byId('forward-open').disabled = !active;
+  byId('forward-submit').disabled = false;
+  forwardState('');
+}
+byId('forward-open').addEventListener('click', openForward);
+byId('forward-cancel').addEventListener('click', closeForward);
+byId('forward-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (!active) return;
+  const prompt = byId('forward-prompt').value.trim();
+  if (!prompt) { forwardState('Describe what happens next.'); return; }
+  const seed = byId('forward-seed').value.trim();
+  if (!/^\d{1,20}$/.test(seed)) { forwardState('The seed must be a whole number.'); return; }
+  const body = {
+    request_id: crypto.randomUUID().replace(/-/g, ''),
+    prompt,
+    seed: Number(seed),
+    raw_frames: Number(byId('forward-length').value),
+  };
+  const submit = byId('forward-submit'); submit.disabled = true;
+  forwardState('Sending the request…');
+  const waiting = setTimeout(() => forwardState('Generating…'), 2500);
+  try {
+    const response = await fetch(`/api/continuity/takes/${active.take.take_id}/forward`, {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+    });
+    clearTimeout(waiting);
+    if (!response.ok) {
+      let detail = '';
+      try { detail = (await response.json()).detail || ''; } catch { /* keep the generic message */ }
+      forwardState(detail || (response.status === 503
+        ? 'The studio is not reachable right now.'
+        : 'The generation failed. Your take is unchanged.'));
+      submit.disabled = false; return;
+    }
+    forwardState('Collecting the result…');
+    const view = await response.json();
+    await refresh();
+    const created = entries.find(entry => entry.take.take_id === view.take_id);
+    if (created) { choose(created); closeForward(); forwardState('Continuation ready.'); }
+    else { closeForward(); notice('The continuation was created but is not visible yet. Refresh to load it.'); }
+  } catch {
+    clearTimeout(waiting);
+    forwardState('We could not confirm the request. Check again.');
+    submit.disabled = false;
+  }
+});
 let editorLoaded = false;
 byId('supporting-tools').addEventListener('toggle', async event => {
   if (!event.currentTarget.open || editorLoaded) return;

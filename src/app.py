@@ -24,6 +24,11 @@ from job_api import create_router as create_job_router
 from take_capsule_api import create_router as create_take_capsule_router
 from runtime_inventory import declared_runtime_inventory
 from h3_studio_app import register_optional_h3
+from comfy_transport import make_client
+from config import comfy_base_url
+from continuity_forward_api import (create_forward_router, make_forward_runner,
+                                    target_fingerprint)
+from h3_recipe import H3Models
 from character_studio_app import register_optional_characters
 from timeline_api import create_router as create_timeline_router
 from continuable_take_api import create_router as create_continuity_router
@@ -56,6 +61,12 @@ _REEL_SERVICE = ReelService(lambda: MEDIA_DIR)
 app.include_router(create_share_reel_router(_REEL_SERVICE))
 app.include_router(create_timeline_router(lambda: core.WORK, lambda: MEDIA_DIR, MAX_UPLOAD_BYTES))
 app.include_router(create_continuity_router(lambda: core.WORK))
+app.include_router(create_forward_router(
+    lambda: core.WORK,
+    runner=make_forward_runner(
+        client_factory=make_client, models_factory=H3Models,
+        fingerprint=target_fingerprint(comfy_base_url(), H3Models()),
+        work_root=Path(core.WORK) / 'native-operations')))
 
 
 def _dispatch_job(job: core.Job, video_path: Path, opts: dict[str, Any]):

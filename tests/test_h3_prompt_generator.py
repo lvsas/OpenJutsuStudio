@@ -31,9 +31,11 @@ class PromptGraphTests(unittest.TestCase):
     def test_one_reference_and_one_captured_output(self):
         graph = gen.build_prompt_graph('walk on', REF)
         batch = graph['5837']['inputs']
-        self.assertEqual(batch['inputcount'], 1)
+        # The installed batch node refuses fewer than two images; both slots
+        # therefore carry the same committed reference.
+        self.assertEqual(batch['inputcount'], 2)
         self.assertEqual(batch['image_1'], ['5836', 0])
-        self.assertNotIn('image_2', batch)
+        self.assertEqual(batch['image_2'], ['5836', 0])
         self.assertEqual(graph[gen.OUTPUT_NODE]['inputs']['text'], ['5833_6', 0])
         for node in (*gen.PREVIEW_NODES, *gen.UNUSED_NODES):
             self.assertNotIn(node, graph, f'{node} must not reach the job')

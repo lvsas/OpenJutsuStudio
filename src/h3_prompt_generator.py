@@ -61,11 +61,13 @@ def build_prompt_graph(direction: str, reference: dict, *, mode: str = 'rewrite'
     graph[MODE_NODE]['inputs']['choice'] = mode
     graph[REFERENCE_NODE]['inputs']['image'] = _asset(reference)
 
-    # One reference image, not the two the authoring graph carried.
+    # The installed ImageBatchMulti requires at least two images, so the same
+    # committed reference fills both slots. Inventing a second picture would
+    # silently change what the model is asked to look at.
     batch = graph[BATCH_NODE]['inputs']
-    batch['inputcount'] = 1
+    batch['inputcount'] = 2
     batch['image_1'] = [REFERENCE_NODE, 0]
-    batch.pop('image_2', None)
+    batch['image_2'] = [REFERENCE_NODE, 0]
     for node in (*PREVIEW_NODES, *UNUSED_NODES):
         graph.pop(node, None)
 

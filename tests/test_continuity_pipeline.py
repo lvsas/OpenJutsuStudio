@@ -3,8 +3,10 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
+import continuity_pipeline as pipeline  # noqa: E402
 from continuity_pipeline import native_parent  # noqa: E402
 from h3_continuity_graphs import H3ContinuityModels, PIN_WINDOW, Weight  # noqa: E402
 
@@ -48,6 +50,48 @@ class NativeParentTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'model profile'):
             native_parent(TAKE, family(), models={'unet': Weight('a.safetensors')},
                           clip='x/take.mp4')
+
+
+class SubmitForwardOrderingTests(unittest.TestCase):
+    """A refused parent must cost nothing: no upload, no submission."""
+
+    def request(self):
+        return SimpleNamespace(prompt='continue', seed=7, raw_frames=124,
+                               request_id='c' * 32)
+
+    def submit(self, client, delivered=56, fps=24.0):
+        with patch.object(pipeline, 'get_validated_family', return_value=family(delivered, fps)), \
+                patch.object(pipeline, 'get_take', return_value=TAKE):
+            return pipeline.submit_forward(
+                '/work', TAKE.take_id, self.request(), client=client, models=MODELS,
+                reference={'__type': 'core/ASSET', 'info': {'id': 'ref'}},
+                target_fingerprint='f' * 64, work_root='/operations')
+
+    def test_a_take_below_the_pin_window_costs_no_upload_and_no_submission(self):
+        client = MagicMock()
+        with self.assertRaisesRegex(ValueError, f'at least {PIN_WINDOW}'):
+            self.submit(client, delivered=PIN_WINDOW - 1)
+        client.assets.from_file.assert_not_called()
+        client.run.assert_not_called()
+        client.submit.assert_not_called()
+
+    def test_a_non_24fps_take_is_refused_before_any_client_call(self):
+        client = MagicMock()
+        with self.assertRaisesRegex(ValueError, '24 fps'):
+            self.submit(client, fps=30.0)
+        client.run.assert_not_called()
+
+    def test_an_unreadable_family_never_reaches_the_target(self):
+        client = MagicMock()
+        with patch.object(pipeline, 'get_validated_family',
+                          side_effect=ValueError('Frozen Take evidence differs')):
+            with self.assertRaises(ValueError):
+                pipeline.submit_forward(
+                    '/work', TAKE.take_id, self.request(), client=client, models=MODELS,
+                    reference={'__type': 'core/ASSET', 'info': {'id': 'ref'}},
+                    target_fingerprint='f' * 64, work_root='/operations')
+        client.assets.from_file.assert_not_called()
+        client.run.assert_not_called()
 
 
 if __name__ == '__main__':

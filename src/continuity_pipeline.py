@@ -1,16 +1,39 @@
-"""Turn a stored Take into a validated native parent, or refuse it.
+"""Compose the proven native chain into one service call.
 
-The continuity compiler demands a parent whose geometry, fps and effective
-weights match the target, and whose delivered range can actually carry the pin
-window. A Take shorter than that window cannot be continued from its tail; the
-refusal has to happen before any upload or GPU work.
+restage the stored parent -> attest it -> compile -> freeze the intent -> submit
+once -> download the published family -> register an immutable Take.
+
+Every expensive or irreversible step happens after the cheap refusals: a Take that
+cannot carry the pin window, or an incomplete model profile, is rejected before an
+asset upload or a GPU submission.
 """
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 
-from continuable_take import get_take, get_validated_family
-from h3_continuity_graphs import H3ContinuityModels, NativeH3Parent, PIN_WINDOW
+from continuable_take import get_take, get_validated_family, import_family
+from continuity_jobs import create_operation, execute_operation
+from h3_artifact_transport import download_h3_artifacts
+from h3_continuity_graphs import (H3ContinuityModels, NativeH3Parent, PIN_WINDOW,
+                                  build_h3_continuity)
+from h3_family_graphs import build_restage_graph, read_clip_handle
+
+FAMILY_NODE = 'native_family'
+RESTAGE_TIMEOUT = 900
+FORWARD_TIMEOUT = 7200
+
+
+def parent_context(artifacts):
+    """The measured facts a parent must provide, checked before any upload."""
+    context = artifacts.to_manifest()['context']
+    delivered = context['delivered_frames']
+    if delivered < PIN_WINDOW:
+        raise ValueError(
+            f'This take delivers {delivered} frames; a tail pin needs at least {PIN_WINDOW}')
+    if context['fps'] != 24:
+        raise ValueError('Native continuation currently requires a 24 fps take')
+    return context
 
 
 def native_parent(take, artifacts, *, models, clip):
@@ -22,20 +45,75 @@ def native_parent(take, artifacts, *, models, clip):
     """
     if not isinstance(models, H3ContinuityModels):
         raise ValueError('A complete continuity model profile is required')
-    context = artifacts.to_manifest()['context']
-    delivered = context['delivered_frames']
-    if delivered < PIN_WINDOW:
-        raise ValueError(
-            f'This take delivers {delivered} frames; a tail pin needs at least {PIN_WINDOW}')
-    if context['fps'] != 24:
-        raise ValueError('Native continuation currently requires a 24 fps take')
+    context = parent_context(artifacts)
     return NativeH3Parent(take_id=take.take_id, clip=clip, width=context['width'],
-                          height=context['height'], delivered_frames=delivered, fps=24,
+                          height=context['height'],
+                          delivered_frames=context['delivered_frames'], fps=24,
                           models=models, capsule_digest=take.capsule_sha256)
 
 
 def parent_from_registry(work: str | Path, take_id: str, *, models, clip):
     """Re-validate the stored family, then build the parent attestation."""
-    take = get_take(work, take_id)
+    return native_parent(get_take(work, take_id), get_validated_family(work, take_id),
+                         models=models, clip=clip)
+
+
+def restage_parent(client, artifacts, family_name):
+    """Upload the three files and let the installed pack rebuild a loadable family."""
+    references = {role: client.assets.from_file(path).as_reference()
+                  for role, path in (('video', artifacts.video), ('mctx', artifacts.mctx),
+                                     ('conditioning', artifacts.conditioning))}
+    job = client.run(client.workflows.from_json(build_restage_graph(references, family_name)),
+                     timeout=RESTAGE_TIMEOUT)
+    if getattr(job, 'status', None) != 'succeeded':
+        raise ValueError('The parent family could not be restaged on the target')
+    return read_clip_handle(job, family_name)
+
+
+def collect_forward(work: str | Path, folder: Path, *, compiled_graph):
+    """Return the collector ``execute_operation`` expects, idempotent by Take id."""
+    folder = Path(folder)
+
+    def collect(remote_job, intent, operation_id):
+        download_h3_artifacts(remote_job, FAMILY_NODE, folder)
+        record = import_family(
+            folder / 'take.mp4', folder / 'take.mctx.safetensors',
+            folder / 'take.cond.safetensors', root=folder, work=work,
+            captured_graph=compiled_graph, take_id=operation_id,
+            graph_completeness='complete', graph_source='operator_capture',
+            source_job=remote_job.id, operator_label='native-forward')
+        return record.take_id
+    return collect
+
+
+def submit_forward(work: str | Path, take_id: str, request, *, client, models,
+                   reference, target_fingerprint, work_root: str | Path,
+                   operation_id: str | None = None):
+    """Run the whole chain for one Forward request and return the operation view.
+
+    ``request`` is a validated ``ForwardRequest``: prompt, explicit seed and native
+    frame count only. The parent comes from the URL, the graph from the compiler,
+    and the operation identity from the service.
+    """
+    operation_id = operation_id or uuid.uuid4().hex
     artifacts = get_validated_family(work, take_id)
-    return native_parent(take, artifacts, models=models, clip=clip)
+    context = parent_context(artifacts)  # refuse before any upload
+
+    family_name = uuid.uuid4().hex
+    clip = restage_parent(client, artifacts, family_name)
+    parent = native_parent(get_take(work, take_id), artifacts, models=models, clip=clip)
+
+    compiled = build_h3_continuity(
+        'forward', reference, request.prompt, operation_id=operation_id,
+        seed=request.seed, width=context['width'], height=context['height'],
+        raw_frames=request.raw_frames, models=models, parents=(parent,),
+        publish_family=True)
+
+    create_operation(work_root, operation_id, mode='forward', graph=compiled.graph,
+                     seed=request.seed, parents=(take_id,),
+                     target_fingerprint=target_fingerprint)
+    folder = Path(work) / 'media' / f'forward-{operation_id}'
+    collect = collect_forward(work, folder, compiled_graph=compiled.graph)
+    return execute_operation(work_root, operation_id, client,
+                             target_fingerprint=target_fingerprint, collect=collect,
+                             timeout=FORWARD_TIMEOUT)

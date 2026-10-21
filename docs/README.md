@@ -1,6 +1,6 @@
 # Documentation index
 
-Start with the [project README](../README.md) — what the product does, the two studios,
+Start with the [project README](../README.md) — what the product does, the connected workspaces,
 how to run it and how each competition requirement is met. This page is the map of everything
 under `docs/`.
 
@@ -37,6 +37,11 @@ browser-quality result.
 | [New MVP product contract](plans/2026-10-18-new-mvp-product.md) | current scope: Viral Character Maker → Character Swap → Timeline Editor, shared capsule/sidecar contracts and phased gates |
 | [Timeline SDK-native plan](plans/2026-10-20-timeline-sdk-product.md) | current integration gates; H3 and LTX product scope, not a delivered editor |
 | [Timeline SDK/H3 audit](validation/timeline-sdk-audit.md) | inspected source, artifact evidence and the remaining SDK round-trip gate |
+| [Visible product slices](validation/visible-product-slices.md) | actual Character/library/handoff and Timeline browser/persistence/export evidence, with remaining release gates |
+| [Timeline editor](architecture/timeline-editor.md) | implemented project/revision/immutable-media/import/export contract, independent of native generation |
+| [H3 SDK transport proof](validation/timeline-artifact-roundtrip.md) | measured upload/readback and the native publication/loader gap; partial proof is explicitly partial |
+| [CPU H3 continuity pack](architecture/continuity-nodes.md) | standalone publisher/restager, deterministic archive and local-family proof, not a deployed native continuation path |
+| [Native LTX capabilities](validation/timeline-ltx-capabilities.md) | official/installed candidate matrix, native state limits and next isolated root-I2V gate |
 | [H3 artifact integrity](architecture/timeline-artifacts.md) | implemented read-only MP4/MCTX/COND inspection, CLI, tests and explicit limits |
 | [Historical Timeline plan](plans/2026-10-18-timeline-latent-phase.md) | superseded assumptions; do not implement directly |
 | [Dependencies](dependencies.md) | every node class and model file this repository needs, verified against a live ComfyUI |

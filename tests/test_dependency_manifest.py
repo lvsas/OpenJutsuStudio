@@ -68,6 +68,9 @@ class ManifestShapeTests(unittest.TestCase):
     def test_the_manifest_declares_every_model_a_workflow_names(self):
         declared = {entry["file"] for entry in self.manifest["models"]}
         declared |= {entry["file"] for entry in self.manifest["loras"]}
+        # A pinned parameterized template names typed runtime bindings, not
+        # installable model files. Every such token must still be declared.
+        declared |= set(self.manifest.get("runtime_model_bindings", {}))
         # the character generator's files are dependencies too, and the upstream workflow names
         # them, so the contract has to accept any of the alternatives that could satisfy a role
         for role in self.manifest["character_generator"]["roles"]:
@@ -75,6 +78,32 @@ class ManifestShapeTests(unittest.TestCase):
         for name in sorted(workflow_model_files()):
             with self.subTest(model=name):
                 self.assertIn(name, declared, f"{name} is named but absent from dependencies.json")
+
+    def test_runtime_model_bindings_are_typed_parameters_not_fake_model_files(self):
+        bindings = self.manifest['runtime_model_bindings']
+        expected = {
+            '__H3_BIND_UNET__': ('UNETLoader', 'unet_name', 'diffusion_models'),
+            '__H3_BIND_CLIP__': ('CLIPLoader', 'clip_name', 'text_encoders'),
+            '__H3_BIND_VIDEO_VAE__': ('VAELoader', 'vae_name', 'vae'),
+            '__H3_BIND_AUDIO_VAE__': ('VAELoader', 'vae_name', 'vae'),
+        }
+        self.assertEqual(set(bindings), set(expected))
+        used = set()
+        for graph in graphs():
+            for node in graph.values():
+                if not isinstance(node, dict):
+                    continue
+                for field, value in (node.get('inputs') or {}).items():
+                    if isinstance(value, str) and value in bindings:
+                        binding = bindings[value]
+                        self.assertEqual((node['class_type'], field, binding['folder']), expected[value])
+                        self.assertEqual((binding['loader'], binding['field']), expected[value][:2])
+                        self.assertIs(binding['requires_measured_sha256'], True)
+                        self.assertTrue(binding['role'])
+                        used.add(value)
+        self.assertEqual(used, set(bindings))
+        files = {entry['file'] for entry in self.manifest['models'] + self.manifest['loras']}
+        self.assertFalse(files & set(bindings), 'Binding tokens must never be installable filenames')
 
     def test_the_official_upstream_workflow_is_part_of_the_contract(self):
         """The vendor's own graph is the reference the manifest has to cover, node for node."""

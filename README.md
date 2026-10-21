@@ -8,8 +8,11 @@ This project rebuilds it in the open, on top of open-weight models.
 Built for the **Open Source Higgsfield Competition** (ComfyUI · NVIDIA · Runpod).
 
 **For developers:** start with [Contributing](CONTRIBUTING.md) for setup, GPU-free tests,
-module boundaries and review requirements. The [H3 artifact integrity contract](docs/architecture/timeline-artifacts.md)
-documents the first Timeline foundation; it does not claim a working Timeline editor.
+module boundaries and review requirements. The [Timeline editor guide](docs/architecture/timeline-editor.md)
+describes media editing/export; the separate [H3 artifact integrity contract](docs/architecture/timeline-artifacts.md)
+validates native-family files. Neither implies execution-proven native continuation.
+The [delivered native recovery slice](docs/validation/native-take-workspace.md) records what the
+current Work-in-progress interface actually supports and what remains unavailable.
 
 ---
 
@@ -25,6 +28,25 @@ Two studios share one pipeline, one interface language and one capsule:
 | --- | --- | --- |
 | **LTX Studio** | source + reference(s) → FLUX 2 Klein first-frame edit → LTX 2.5 + Ripple propagation | working |
 | **H3 Studio** | source + 1–2 ordered character references → MiniMax H3 two-pass character swap at 0.9 MP | working |
+
+Connected creative workspaces keep the generated content usable beyond one Swap:
+
+| Workspace | What you can do | Boundary |
+| --- | --- | --- |
+| **Characters** (`/characters`) | generate with FLUX 3 Klein, select one canvas, discard recent attempts, explicitly keep a named character in the server library, download/share its PNG and use it in either Swap studio | saving/removing library membership never deletes generation artifacts; navigation never starts a render |
+| **Generative Timeline — work in progress** (`/timeline`) | recover a genuine native H3 Take, play its protected preview, inspect/download its public capsule, retain MCTX/COND and lineage, restore the selected Take; assembly/export remains a collapsed supporting tool | native creation, seed candidates and GPU continuation are not available in this workspace yet; public capsule JSON alone is not a complete Take backup |
+
+The target Timeline is a **generation-first chronology of continuable Takes**: explore seeds,
+choose a candidate, generate after or before it, bridge two boundaries, and recover its frozen
+capsule/state. Assembly/export supports that journey rather than becoming a general-purpose editor.
+Those native operations are not presented as delivered by the supporting slice above.
+
+The [visible-product evidence](docs/validation/visible-product-slices.md) separates actual browser,
+persistence and export checks from unit-test fixtures. A saved Character supplies reference context,
+not a generated Timeline clip. The [CPU continuity pack](docs/architecture/continuity-nodes.md)
+publishes/re-stages explicit H3 file families; it is locally validated, **not installed or runtime-proven
+on the generation target**. The [native LTX audit](docs/validation/timeline-ltx-capabilities.md) records
+engine-specific candidates and unproven operations rather than claiming H3/LTX state interoperability.
 
 ![LTX Studio](docs/readme/ltx-swap.png)
 

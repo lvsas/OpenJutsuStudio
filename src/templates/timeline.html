@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en" data-engine="timeline">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101014">
+  <title>OpenGenjutsu — Timeline</title>
+  <meta name="description" content="A native take is more than a video: its result, capsule, reusable states and lineage. Generative Timeline is work in progress.">
+  <link rel="stylesheet" href="/static/design-system.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/timeline.css">
+  <link rel="stylesheet" href="/static/studio-wip.css">
+  <link rel="stylesheet" href="/static/continuity-studio.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="wordmark" href="/" aria-label="OpenGenjutsu home">OPEN<span>GENJUTSU</span></a>
+    <nav class="engine-switch" aria-label="Creative workspace">
+      <a class="engine-chip" href="/characters">Characters</a>
+      <a class="engine-chip" href="/">LTX <span>Studio</span></a>
+      <a class="engine-chip" href="/h3">H3 <span>Studio</span></a>
+      <a class="engine-chip active" href="/timeline" aria-current="page">Timeline</a>
+    </nav>
+    <span class="badge">Native take workspace</span>
+  </header>
+  <aside class="studio-wip" aria-label="Development status"><strong>Work in progress</strong><span>Recover and inspect native H3 takes. Generation, seed variants and continuation are not available in this workspace yet.</span></aside>
+  <main class="timeline-shell">
+    <section class="native-intro"><div><p class="eyebrow">Generative Timeline</p><h1>One take.<br><em>More possibilities.</em></h1><p class="muted">The result, its capsule and its native state belong together.</p></div><button id="native-refresh" class="btn btn-secondary" type="button">Refresh takes</button></section>
+    <aside id="native-character" class="native-character" hidden><img id="native-character-image" alt="Selected reference for a future native take"><div><strong>Your character reference</strong><p>This reference is for a new take. It does not change a recovered take or start a generation.</p></div></aside>
+    <p id="native-error" class="native-error" role="alert" hidden></p>
+    <section class="native-workspace" aria-label="Native H3 take recovery">
+      <aside class="native-shelf"><p class="eyebrow">Choose a starting point</p><h2>Native takes</h2><div id="native-takes" class="native-list"><p class="microcopy">Loading native takes…</p></div></aside>
+      <section class="native-canvas" aria-label="Selected native take"><div class="native-stage"><div id="native-empty" class="native-empty"><strong>A take is more than a video.</strong><p>Recover its visible result, captured recipe, MCTX, conditioning and lineage together.</p></div><video id="native-video" controls playsinline preload="metadata" hidden></video></div><p id="native-status" class="native-caption" role="status" aria-live="polite">No generation starts on this page.</p></section>
+      <aside class="native-inspector"><p class="eyebrow">What this take keeps</p><h2 id="native-title">Select a native take</h2><dl><dt>Visible result</dt><dd id="native-geometry">—</dd><dt>Native state</dt><dd id="native-state">—</dd><dt>Lineage</dt><dd id="native-lineage">—</dd><dt>Recipe evidence</dt><dd id="native-recipe">—</dd><dt>Replay compatibility</dt><dd id="native-compatibility">Not verified</dd></dl><details id="native-capsule" class="native-capsule"><summary>Inspect capsule</summary><pre id="native-capsule-json">Select a take to inspect its public capsule.</pre><a id="native-capsule-download" class="btn btn-secondary" hidden download>Download capsule JSON</a><p class="microcopy">This public JSON is not a complete Take backup. Private native files remain stored on the server.</p></details></aside>
+    </section>
+    <section class="native-next" aria-label="Generation availability"><strong>Next: create from this take</strong><p>Forward · prepend · bridge · compare seeds.<br>These generative operations are being connected. There is no render button here until the complete native SDK path is available.</p></section>
+    <details id="supporting-tools" class="timeline-supporting"><summary>Assembly &amp; export — supporting tools</summary>
+    <span id="save-status" class="badge" role="status" aria-live="polite">Local assembly workspace</span>
+    <section class="timeline-intro">
+      <div><p class="eyebrow">Optional · after choosing your results</p><h2>Assemble selected results</h2>
+        <p class="muted">These media tools do not create native states or generative continuity.</p></div>
+      <div class="timeline-top-actions">
+        <label class="sr-only" for="project-picker">Saved sequences</label>
+        <select id="project-picker" class="text-input" aria-label="Saved sequences"><option value="">Your sequences</option></select>
+        <button id="new-project" class="btn btn-secondary" type="button">New sequence</button>
+        <button id="export-sequence" class="btn btn-primary" type="button" disabled>Export your cut <span aria-hidden="true">↗</span></button>
+      </div>
+    </section>
+    <div id="timeline-error" class="timeline-error" role="alert" hidden></div>
+    <button id="reload-project" class="btn btn-secondary btn-small" type="button" hidden>Reload saved sequence</button>
+    <div class="timeline-workbench">
+      <aside class="timeline-sources" aria-labelledby="sources-title">
+        <div class="timeline-panel-title"><div><p class="eyebrow">Your material</p><h2 id="sources-title">Start with a take</h2></div></div>
+        <input id="import-file" type="file" accept="video/mp4,.mp4" class="visually-hidden">
+        <button id="import-clip" class="timeline-import" type="button"><span aria-hidden="true">＋</span><strong>Import a clip</strong><small>Drop an MP4 here, or browse</small></button>
+        <div id="character-context" class="timeline-character" hidden>
+          <img id="context-image" alt="Character reference for this sequence">
+          <div><strong>Your character</strong><p class="microcopy">Ready as a reference in either Swap studio.</p>
+            <a id="context-ltx" href="/" class="timeline-text-link">Use in LTX</a> · <a id="context-h3" href="/h3" class="timeline-text-link">Use in H3</a></div>
+        </div>
+        <div class="timeline-source-heading"><h3>Recent swaps</h3><button id="refresh-sources" class="btn btn-ghost btn-small" type="button">Refresh</button></div>
+        <div id="recent-swaps" class="timeline-recent" aria-live="polite"><p class="microcopy">Loading your completed swaps…</p></div>
+        <p class="timeline-source-note microcopy">Adding a take makes an editing copy. Your generated result, recipe and original files stay untouched.</p>
+      </aside>
+      <section class="timeline-viewer" aria-labelledby="viewer-title">
+        <div class="timeline-viewer-heading"><div><p class="eyebrow">The cut</p><h2 id="viewer-title">Your sequence, in motion</h2></div><span id="clip-summary" class="badge">No clip selected</span></div>
+        <div id="timeline-stage" class="timeline-stage">
+          <div id="timeline-empty" class="timeline-empty"><span class="timeline-empty-mark" aria-hidden="true">▶</span><h3>A good moment is just the beginning.</h3><p>Bring in a finished swap or a video clip.<br>Arrange, trim, preview — then make it yours.</p><button id="empty-import" class="btn btn-primary" type="button">Choose your first clip</button></div>
+          <video id="timeline-video" controls playsinline preload="metadata" hidden></video>
+        </div>
+        <div class="timeline-playback"><button id="play-sequence" class="btn btn-secondary btn-small" type="button" disabled>Play sequence</button><label class="sr-only" for="sequence-seek">Position in sequence</label><input id="sequence-seek" type="range" min="0" max="1" step="0.01" value="0" disabled><output id="sequence-time">0:00.00 / 0:00.00</output></div>
+      </section>
+    </div>
+    <section class="timeline-cut" aria-labelledby="cut-title">
+      <div class="timeline-cut-heading"><div><p class="eyebrow">Arrange your moments</p><h2 id="cut-title">The timeline <span id="sequence-summary">0 clips</span></h2></div><div class="timeline-track-tools"><button id="undo-edit" class="btn btn-ghost btn-small" type="button" disabled>Undo last edit</button><label for="timeline-zoom">Zoom</label><input id="timeline-zoom" type="range" min="35" max="140" value="76" aria-label="Timeline zoom"></div></div>
+      <div id="track-scroll" class="timeline-track-scroll" tabindex="0" aria-label="Sequence track; use clip buttons to select">
+        <div id="track-canvas" class="timeline-track-canvas"><div id="time-ruler" class="timeline-ruler" aria-hidden="true"></div><div id="clip-track" class="timeline-clip-track" role="group" aria-label="Clips in sequence"></div><div id="playhead" class="timeline-playhead" aria-hidden="true" hidden></div></div>
+        <p id="track-empty" class="microcopy">Your clips will appear here. Nothing is generated or changed just by navigating.</p>
+      </div>
+      <form id="clip-editor" class="timeline-clip-editor" hidden>
+        <label class="timeline-selected-label"><span class="field-label">Selected clip</span><select id="clip-picker" class="text-input"></select></label>
+        <label><span class="field-label">Start frame</span><input id="trim-start" class="text-input" type="number" min="0" step="1" required></label>
+        <label><span class="field-label">End frame <small>exclusive</small></span><input id="trim-end" class="text-input" type="number" min="1" step="1" required></label>
+        <button id="apply-trim" class="btn btn-secondary" type="submit">Apply trim</button>
+        <div class="timeline-clip-actions"><button id="move-earlier" class="btn btn-ghost btn-small" type="button">← Earlier</button><button id="move-later" class="btn btn-ghost btn-small" type="button">Later →</button><button id="remove-clip" class="btn btn-ghost btn-small" type="button">Remove from cut</button></div>
+        <p id="trim-help" class="microcopy">Trims are non-destructive. Removing a clip never deletes its take.</p>
+      </form>
+    </section>
+    <section class="timeline-name-row" aria-label="Sequence details"><label for="project-title" class="field-label">Sequence name</label><input id="project-title" class="text-input" maxlength="200" placeholder="Give your cut a name" disabled><button id="save-title" class="btn btn-secondary btn-small" type="button" disabled>Save name</button><p class="microcopy">Editing and export work with imported clips. Native generation and latent continuation are separate capabilities, not implied by adding a video.</p></section>
+    </details>
+  </main>
+  <dialog id="timeline-export-dialog" class="timeline-export-dialog" aria-labelledby="export-title">
+    <div class="timeline-export-header"><div><p class="eyebrow">Made to be seen</p><h2 id="export-title">Your cut, ready to share.</h2></div><button id="close-export" class="btn btn-ghost btn-small" type="button" aria-label="Close export preview">Close ✕</button></div>
+    <p id="export-status" role="status" aria-live="polite">Preparing your export…</p>
+    <video id="export-video" controls playsinline hidden></video>
+    <div class="timeline-export-actions"><a id="download-export" class="btn btn-primary" hidden download>Download MP4</a><button id="share-export" class="btn btn-secondary" type="button" hidden>Prepare file sharing</button><button id="retry-export" class="btn btn-secondary" type="button" hidden>Retry export</button></div>
+    <label class="field-label" for="export-caption">A caption to make it yours</label><textarea id="export-caption" class="text-input" rows="2" maxlength="2000"></textarea><button id="copy-export-caption" class="btn btn-ghost btn-small" type="button">Copy caption</button>
+    <p class="microcopy">Preview, download and sharing use the same MP4. This is a saved snapshot of your cut; later edits stay separate. No social account is posted to automatically.</p>
+    <p id="export-format" class="microcopy">MP4 · H.264 / AAC · original clip order and frame trims · no added transitions. Different dimensions fit the first clip's canvas without cropping; mixed frame rates are reported explicitly.</p>
+  </dialog>
+  <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <script src="/static/studio-utils.js" defer></script>
+  <script type="module" src="/static/continuity-studio.js"></script>
+  <noscript><p>Enable JavaScript to recover and inspect native takes. Generative operations are work in progress.</p></noscript>
+</body>
+</html>

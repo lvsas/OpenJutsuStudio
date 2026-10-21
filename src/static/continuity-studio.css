@@ -1,0 +1,62 @@
+.native-intro{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin:1.5rem 0}
+.native-intro h1{font-size:clamp(2rem,4vw,3.2rem);letter-spacing:-.055em;line-height:1.1;margin:.4rem 0!important}
+.native-intro em{color:var(--accent);font-style:normal}
+.native-workspace{display:grid;grid-template-columns:minmax(180px,230px) minmax(0,1fr) minmax(210px,270px);border:1px solid var(--accent-line);border-radius:1rem;overflow:hidden;background:var(--surface)}
+.native-shelf,.native-inspector{padding:1.2rem;min-width:0}
+.native-shelf{border-right:1px solid var(--line)}
+.native-inspector{border-left:1px solid var(--line)}
+.native-shelf h2,.native-inspector h2{font-size:1rem;margin:.35rem 0 1rem!important}
+.native-list{display:grid;gap:.5rem}
+.native-choice{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--surface-soft);border-radius:.7rem;padding:.8rem;color:var(--text);cursor:pointer}
+.native-choice[aria-pressed=true]{border-color:var(--accent);background:var(--accent-soft)}
+.native-choice strong,.native-choice small{display:block;overflow-wrap:anywhere}
+.native-choice small{color:var(--muted);font-size:.72rem;margin-top:.3rem}
+.native-canvas{min-width:0;padding:1rem;background:#0b0a10}
+.native-stage{height:clamp(260px,42vh,510px);display:grid;place-items:center;border-radius:.7rem;overflow:hidden;background:#08070c}
+.native-stage video{height:100%;width:100%;min-height:0;min-width:0;object-fit:contain}
+.native-empty{max-width:400px;padding:1.5rem;text-align:center;color:var(--muted)}
+.native-empty strong{display:block;color:var(--text);margin-bottom:.6rem;font-size:1.1rem}
+.native-caption{font-size:.78rem;color:var(--muted);padding:.8rem 0 0;min-height:2rem}
+.native-inspector dl{margin:0;display:grid;gap:.3rem}
+.native-inspector dt{color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;margin-top:.75rem}
+.native-inspector dd{margin:0;font-size:.8rem;line-height:1.5;overflow-wrap:anywhere}
+.native-capsule{margin-top:1rem;border-top:1px solid var(--line);padding-top:1rem}
+.native-capsule summary{cursor:pointer;font-size:.8rem;color:var(--accent)}
+.native-capsule pre{max-height:300px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.65rem;padding:.75rem;background:var(--surface-soft);border-radius:.5rem}
+.native-capsule .btn{margin-top:.7rem;font-size:.72rem}
+.native-next{display:flex;gap:1rem;align-items:start;margin:1rem 0;padding:1rem;border:1px dashed var(--accent-line);border-radius:.8rem;background:var(--accent-soft)}
+.native-next strong{color:var(--accent);font-size:.85rem}
+.native-next p{color:var(--muted);font-size:.8rem;line-height:1.6}
+.native-character{display:flex;gap:1rem;align-items:center;padding:1rem;margin-bottom:1rem;border:1px solid var(--line);border-radius:.8rem}
+.native-character img{height:72px;width:55px;object-fit:contain;border-radius:.4rem}
+.native-character p{font-size:.8rem;color:var(--muted);margin-top:.3rem!important}
+.native-error{color:var(--danger);margin-bottom:1rem!important;font-size:.85rem}
+.timeline-supporting{margin-top:1.7rem;border-top:1px solid var(--line);padding-top:1rem}
+.timeline-supporting>summary{cursor:pointer;font-size:.85rem;color:var(--muted);padding:.5rem 0}
+.timeline-supporting[open]>summary{margin-bottom:1rem}
+.timeline-supporting .timeline-intro h2{font-size:1.4rem}
+.timeline-supporting .timeline-intro{margin-top:1rem}
+.native-workspace [hidden],.native-character[hidden]{display:none!important}
+@media(max-width:1050px){.native-workspace{grid-template-columns:minmax(160px,210px) minmax(0,1fr)}
+.native-inspector{grid-column:1/-1;border-left:0;border-top:1px solid var(--line)}
+.native-inspector dl{grid-template-columns:repeat(2,minmax(0,1fr))}
+.native-inspector dt{grid-column:1}
+.native-inspector dd{grid-column:2;align-self:end}
+}
+@media(max-width:640px){.native-intro{display:block}
+.native-intro .btn{margin-top:.8rem}
+.native-shelf{padding:.8rem}
+.native-shelf>.eyebrow{display:none}
+.native-workspace{grid-template-columns:minmax(0,1fr)}
+.native-shelf{border-right:0;border-bottom:1px solid var(--line)}
+.native-list{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.native-stage{height:310px}
+.native-next{display:block}
+.native-next p{margin-top:.5rem!important}
+.native-intro .btn{font-size:.75rem;white-space:nowrap}
+.native-canvas{padding:.65rem}
+.native-inspector{grid-column:auto}
+.native-inspector dl{display:block}
+.native-inspector dd{margin-top:.25rem}
+.native-inspector dt{margin-top:.8rem}
+}

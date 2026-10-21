@@ -122,6 +122,8 @@ function showResult(job) {
   if (job.source_url) sourcePreview.src = job.source_url;
   resultVideo.src = job.result_url;
   downloadResult.href = `${job.result_url}?download=true`;
+  const timelineLink = $('#open-timeline');
+  if (timelineLink) timelineLink.href = `/timeline?job_id=${job.id}`;
   buildReelButton.disabled = false;
   runOverlay.hidden = true;
   resultActions.hidden = false;
@@ -278,3 +280,9 @@ const savedJob = history('current');
 if (validId(savedJob)) poll(savedJob);
 else { history('current', null); restoreCompleted(); }
 returnAffordance();
+if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('character_id')) {
+  import('./character-handoff.js').then(({applyCharacterReference}) => applyCharacterReference({
+    input: $('#reference'), notify: showToast,
+    isBusy: () => Boolean(activeJob) || !runOverlay.hidden,
+  })).catch(() => showToast('The character transfer is unavailable. Reload the studio to retry.', 'error'));
+}

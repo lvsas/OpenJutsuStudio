@@ -206,3 +206,9 @@ window.addEventListener('pagehide', () => {
 update();
 checkReadiness();
 take.resume();
+if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('character_id')) {
+  import('./character-handoff.js').then(({applyCharacterReference}) => applyCharacterReference({
+    input: byId('reference'), notify: message => window.OpenGenjutsuStudio?.showToast?.(byId('toast-region'), message),
+    isBusy: () => pending || take.active,
+  })).catch(() => notify('The character transfer is unavailable. Reload the studio to retry.'));
+}

@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/static/design-system.css">
   <link rel="stylesheet" href="/static/app.css">
   <link rel="stylesheet" href="/static/character.css">
+  <link rel="stylesheet" href="/static/studio-wip.css">
 </head>
 <body>
   <header class="site-header">
@@ -15,10 +16,12 @@
       <a class="engine-chip active" href="/characters" aria-current="page">Characters</a>
       <a class="engine-chip" href="/">LTX <span>Studio</span></a>
       <a class="engine-chip" href="/h3">H3 <span>Studio</span></a>
+      <a class="engine-chip" href="/timeline">Timeline</a>
     </nav>
     <div id="readiness" class="badge" role="status" aria-live="polite">Checking local studio…</div>
   </header>
 
+  <aside class="studio-wip" aria-label="Development status"><strong>Work in progress</strong><span>Character creation, your saved library and studio handoffs are being refined.</span></aside>
   <main class="studio-shell">
     <section class="studio-intro">
       <p class="eyebrow">Stage 01 · Characters</p>
@@ -94,15 +97,53 @@
       <section class="studio-stage">
         <header class="stage-header">
           <div>
-            <p class="eyebrow">Results</p>
-            <h2>Your characters</h2>
+            <p class="eyebrow">Workspace</p>
+            <h2>Your character</h2>
           </div>
           <div class="stage-actions">
-            <span class="stage-meta" id="job-count">No jobs yet</span>
-            <button type="button" class="btn btn-ghost btn-small" id="clear-jobs">Clear</button>
+            <span class="stage-meta" id="job-count">No attempts yet</span>
           </div>
         </header>
-        <div id="jobs" class="job-list" aria-live="polite"></div>
+        <p class="microcopy" id="workspace-notice" role="status" aria-live="polite"></p>
+        <p class="microcopy" id="storage-notice" role="status" hidden></p>
+        <div id="empty-result" class="empty-result">A person, not a pile of renders.<br>Generate a character or choose one you saved.</div>
+        <article id="active-result" class="active-result" hidden>
+          <div class="canvas"><img id="active-image" alt="Selected original character"></div>
+          <p class="microcopy" id="image-state" role="status"></p>
+          <div class="active-heading"><h3 id="active-title">Original character</h3><span class="badge" id="saved-state">Not saved</span></div>
+          <div class="character-actions">
+            <label class="character-name"><span class="field-label">Library name</span><input id="character-name" class="text-input" maxlength="100" placeholder="Name this person"></label>
+            <button id="keep-character" type="button" class="btn btn-primary">Keep character</button>
+            <button id="discard-character" type="button" class="btn btn-ghost">Discard attempt</button>
+          </div>
+          <div class="character-actions">
+            <a id="download-character" class="btn btn-ghost">Download PNG</a>
+            <button id="share-character" type="button" class="btn btn-ghost" hidden>Share PNG</button>
+          </div>
+          <p class="microcopy" id="share-notice">Download the PNG to share it. Native sharing appears on supported devices.</p>
+          <details id="use-character" class="workspace-disclosure" hidden>
+            <summary>Use this character</summary>
+            <p class="microcopy">Start with this saved reference. You choose what to make next.</p>
+            <div class="character-actions"><a id="use-ltx" class="btn btn-ghost">LTX Studio</a><a id="use-h3" class="btn btn-ghost">H3 Studio</a><a id="use-timeline" class="btn btn-ghost">Timeline</a></div>
+          </details>
+          <details id="more-details" class="workspace-disclosure">
+            <summary>More details</summary>
+            <div class="character-actions"><a id="inspect-image" target="_blank" rel="noopener">Inspect full-size image</a><a id="inspect-capsule" target="_blank" rel="noopener">Frozen capsule</a><a id="inspect-caption" target="_blank" rel="noopener">Caption text</a></div>
+            <p class="field-label">What the model actually wrote</p><p id="active-caption" class="active-caption"></p>
+            <button id="remove-character" type="button" class="btn btn-ghost" hidden>Remove from library</button>
+            <p class="microcopy">Discarding an attempt or removing a library entry only changes this workspace. Media, capsules and jobs are retained; running work is not cancelled.</p>
+          </details>
+        </article>
+        <details id="recent-attempts" class="workspace-disclosure">
+          <summary>Recent attempts <span id="recent-count"></span></summary>
+          <div class="shelf-heading"><p class="microcopy">Attempts are not saved characters.</p><button type="button" class="btn btn-ghost btn-small" id="clear-jobs">Clear attempts</button></div>
+          <div id="recent-list" class="recent-list"></div>
+        </details>
+        <section class="character-library" aria-labelledby="library-title">
+          <div class="shelf-heading"><h3 id="library-title">Saved characters</h3><button id="refresh-library" type="button" class="btn btn-ghost btn-small">Refresh library</button></div>
+          <p class="microcopy" id="library-state" role="status">Loading saved characters…</p>
+          <div id="library-list" class="library-list"></div>
+        </section>
       </section>
     </div>
   </main>

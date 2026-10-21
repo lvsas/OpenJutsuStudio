@@ -27,7 +27,7 @@ python3 scripts/check_dependencies.py --host <url> --include-planned   # also th
 It reports what is missing per category, names the pack that owns a missing node, distinguishes an
 out-of-date ComfyUI from an incomplete one, and exits non-zero so it can gate a deployment.
 
-### Custom nodes — 5 packs
+### Custom nodes — original Swap baseline
 
 | Pack | Nodes we need | Needed by |
 |---|---|---|
@@ -37,8 +37,37 @@ out-of-date ComfyUI from an incomplete one, and exits non-zero so it can gate a 
 | **ComfyUI_Res4lyf** | `Frames Slice` | LTX / Ripple |
 | **MiniMaxH3-LatentUpscaler** | `MinimaxH3LatentUpscaler3D` | H3 |
 
-Plus **42 nodes from ComfyUI core** itself — 30 from `comfy_extras` and 12 from the base — listed in
-`dependencies.json` so a version floor can be checked rather than guessed.
+ComfyUI core classes are also listed in `dependencies.json` so availability can be checked rather
+than guessed. The experimental native compiler adds the requirements below.
+
+### Native H3 continuity compiler — experimental, not a deployed generator
+
+The pinned `workflows/h3-continuity-base.api.json` is a **parameterized template**, not a runnable
+workflow with invented model filenames. The service must bind every effective model filename and
+measured SHA-256 before compilation. No model hash or parent compatibility is inferred from a menu.
+
+| Runtime binding (not a model file) | Loader role |
+|---|---|
+| `__H3_BIND_UNET__` | `UNETLoader.unet_name`, diffusion model |
+| `__H3_BIND_CLIP__` | `CLIPLoader.clip_name`, text encoder |
+| `__H3_BIND_VIDEO_VAE__` | `VAELoader.vae_name`, video VAE |
+| `__H3_BIND_AUDIO_VAE__` | `VAELoader.vae_name`, audio VAE |
+
+These are typed `runtime_model_bindings` in the manifest, **never entries in the installable models
+list**. Tests still require every workflow model field to be declared, and separately check each
+binding's exact loader, field, folder, use and required hash capture.
+
+| Provider | Native compiler requirements |
+|---|---|
+| [comfyui-obvpm](https://github.com/chanon/comfyui-obvpm) | `AudioOptionalGate (obvpm)`, `Bundle (obvpm)`, `LazyCaseSwitch (obvpm)`, `LazySwitch (obvpm)`, `ModelOptionalGate (obvpm)`, `MuteGate (obvpm)`, `Unbundle (obvpm)`, `ValuePresets (obvpm)` |
+| [comfyui-obvpm-timeline](https://github.com/chanon/comfyui-obvpm-timeline) | `H3LoadVideoWithMCtx`, `H3LoadMCtx`, `H3MCtxApplyPins`, `H3MCtxPinSpec`, `H3TrimAndSaveVideoWithMCtx`, `H3VramHeadroom` |
+| ComfyUI-KJNodes | `INTConstant`; verified in the upstream `nodes/nodes.py` implementation, not attributed to the local bundled folder |
+| ComfyUI core | `MiniMaxH3SigmaShift`, `PrimitiveBoolean`, `PrimitiveString`, `SaveText` (`comfy_extras.nodes_text`) |
+
+The OBVPM packs are marked optional for the existing Swap baseline; they are required before using
+the separate native compiler. GET-only class/schema checks do **not** establish rendering support.
+The application's CPU publisher/restager pack and desktop deployment gate are documented separately
+in [continuity nodes](architecture/continuity-nodes.md). Native generation is still work in progress.
 
 ### Models — 12 files, in ComfyUI's own folders
 
@@ -115,13 +144,13 @@ MiniMax H3 support only landed in core recently:
 | `nodes_logic` | `ComfySwitchNode` |
 | `nodes_preview_any`, `nodes_primitive` | `PreviewAny`, `PrimitiveStringMultiline` |
 
-**Finding.** MiniMax H3 is core. An earlier assumption that H3 needed a companion pack is wrong
-as of this version, and no H3 node has to be installed.
+**Finding.** MiniMax H3 model/reference/sampling support is core. Its native MCTX loaders, pins and
+savers are separate OBVPM extension contracts; core model support alone does not provide them.
 
 ## 4. Custom node packs
 
-Five packs, and only five, are required by the workflows. All 43 `class_type` values used by the
-repository resolve on the reference instance — **zero missing**.
+The original Swap baseline uses the five packs below. The native compiler additionally depends on
+the OBVPM contracts listed above; availability and rendering must be checked separately.
 
 | Upstream pack | Node classes we need | Status |
 |---|---|---|

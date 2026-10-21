@@ -1,0 +1,694 @@
+{
+  "1089": {
+    "class_type": "AudioOptionalGate (obvpm)",
+    "inputs": {
+      "on_empty": "bypass"
+    }
+  },
+  "1216": {
+    "class_type": "H3TrimAndSaveVideoWithMCtx",
+    "inputs": {
+      "audio": [
+        "751:633",
+        0
+      ],
+      "base_folder": [
+        "761:1217",
+        0
+      ],
+      "conditioning": [
+        "1228",
+        0
+      ],
+      "crf": 19,
+      "filename_prefix": "take",
+      "images": [
+        "751:632",
+        0
+      ],
+      "metadata": "__H3_BIND_METADATA__",
+      "pins": [
+        "1228",
+        2
+      ],
+      "samples": [
+        "1488:1486",
+        1
+      ],
+      "save_conditioning": true
+    },
+    "_meta": {
+      "title": "Native H3 take and state saver",
+      "provenance": {
+        "origin": "User-owned workflow-builder/builders/build_latent_obvpm.py and templates/obvpm_timeline_base.json; native node contracts from installed ComfyUI and obvpm timeline.",
+        "captured_source_canonical_sha256": "d80a561580babfd9684762cc05e33b014ab2727843336084f4999d2e8311bbe4",
+        "original_template_canonical_sha256": "4ed529e2683470a88eb1d5d5c7c9b2bea107ec0bcd00857e30352e6d92f4a139",
+        "specialization": [
+          "Generation only: upscaling false; vanilla preset, 20 res_multistep/simple, shifts 12/3.",
+          "All four lifestyle switches were false; gate consumes original UNET directly. Turbo off, sparse none, Spectrum false, comfy_kitchen attention: drop only unchosen lazy input edges then unreachable nodes.",
+          "The only source non-finite widget is 1349.is_changed[0]=NaN (H3JointLatent execution cache marker); node 1349 is unreachable in generation and is removed with the entire unused upscale/refine output branch. No NaN/Infinity coercion.",
+          "One character reference; explicit aligned width/height and raw frame count in existing bundles replace resolution/duration UI converters.",
+          "uint64 seed feeds RandomNoise from existing INTConstant without signed-only SeedNode.",
+          "Bridge tail(A) before and head(B) after from original frozen template, not the inverted builder helper.",
+          "Refuse shortened pins instead of silent snap-down; pin window stays 39.",
+          "SaveText captures saver output slot 0; native media family publication is a separate integrity-checked CPU job."
+        ],
+        "validation": "Static installed-schema/consumed-link validation only. Historical source execution is not approval to replay or a render/quality/SDK-family-publication proof."
+      }
+    }
+  },
+  "1228": {
+    "class_type": "H3MCtxApplyPins",
+    "inputs": {
+      "audio_denoise": 0.0,
+      "audio_vae": [
+        "1376",
+        2
+      ],
+      "conditioning": [
+        "797",
+        0
+      ],
+      "freeze_audio": false,
+      "latent": [
+        "797",
+        1
+      ],
+      "masked_audio_feather": 8,
+      "pin_specs": [
+        "2021",
+        0
+      ],
+      "snap_window_down_to_available": false,
+      "video_vae": [
+        "1376",
+        1
+      ]
+    }
+  },
+  "1290": {
+    "class_type": "ValuePresets (obvpm)",
+    "inputs": {
+      "attention": "comfy_kitchen",
+      "names": "attention\nsparse_attention\nspectrum\nturbo_loader\nsteps\nsampler\nscheduler\nshift_video\nshift_audio",
+      "preset": "vanilla",
+      "presets": "{\"vanilla\":{\"attention\":\"comfy_kitchen\",\"sparse_attention\":\"none\",\"spectrum\":false,\"turbo_loader\":\"off\",\"steps\":20,\"sampler\":\"res_multistep\",\"scheduler\":\"simple\",\"shift_video\":12,\"shift_audio\":3}}",
+      "sampler": "res_multistep",
+      "scheduler": "simple",
+      "schema": "attention: choice pytorch, sage, comfy_kitchen = pytorch   # The attention backend. pytorch: ComfyUI's default. sage: SageAttention through KJNodes (needs the sageattention package). comfy_kitchen: ComfyUI's comfy-kitchen kernels.\nsparse_attention: choice none, vsa   # vsa: block-sparse attention (the core Model Sparse Attention node, set up inside H3 Model Optimization). Faster on long or large videos, at some cost in detail. none: full attention.\nspectrum: bool = false   # Spectrum (xmarre's pack): forecasts part of the model's work on some steps instead of computing it. Faster, at a small cost in quality.\nturbo_loader: choice off, normal, larryvrh = off   # How a turbo (few-step) LoRA is applied. off: no turbo LoRA. normal: ComfyUI's LoRA loader, for LoRAs such as LightX2V. larryvrh: Larryvrh's MiniMax-H3 Turbo loader, for its own turbo LoRA.\nsteps: int = 20   # Sampling steps. With a turbo LoRA, the step count it was made for; without one, about 20.\nsampler: @SamplerName (obvpm).sampler_name = euler   # The sampler.\nscheduler: @SchedulerName (obvpm).scheduler = beta   # The noise schedule.\nshift_video: int = 12   # Sigma shift for the video. Higher spends more of the steps at high noise (composition and motion), lower more on fine detail.\nshift_audio: int = 3   # Sigma shift for the audio, like shift_video.\n",
+      "shift_audio": 3,
+      "shift_video": 12,
+      "sparse_attention": "none",
+      "spectrum": false,
+      "steps": 20,
+      "turbo_loader": "off",
+      "values": "{\"attention\":\"comfy_kitchen\",\"sparse_attention\":\"none\",\"spectrum\":false,\"turbo_loader\":\"off\",\"steps\":20,\"sampler\":\"res_multistep\",\"scheduler\":\"simple\",\"shift_video\":12,\"shift_audio\":3}"
+    }
+  },
+  "1334:1323": {
+    "class_type": "LazyCaseSwitch (obvpm)",
+    "inputs": {
+      "cases": "pytorch\ncomfy_kitchen\nsage",
+      "on_case_2": [
+        "1334:1333",
+        0
+      ],
+      "selected": [
+        "1334:1330",
+        0
+      ]
+    }
+  },
+  "1334:1325": {
+    "class_type": "LazySwitch (obvpm)",
+    "inputs": {
+      "boolean": [
+        "1334:1330",
+        1
+      ],
+      "on_false": [
+        "1334:1511",
+        0
+      ]
+    }
+  },
+  "1334:1326": {
+    "class_type": "ModelOptionalGate (obvpm)",
+    "inputs": {
+      "input": [
+        "725",
+        0
+      ]
+    }
+  },
+  "1334:1330": {
+    "class_type": "Unbundle (obvpm)",
+    "inputs": {
+      "get": "",
+      "in": [
+        "1457:1455",
+        0
+      ],
+      "names": "attention\nspectrum\nturbo_loader\nturbo_lora\nturbo_strength\nsparse_attention\nshift_video\nshift_audio"
+    }
+  },
+  "1334:1331": {
+    "class_type": "LazyCaseSwitch (obvpm)",
+    "inputs": {
+      "cases": "off\nnormal\nlarryvrh",
+      "on_case_1": [
+        "1334:1522",
+        0
+      ],
+      "selected": [
+        "1334:1330",
+        2
+      ]
+    }
+  },
+  "1334:1333": {
+    "class_type": "ModelAttentionBackend",
+    "inputs": {
+      "attention": "comfy kitchen attention",
+      "model": [
+        "1334:1331",
+        0
+      ]
+    }
+  },
+  "1334:1511": {
+    "class_type": "LazyCaseSwitch (obvpm)",
+    "inputs": {
+      "cases": "none\nvsa",
+      "on_case_1": [
+        "1334:1323",
+        0
+      ],
+      "selected": [
+        "1334:1330",
+        5
+      ]
+    }
+  },
+  "1334:1519": {
+    "class_type": "ModelOptionalGate (obvpm)",
+    "inputs": {
+      "input": [
+        "1334:1325",
+        0
+      ]
+    }
+  },
+  "1334:1522": {
+    "class_type": "MiniMaxH3SigmaShift",
+    "inputs": {
+      "model": [
+        "1334:1326",
+        0
+      ],
+      "shift_audio": [
+        "1334:1330",
+        7
+      ],
+      "shift_video": [
+        "1334:1330",
+        6
+      ]
+    }
+  },
+  "1374": {
+    "class_type": "Unbundle (obvpm)",
+    "inputs": {
+      "get": "",
+      "in": [
+        "752:1372",
+        0
+      ],
+      "names": ""
+    }
+  },
+  "1376": {
+    "class_type": "Unbundle (obvpm)",
+    "inputs": {
+      "get": "",
+      "in": [
+        "752:1372",
+        0
+      ],
+      "names": "clip\nvideo_vae\naudio_vae"
+    }
+  },
+  "1379": {
+    "class_type": "Unbundle (obvpm)",
+    "inputs": {
+      "get": "h3_clip_vaes",
+      "in": [
+        "752:1372",
+        0
+      ],
+      "names": "clip\nvideo_vae\naudio_vae"
+    }
+  },
+  "1383": {
+    "class_type": "Bundle (obvpm)",
+    "inputs": {
+      "in_1": [
+        "831",
+        0
+      ],
+      "in_2": [
+        "1089",
+        0
+      ],
+      "in_3": [
+        "200",
+        0
+      ],
+      "names": "ref_audio_0\nref_audio_1\nref_image_0\nref_video_0\nref_video_audio_0",
+      "set": "h3_refs"
+    }
+  },
+  "1390": {
+    "class_type": "Unbundle (obvpm)",
+    "inputs": {
+      "get": "h3_input",
+      "in": [
+        "761:1381",
+        0
+      ],
+      "names": "prompt\nwidth\nheight"
+    }
+  },
+  "1392": {
+    "class_type": "Unbundle (obvpm)",
+    "inputs": {
+      "get": "h3_refs",
+      "in": [
+        "1383",
+        0
+      ],
+      "names": "ref_image_0\nref_audio_0\nref_audio_1"
+    }
+  },
+  "1449": {
+    "class_type": "Bundle (obvpm)",
+    "inputs": {
+      "in_1": "__H3_BIND_RAW_FRAMES__",
+      "in_2": [
+        "2003",
+        0
+      ],
+      "in_3": [
+        "2002",
+        0
+      ],
+      "names": "length\nsequence\nupscaling",
+      "set": "h3_timeline_outputs"
+    }
+  },
+  "1457:1455": {
+    "class_type": "LazySwitch (obvpm)",
+    "inputs": {
+      "boolean": [
+        "1457:1461",
+        0
+      ],
+      "on_false": [
+        "1290",
+        0
+      ]
+    }
+  },
+  "1457:1461": {
+    "class_type": "Unbundle (obvpm)",
+    "inputs": {
+      "get": "",
+      "in": [
+        "1449",
+        0
+      ],
+      "names": "upscaling"
+    }
+  },
+  "1473:1278": {
+    "class_type": "MuteGate (obvpm)",
+    "inputs": {
+      "input": [
+        "1473:1506",
+        0
+      ],
+      "mute": [
+        "1473:1506",
+        1
+      ]
+    }
+  },
+  "1473:1506": {
+    "class_type": "Unbundle (obvpm)",
+    "inputs": {
+      "get": "",
+      "in": [
+        "1449",
+        0
+      ],
+      "names": "length\nupscaling"
+    }
+  },
+  "1488:1481": {
+    "class_type": "Unbundle (obvpm)",
+    "inputs": {
+      "get": "",
+      "in": [
+        "1457:1455",
+        0
+      ],
+      "names": "sampler\nsteps\nscheduler"
+    }
+  },
+  "1488:1482": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": [
+        "2004",
+        0
+      ]
+    }
+  },
+  "1488:1483": {
+    "class_type": "BasicGuider",
+    "inputs": {
+      "conditioning": [
+        "1228",
+        0
+      ],
+      "model": [
+        "1517",
+        0
+      ]
+    }
+  },
+  "1488:1484": {
+    "class_type": "BasicScheduler",
+    "inputs": {
+      "denoise": 1.0,
+      "model": [
+        "1517",
+        0
+      ],
+      "scheduler": [
+        "1488:1481",
+        2
+      ],
+      "steps": [
+        "1488:1481",
+        1
+      ]
+    }
+  },
+  "1488:1485": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": [
+        "1488:1481",
+        0
+      ]
+    }
+  },
+  "1488:1486": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "guider": [
+        "1488:1483",
+        0
+      ],
+      "latent_image": [
+        "1228",
+        1
+      ],
+      "noise": [
+        "1488:1482",
+        0
+      ],
+      "sampler": [
+        "1488:1485",
+        0
+      ],
+      "sigmas": [
+        "1488:1484",
+        0
+      ]
+    }
+  },
+  "1517": {
+    "class_type": "H3VramHeadroom",
+    "inputs": {
+      "count_guides": true,
+      "enabled": true,
+      "headroom_gb": 2.0,
+      "model": [
+        "1334:1519",
+        0
+      ]
+    }
+  },
+  "200": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "__H3_BIND_REFERENCE__"
+    },
+    "is_changed": [
+      "6b12be9c6b7c855bdd1f0ccc7d946839fd7ab66042b2f56077f1a3502aca2c15"
+    ]
+  },
+  "2002": {
+    "class_type": "PrimitiveBoolean",
+    "inputs": {
+      "value": false
+    }
+  },
+  "2003": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": ""
+    }
+  },
+  "2004": {
+    "class_type": "INTConstant",
+    "inputs": {
+      "value": "__H3_BIND_SEED__"
+    }
+  },
+  "2010": {
+    "class_type": "H3LoadVideoWithMCtx",
+    "inputs": {
+      "clip": "__H3_BIND_PARENT_A__",
+      "create_pins": "none",
+      "pin_window": "39"
+    },
+    "is_changed": [
+      "4585894:1792451968463679810|16205064:1792451968651682813"
+    ]
+  },
+  "2011": {
+    "inputs": {
+      "clip": "__H3_BIND_PARENT_B__",
+      "create_pins": "none",
+      "pin_window": "39"
+    },
+    "class_type": "H3LoadVideoWithMCtx"
+  },
+  "2020": {
+    "class_type": "H3MCtxPinSpec",
+    "inputs": {
+      "audio_window": 0,
+      "mask_hold": 0.0,
+      "mask_ramp_edge": 0.0,
+      "mask_ramp_frames": 0,
+      "mctx": [
+        "2010",
+        3
+      ],
+      "mode": "masked",
+      "place": "before",
+      "place_at_frame": 0,
+      "take_from": "tail",
+      "take_from_frame": 0,
+      "window": "39"
+    }
+  },
+  "2021": {
+    "inputs": {
+      "mctx": [
+        "2011",
+        3
+      ],
+      "window": "39",
+      "take_from": "head",
+      "take_from_frame": 0,
+      "place": "after",
+      "place_at_frame": 0,
+      "audio_window": 0,
+      "mode": "masked",
+      "pin_specs": [
+        "2020",
+        0
+      ],
+      "mask_ramp_frames": 0,
+      "mask_ramp_edge": 0.0,
+      "mask_hold": 0.0
+    },
+    "class_type": "H3MCtxPinSpec"
+  },
+  "725": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "__H3_BIND_UNET__",
+      "weight_dtype": "default"
+    }
+  },
+  "751:632": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "1488:1486",
+        1
+      ],
+      "vae": [
+        "1379",
+        1
+      ]
+    }
+  },
+  "751:633": {
+    "class_type": "VAEDecodeAudio",
+    "inputs": {
+      "samples": [
+        "1488:1486",
+        1
+      ],
+      "vae": [
+        "1379",
+        2
+      ]
+    }
+  },
+  "752:1372": {
+    "class_type": "Bundle (obvpm)",
+    "inputs": {
+      "in_1": [
+        "752:747",
+        0
+      ],
+      "in_2": [
+        "752:748",
+        0
+      ],
+      "in_3": [
+        "752:798",
+        0
+      ],
+      "names": "clip\nvideo_vae\naudio_vae",
+      "set": ""
+    }
+  },
+  "752:747": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "__H3_BIND_CLIP__",
+      "device": "default",
+      "type": "minimax"
+    }
+  },
+  "752:748": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "__H3_BIND_VIDEO_VAE__"
+    }
+  },
+  "752:798": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "__H3_BIND_AUDIO_VAE__"
+    }
+  },
+  "761:1217": {
+    "class_type": "PrimitiveString",
+    "inputs": {
+      "value": "__H3_BIND_OUTPUT_FOLDER__"
+    }
+  },
+  "761:1381": {
+    "class_type": "Bundle (obvpm)",
+    "inputs": {
+      "in_1": [
+        "761:763",
+        0
+      ],
+      "in_2": "__H3_BIND_WIDTH__",
+      "in_3": "__H3_BIND_HEIGHT__",
+      "names": "prompt\nwidth\nheight",
+      "set": ""
+    }
+  },
+  "761:763": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "__H3_BIND_PROMPT__"
+    }
+  },
+  "797": {
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "inputs": {
+      "audio_vae": [
+        "1374",
+        2
+      ],
+      "clip": [
+        "1374",
+        0
+      ],
+      "height": [
+        "1390",
+        2
+      ],
+      "length": [
+        "1473:1278",
+        0
+      ],
+      "prompt": [
+        "1390",
+        0
+      ],
+      "ref_image_size": "max",
+      "ref_images.ref_image_0": [
+        "1392",
+        0
+      ],
+      "vae": [
+        "1374",
+        1
+      ],
+      "width": [
+        "1390",
+        1
+      ]
+    }
+  },
+  "831": {
+    "class_type": "AudioOptionalGate (obvpm)",
+    "inputs": {
+      "on_empty": "bypass"
+    }
+  },
+  "native_take_clip_handle": {
+    "class_type": "SaveText",
+    "inputs": {
+      "text": [
+        "1216",
+        0
+      ],
+      "format": "txt",
+      "filename_prefix": "__H3_BIND_HANDLE_PREFIX__"
+    }
+  }
+}

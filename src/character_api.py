@@ -10,26 +10,54 @@ from fastapi.responses import FileResponse, Response
 import core
 from character_capsule import contained, get_capsule, replay_recipe
 from character_recipe import ENGINE, make_recipe
+from character_library import CharacterLibrary, LibraryError, validate_id
 
 
 def _load(job_id):
     try:
+        validate_id(job_id)
         job = core.Job.load(job_id)
+    except LibraryError as exc:
+        raise HTTPException(exc.status, str(exc)) from exc
     except KeyError as exc:
         raise HTTPException(404, "Character job not found") from exc
-    if job.engine != ENGINE:
+    except (OSError, ValueError, TypeError) as exc:
+        raise HTTPException(409, "Character job record is unavailable") from exc
+    if job.engine != ENGINE or job.id != job_id:
         raise HTTPException(404, "Character job not found")
+    if not isinstance(job.meta, dict):
+        raise HTTPException(409, "Character job record is unavailable")
     return job
 
 
 def _public(job):
     return {"job_id": job.id, "status": job.status, "step": job.step, "progress": job.progress,
-            "error": job.error, "parent_job_id": job.meta.get("parent_job_id"), "engine": ENGINE}
+            "error": "Character generation failed; check the local worker logs" if job.error else None,
+            "parent_job_id": job.meta.get("parent_job_id"), "engine": ENGINE}
 
 
 class CharacterAPI:
     def __init__(self, get_media_dir, readiness_check, dispatch_job):
         self.get_media_dir, self.readiness_check, self.dispatch_job = get_media_dir, readiness_check, dispatch_job
+        self.library = CharacterLibrary(get_media_dir)
+
+    def library_list(self):
+        try:
+            return {"characters": self.library.list()}
+        except LibraryError as exc:
+            raise HTTPException(exc.status, str(exc)) from exc
+
+    def library_save(self, job_id: str, payload: dict):
+        try:
+            return self.library.save(job_id, payload)
+        except LibraryError as exc:
+            raise HTTPException(exc.status, str(exc)) from exc
+
+    def library_remove(self, job_id: str):
+        try:
+            return self.library.remove(job_id)
+        except LibraryError as exc:
+            raise HTTPException(exc.status, str(exc)) from exc
 
     async def readiness(self):
         return await asyncio.to_thread(self.readiness_check)
@@ -71,8 +99,8 @@ class CharacterAPI:
             raise HTTPException(409, "The Character image is not ready yet")
         try:
             return FileResponse(contained(job.result, self.get_media_dir()), media_type="image/png")
-        except ValueError as exc:
-            raise HTTPException(409, str(exc)) from exc
+        except (OSError, ValueError, TypeError) as exc:
+            raise HTTPException(409, "The Character image is unavailable") from exc
 
     def caption(self, job_id):
         job = _load(job_id)
@@ -81,7 +109,7 @@ class CharacterAPI:
         try:
             path = contained(job.meta.get("character_caption", ""), self.get_media_dir())
             return Response(path.read_text(encoding="utf-8"), media_type="text/plain; charset=utf-8")
-        except (ValueError, UnicodeDecodeError) as exc:
+        except (OSError, ValueError, TypeError) as exc:
             raise HTTPException(409, "The Character caption is unavailable") from exc
 
     def capsule(self, job_id):
@@ -118,6 +146,9 @@ def create_router(get_media_dir, readiness_check, dispatch_job):
     api = CharacterAPI(get_media_dir, readiness_check, dispatch_job)
     router = APIRouter(tags=["Characters"])
     router.add_api_route("/api/characters/readiness", api.readiness, methods=["GET"])
+    router.add_api_route("/api/characters/library", api.library_list, methods=["GET"])
+    router.add_api_route("/api/characters/library/{job_id}", api.library_save, methods=["POST"])
+    router.add_api_route("/api/characters/library/{job_id}", api.library_remove, methods=["DELETE"])
     router.add_api_route("/api/characters/jobs", api.create_job, methods=["POST"], status_code=202)
     router.add_api_route("/api/characters/jobs/{job_id}", api.status, methods=["GET"])
     router.add_api_route("/api/characters/jobs/{job_id}/image", api.image, methods=["GET"])

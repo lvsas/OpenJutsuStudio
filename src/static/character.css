@@ -136,74 +136,42 @@
 .character-actions .btn-primary { flex: 1 1 14rem; }
 .form-error { color: var(--danger); margin: 0; }
 
-/* --- job cards: one per request; newest large, older ones compact enough to scan --- */
-
+/* One result canvas, two deliberately different shelves. */
+[data-engine="characters"] .studio-stage { min-width: 0; }
+[data-engine="characters"] [hidden] { display: none !important; }
 .stage-header .stage-actions { align-items: center; display: flex; gap: var(--space-2); }
-.job-list { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
-
-.job-card {
-  background: var(--surface-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-4);
-}
-.job-card[data-state="done"] { border-color: var(--accent-card-line); }
-.job-card[data-state="error"] { border-color: rgba(255, 142, 150, .38); }
-
-.job-head { align-items: center; display: flex; gap: var(--space-2); justify-content: space-between; }
-.job-state { color: var(--subtle); font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
-.job-card[data-state="running"] .job-state,
-.job-card[data-state="queued"] .job-state { color: var(--accent); }
-.job-card[data-state="done"] .job-state { color: var(--success); }
-.job-card[data-state="error"] .job-state,
-.job-card[data-state="offline"] .job-state { color: var(--danger); }
-.job-step { color: var(--subtle); font-size: .74rem; }
-
-.job-body { display: grid; gap: var(--space-2); }
-.job-direction { color: var(--muted); font-size: .82rem; line-height: 1.45; margin: 0; }
-.job-image { background: var(--surface-soft); border-radius: var(--radius-sm); display: block; width: 100%; }
-.job-download { color: var(--accent); font-size: .78rem; font-weight: 720; text-decoration: none; }
-.job-download:hover { text-decoration: underline; }
-.job-caption { border-top: 1px solid var(--line); color: var(--muted); font-size: .8rem; padding-top: var(--space-2); }
-.job-caption summary { color: var(--subtle); cursor: pointer; font-size: .74rem; font-weight: 720; letter-spacing: .04em; }
-.job-caption p { line-height: 1.5; margin: var(--space-2) 0 0; }
-.job-error { color: var(--danger); font-size: .82rem; margin: 0; }
-
-/* A finished job that is no longer newest collapses to a small preview row. */
-.job-card[data-density="compact"] {
-  align-items: center;
-  column-gap: var(--space-3);
-  grid-template-columns: 4.5rem 1fr;
-  padding: var(--space-2) var(--space-3);
-}
-.job-card[data-density="compact"] .job-body {
-  align-items: center;
-  display: grid;
-  gap: .2rem;
-  grid-column: 2;
-  grid-row: 1;
-}
-.job-card[data-density="compact"] .job-image { grid-column: 1; grid-row: 1 / span 2; width: 4.5rem; }
-.job-card[data-density="compact"] .job-head { grid-column: 2; grid-row: 2; }
-.job-card[data-density="compact"] .job-direction {
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-  display: -webkit-box;
-  font-size: .76rem;
-  overflow: hidden;
-}
-.job-card[data-density="compact"] .job-caption,
-.job-card[data-density="compact"] .job-download { display: none; }
-
+.empty-result { border: 1px dashed var(--line); border-radius: var(--radius-md); color: var(--muted); line-height: 1.7; padding: 4rem 1.5rem; text-align: center; }
+.active-result { display: grid; gap: var(--space-3); }
+.canvas { background: var(--surface-soft); border: 1px solid var(--accent-card-line); border-radius: var(--radius-md); overflow: hidden; }
+.canvas img { display: block; max-height: 68vh; object-fit: contain; width: 100%; }
+.active-heading, .shelf-heading { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: space-between; }
+.active-heading h3, .shelf-heading h3 { margin: 0; overflow-wrap: anywhere; }
+.character-name { flex: 1 1 13rem; }
+.character-name .text-input { margin-top: .35rem; width: 100%; }
+.workspace-disclosure { border-top: 1px solid var(--line); margin-top: var(--space-4); padding-top: var(--space-3); }
+.workspace-disclosure > summary { color: var(--text); cursor: pointer; font-size: .88rem; font-weight: 720; }
+.workspace-disclosure:not([open]) > :not(summary) { display: none; }
+.workspace-disclosure[open] > summary { margin-bottom: var(--space-3); }
+.active-caption { color: var(--muted); font-size: .85rem; line-height: 1.6; overflow-wrap: anywhere; white-space: pre-wrap; }
+.workspace-disclosure a:not(.btn) { color: var(--accent); font-size: .85rem; }
+.recent-list { display: grid; gap: var(--space-2); }
+.attempt-row { align-items: center; border: 1px solid var(--line); border-radius: var(--radius-sm); display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-3); }
+.attempt-row > div { flex: 1 1 12rem; min-width: 0; }
+.attempt-title { color: var(--muted); display: -webkit-box; font-size: .82rem; margin: 0; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.attempt-row .microcopy { margin: .25rem 0 0; }
+.attempt-row[data-state="error"], .attempt-row[data-state="unavailable"] { border-color: var(--danger); }
+.character-library { border-top: 1px solid var(--line); margin-top: var(--space-5); padding-top: var(--space-4); }
+.library-list { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); }
+.library-item { background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); cursor: pointer; overflow: hidden; padding: 0; text-align: left; }
+.library-item:hover, .library-item[aria-pressed="true"] { border-color: var(--accent); }
+.library-item img { aspect-ratio: 3 / 4; background: var(--surface-soft); display: block; object-fit: cover; width: 100%; }
+.library-item span { display: block; font-size: .82rem; overflow-wrap: anywhere; padding: .6rem; }
+#workspace-notice:empty { display: none; }
 @media (max-width: 900px) {
   [data-engine="characters"] .studio-grid { grid-template-columns: 1fr; }
 }
-
 @media (max-width: 640px) {
-  [data-engine="characters"] .studio-grid { grid-template-columns: 1fr; }
   .character-row { grid-template-columns: 1fr; }
-  .job-card[data-density="compact"] { grid-template-columns: 3.5rem 1fr; }
-  .job-card[data-density="compact"] .job-image { width: 3.5rem; }
+  .active-result .character-actions > .btn { flex: 1 1 auto; text-align: center; }
+  .canvas img { max-height: 60vh; }
 }

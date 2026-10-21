@@ -161,6 +161,8 @@ export class H3Take {
       this.storage(job.id, COMPLETED_KEY);
       loadStageMedia('result', jobURL(job.id, '/result'));
       byId('download').href = `${job.result_url}?download=true`;
+      const timelineLink = byId('open-timeline');
+      if (timelineLink) timelineLink.href = `/timeline?job_id=${job.id}`;
       byId('result-actions').hidden = false;
       byId('build-reel').disabled = false;
       byId('completion-more').open = byId('take-inspection').open = false;

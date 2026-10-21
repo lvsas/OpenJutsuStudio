@@ -25,6 +25,8 @@ from take_capsule_api import create_router as create_take_capsule_router
 from runtime_inventory import declared_runtime_inventory
 from h3_studio_app import register_optional_h3
 from character_studio_app import register_optional_characters
+from timeline_api import create_router as create_timeline_router
+from continuable_take_api import create_router as create_continuity_router
 
 DEFAULT_ENGINE = "ltx25-ripple"
 
@@ -52,6 +54,8 @@ _EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="opengenjutsu")
 PIPELINE_RUNNER = core.run_pipeline
 _REEL_SERVICE = ReelService(lambda: MEDIA_DIR)
 app.include_router(create_share_reel_router(_REEL_SERVICE))
+app.include_router(create_timeline_router(lambda: core.WORK, lambda: MEDIA_DIR, MAX_UPLOAD_BYTES))
+app.include_router(create_continuity_router(lambda: core.WORK))
 
 
 def _dispatch_job(job: core.Job, video_path: Path, opts: dict[str, Any]):
@@ -112,6 +116,11 @@ def _page(name: str) -> str:
 @app.get("/", response_class=HTMLResponse)
 def home() -> str:
     return _page("index.html")
+
+
+@app.get("/timeline", response_class=HTMLResponse)
+def timeline_page() -> str:
+    return _page("timeline.html")
 
 
 @app.post("/api/upload-character")

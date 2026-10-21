@@ -1,6 +1,7 @@
 """Character stage interface contracts: navigation order, payload shape, no locks, no ETA."""
 import os
 import re
+import subprocess
 import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -95,13 +96,18 @@ class CharacterStudioUITests(unittest.TestCase):
         self.assertIn("/api/characters/readiness", self.js)
 
     def test_repeated_submissions_stay_independent_and_unlocked(self):
-        self.assertIn("localStorage", self.js)
-        self.assertIn("MAX_STORED", self.js)
-        self.assertIn("for (const id of stored().reverse()) watch(id)", self.js)
-        # The generate button is disabled only across its own single request.
-        self.assertEqual(re.findall(r"button\.disabled = (true|false)", self.js), ["true", "false"])
-        self.assertNotRegex(self.js, r"querySelectorAll\(['\"]button['\"]\)")
-        self.assertIn("jobsHost.prepend(card)", self.js)
+        # Execute the shipped script: queued work must not clear the selected canvas,
+        # writes must be verified, and discarded in-flight responses must stay discarded.
+        result = subprocess.run(["node", "--test", "tests/character_workspace.test.cjs"],
+                                cwd=ROOT, text=True, capture_output=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.page.count('id="active-result"'), 1)
+        self.assertNotIn('class="job-card"', self.page)
+        for disclosure in ("recent-attempts", "more-details", "use-character"):
+            match = re.search(r'<details[^>]*id="' + disclosure + r'"[^>]*>', self.page)
+            self.assertIsNotNone(match)
+            self.assertNotIn(" open", match.group(0))
+        self.assertIn('href="/timeline"', nav_of(self.page))
 
     def test_no_eta_or_hardware_timing_claim(self):
         for name, text in (("page", self.page), ("script", self.js)):
@@ -127,7 +133,7 @@ class CharacterStudioUITests(unittest.TestCase):
         end = self.js.index("/* ----", start)
         self.assertIn('directionOrigin = "generated"', self.js[start:end])
         self.assertRegex(self.js, r'directionField\.addEventListener\("input", \(\) => \{\s*directionOrigin = "user_authored";')
-        self.assertIn("direction_origin: directionOrigin", self.js)
+        self.assertRegex(self.js, r"direction_origin:\s*directionOrigin")
 
     def test_shuffle_vocabulary_is_person_first_face_safe_and_style_coherent(self):
         """A viral hook comes from one complete contemporary look, never a prop or costume collision."""

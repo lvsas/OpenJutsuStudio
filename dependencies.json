@@ -1,5 +1,11 @@
 {
   "schema": 1,
+  "runtime_model_bindings": {
+    "__H3_BIND_UNET__": {"loader": "UNETLoader", "field": "unet_name", "folder": "diffusion_models", "role": "native H3 denoiser", "requires_measured_sha256": true},
+    "__H3_BIND_CLIP__": {"loader": "CLIPLoader", "field": "clip_name", "folder": "text_encoders", "role": "native H3 text encoder", "requires_measured_sha256": true},
+    "__H3_BIND_VIDEO_VAE__": {"loader": "VAELoader", "field": "vae_name", "folder": "vae", "role": "native H3 video VAE", "requires_measured_sha256": true},
+    "__H3_BIND_AUDIO_VAE__": {"loader": "VAELoader", "field": "vae_name", "folder": "vae", "role": "native H3 audio VAE", "requires_measured_sha256": true}
+  },
   "note": "What this application needs on a ComfyUI machine. Verified against a live /object_info rather than assembled from memory. Folders are ComfyUI's own model directories.",
   "verified_against": {
     "comfyui": "0.40.0",
@@ -23,7 +29,7 @@
     {
       "name": "ComfyUI-KJNodes",
       "source": "https://github.com/kijai/ComfyUI-KJNodes",
-      "nodes": ["ImageResizeKJv2", "PathchSageAttentionKJ", "VAELoaderKJ", "LTX2MemoryEfficientSageAttentionPatch"],
+      "nodes": ["ImageResizeKJv2", "PathchSageAttentionKJ", "VAELoaderKJ", "LTX2MemoryEfficientSageAttentionPatch", "INTConstant"],
       "used_by": ["ltx-ripple"],
       "required": true,
       "warning": "On the reference machine these arrive from a locally bundled folder named comfyui-workflow-encrypt. Install KJNodes upstream; the bundled name is not installable."
@@ -42,6 +48,22 @@
       "used_by": ["h3-recast"],
       "required": true,
       "warning": "Two packs of this name are installed on the reference machine. Pin one and assert the resolved python_module at startup."
+    },
+    {
+      "name": "comfyui-obvpm",
+      "source": "https://github.com/chanon/comfyui-obvpm",
+      "nodes": ["AudioOptionalGate (obvpm)", "Bundle (obvpm)", "LazyCaseSwitch (obvpm)", "LazySwitch (obvpm)", "ModelOptionalGate (obvpm)", "MuteGate (obvpm)", "Unbundle (obvpm)", "ValuePresets (obvpm)"],
+      "used_by": ["h3-native-continuity-experimental"],
+      "required": false,
+      "warning": "Required by the experimental native compiler, not by the existing Swap renderer. Node availability is not rendering proof."
+    },
+    {
+      "name": "comfyui-obvpm-timeline",
+      "source": "https://github.com/chanon/comfyui-obvpm-timeline",
+      "nodes": ["H3LoadVideoWithMCtx", "H3LoadMCtx", "H3MCtxApplyPins", "H3MCtxPinSpec", "H3TrimAndSaveVideoWithMCtx", "H3VramHeadroom"],
+      "used_by": ["h3-native-continuity-experimental"],
+      "required": false,
+      "warning": "Native state/pin/saver contracts are separate from core MiniMax H3 support. The app's generation path is still work in progress."
     }
   ],
   "core_nodes": {
@@ -56,7 +78,8 @@
       "VAEDecodeAudio", "BatchImagesNode", "ResizeImageMaskNode",
       "GetImageSize", "ModelAttentionBackend",
       "ComfySwitchNode", "PreviewAny", "PrimitiveStringMultiline",
-      "ResolutionSelector", "TextGenerate", "CreateBoundingBoxes", "Flux3LayoutPrompt"
+      "ResolutionSelector", "TextGenerate", "CreateBoundingBoxes", "Flux3LayoutPrompt",
+      "MiniMaxH3SigmaShift", "PrimitiveBoolean", "PrimitiveString", "SaveText"
     ],
     "from_core": [
       "LoadImage", "UNETLoader", "VAELoader", "CLIPLoader", "CLIPTextEncode",

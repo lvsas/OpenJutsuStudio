@@ -1,0 +1,79 @@
+"""Read-only native Take metadata/capsule/preview, separate from media placements.
+
+No native record writes, SDK submission or user-controlled filesystem paths.
+Media reads may prepare a disposable metadata-stripped preview cache. The root
+supplier is evaluated on each request. Registration is an app decision.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Annotated, Callable
+
+from fastapi import APIRouter, HTTPException, Path as ApiPath
+from fastapi.responses import FileResponse, JSONResponse
+
+from continuable_take import get_take, get_validated_family, list_takes
+from continuable_take_preview import prepare_preview, PreviewUnavailable
+
+
+TakeId = Annotated[str, ApiPath(pattern=r'^[0-9a-f]{32}$')]
+_PRIVATE = {'Cache-Control': 'private, no-store'}
+
+
+def _entry(record):
+    url = '/api/continuity/takes/' + record.take_id
+    return {'take': record.to_manifest(), 'media_url': url + '/media',
+            'capsule_url': url + '/capsule'}
+
+
+def _read(function, *args, missing_status=404):
+    try:
+        return function(*args)
+    except FileNotFoundError as exc:
+        message = 'Native Take not found' if missing_status == 404 else 'Native Take family is incomplete'
+        raise HTTPException(missing_status, message) from exc
+    except PreviewUnavailable as exc:
+        raise HTTPException(503, 'Safe native Take preview is unavailable') from exc
+    except ValueError as exc:
+        raise HTTPException(409, 'Native Take integrity could not be verified') from exc
+    except OSError as exc:
+        raise HTTPException(503, 'Native Take storage is unavailable') from exc
+
+
+def create_router(get_work_dir: Callable[[], Path]) -> APIRouter:
+    """Expose existing immutable Takes only; never import/generate on navigation."""
+    router = APIRouter(prefix='/api/continuity/takes', tags=['continuity'])
+
+    @router.get('')
+    def listing():
+        records = _read(list_takes, get_work_dir(), missing_status=409)
+        return JSONResponse({'takes': [_entry(record) for record in records]}, headers=_PRIVATE)
+
+    @router.get('/{take_id}')
+    def detail(take_id: TakeId):
+        record = _read(get_take, get_work_dir(), take_id)
+        return JSONResponse(_entry(record), headers=_PRIVATE)
+
+    @router.get('/{take_id}/capsule')
+    def capsule(take_id: TakeId, download: bool = False):
+        record = _read(get_take, get_work_dir(), take_id)
+        document = record.to_manifest()
+        # Transport freshness is not part of the hashed, versioned capsule schema.
+        document.pop('integrity')
+        headers = {**_PRIVATE, 'X-OpenGenjutsu-Integrity': 'frozen-metadata-only'}
+        if download:
+            headers['Content-Disposition'] = f'attachment; filename="take-{take_id}.capsule.json"'
+        return JSONResponse(document, headers=headers)
+
+    @router.get('/{take_id}/media')
+    def media(take_id: TakeId, download: bool = False):
+        work = get_work_dir()
+        _read(get_take, work, take_id)  # Missing identity is 404; missing state is 409.
+        family = _read(get_validated_family, work, take_id, missing_status=409)
+        preview = _read(prepare_preview, work, family, missing_status=409)
+        headers = {**_PRIVATE, 'X-OpenGenjutsu-Media': 'metadata-stripped-preview'}
+        return FileResponse(preview, media_type='video/mp4',
+            filename=f'take-{take_id}-preview.mp4', headers=headers,
+            content_disposition_type='attachment' if download else 'inline')
+
+    return router

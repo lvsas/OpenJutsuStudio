@@ -24,6 +24,7 @@ from pathlib import Path
 import re
 import shutil
 import stat
+from typing import Sequence
 import subprocess
 import tempfile
 import uuid
@@ -33,6 +34,18 @@ from timeline_artifacts import H3ArtifactSet, validate_h3_artifact_set
 
 _ID = re.compile(r'[0-9a-f]{32}\Z')
 _SHA = re.compile(r'[0-9a-f]{64}\Z')
+# References live beside the family, never inside its three-file contract.
+_REFERENCE_NAME = re.compile(r'reference-[1-9][0-9]{0,2}\.(png|jpg|jpeg|webp)\Z')
+_REFERENCE_SUFFIXES = frozenset({'.png', '.jpg', '.jpeg', '.webp'})
+_REFERENCE_MAX_BYTES = 32 * 1024 * 1024
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open('rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(block)
+    return digest.hexdigest()
 _TOKEN = re.compile(r'[A-Za-z0-9_-]{1,128}\Z')
 _NUMBER = re.compile(r'-?[0-9]{1,12}(?:\.[0-9]{1,12}|/[0-9]{1,12})?\Z')
 _NAMES = {'video': 'take.mp4', 'mctx': 'take.mctx.safetensors',
@@ -351,12 +364,14 @@ class ValidatedTakeFamily:
     artifacts: H3ArtifactSet
 
 
-def _capsule(take_id, family, meta, recipe, origin, evidence):
+def _capsule(take_id, family, meta, recipe, origin, evidence, identity=None):
     body = {'format': _FORMAT, 'schema_version': 1, 'take_id': take_id,
             'engine': 'H3OBVPM', 'engine_contract_version': 1,
             'family': family, 'lineage': _lineage(meta), 'recipe': recipe,
             'origin': origin, 'private_evidence_sha256': _digest(evidence),
             'runtime_compatibility': 'unproven'}
+    if identity is not None:
+        body['identity'] = identity
     return {**body, 'capsule_sha256': _digest(body)}
 
 
@@ -365,8 +380,25 @@ def _validate_capsule(value, take_id):
     required = {'format', 'schema_version', 'take_id', 'engine', 'engine_contract_version',
                 'family', 'lineage', 'recipe', 'origin', 'private_evidence_sha256',
                 'runtime_compatibility', 'capsule_sha256'}
-    if not isinstance(value, dict) or set(value) != required:
+    # ``identity`` is optional so every capsule written before it existed stays valid.
+    if (not isinstance(value, dict) or not set(value) <= required | {'identity'}
+            or set(value) - {'identity'} != required):
         raise ValueError('Unsupported Take capsule shape')
+    if 'identity' in value:
+        identity = value['identity']
+        if not isinstance(identity, dict) or set(identity) != {'references'}:
+            raise ValueError('Unsupported Take identity shape')
+        references = identity['references']
+        if not isinstance(references, list) or not references:
+            raise ValueError('A take identity needs at least one reference')
+        for item in references:
+            if not isinstance(item, dict) or set(item) != {'filename', 'sha256'}:
+                raise ValueError('Unsupported reference entry')
+            name, digest = item['filename'], item['sha256']
+            if not isinstance(name, str) or not _REFERENCE_NAME.fullmatch(name):
+                raise ValueError('Invalid reference filename')
+            if not isinstance(digest, str) or not _SHA.fullmatch(digest):
+                raise ValueError('Invalid reference digest')
     if (value['format'] != _FORMAT or type(value['schema_version']) is not int
             or value['schema_version'] != 1 or value['take_id'] != take_id
             or value['engine'] != 'H3OBVPM' or type(value['engine_contract_version']) is not int
@@ -489,7 +521,8 @@ def import_family(video: str | Path, mctx: str | Path, conditioning: str | Path,
                   root: str | Path, work: str | Path, captured_graph: dict | str | None,
                   take_id: str | None = None, graph_completeness: str = 'unknown',
                   graph_source: str = 'operator_capture', source_job: str | None = None,
-                  operator_label: str | None = None) -> TakeRecord:
+                  operator_label: str | None = None,
+                  references: Sequence[str | Path] = ()) -> TakeRecord:
     """Validate, privately stream-copy, revalidate, seal and atomically publish.
 
     ``captured_graph`` is actual execution evidence, not a current DB workflow.
@@ -510,12 +543,27 @@ def import_family(video: str | Path, mctx: str | Path, conditioning: str | Path,
         ('video', video), ('mctx', mctx), ('conditioning', conditioning))}
     inspected = validate_h3_artifact_set(paths['video'], paths['mctx'], paths['conditioning'], root=root)
     hashes = {asset.role: asset.sha256 for asset in inspected.assets}
+    # References are the identity of the take, not part of the family triplet.
+    # They are copied inside the take so a continuation never has to guess them.
+    reference_sources = [_source(path, root) for path in references]
+    reference_assets = []
+    for index, source in enumerate(reference_sources, start=1):
+        if source.suffix.lower() not in _REFERENCE_SUFFIXES:
+            raise ValueError('A reference must be a PNG, JPEG or WebP image')
+        if source.stat().st_size > _REFERENCE_MAX_BYTES:
+            raise ValueError('A reference image is larger than the accepted limit')
+        reference_assets.append((f'reference-{index}{source.suffix.lower()}', source,
+                                 _file_sha256(source)))
     with _open_file(paths['mctx']) as stream:
         meta = dict(read_safetensors_header(stream).metadata)
     if graph_source == 'mp4_prompt' and (graph is None or _digest(read_embedded_prompt(paths['video'])) != _digest(graph)):
         raise ValueError('Captured graph differs from actual embedded MP4 prompt')
     evidence = {'captured_graph': graph, 'mctx_metadata': meta}
-    capsule = _capsule(take_id, inspected.to_manifest(), meta, recipe, origin, evidence)
+    identity = ({'references': [{'filename': name, 'sha256': digest}
+                                for name, _source_path, digest in reference_assets]}
+                if reference_assets else None)
+    capsule = _capsule(take_id, inspected.to_manifest(), meta, recipe, origin, evidence,
+                       identity=identity)
     _validate_capsule(capsule, take_id)
     store = _store(work, create=True)
     destination = store / take_id
@@ -534,6 +582,10 @@ def import_family(video: str | Path, mctx: str | Path, conditioning: str | Path,
                 raise ValueError('Native metadata changed between inspection and private copy')
         if validate_h3_artifact_set(**paths, root=root, expected_sha256=hashes) != inspected:
             raise ValueError('Source family changed during import')
+        for name, source, digest in reference_assets:
+            _copy_file(source, staging / name, digest)
+            if _file_sha256(staging / name) != digest:
+                raise ValueError('Private reference copy differs from its source')
         _write_json(staging / 'capture.private.json', evidence)
         _write_json(staging / 'capsule.json', capsule)
         for path in staging.iterdir():

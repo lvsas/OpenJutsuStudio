@@ -70,7 +70,8 @@ def restage_parent(client, artifacts, family_name):
     return read_clip_handle(job, family_name)
 
 
-def collect_forward(work: str | Path, folder: Path, *, compiled_graph):
+def collect_forward(work: str | Path, folder: Path, *, compiled_graph,
+                    reference_path: str | Path | None = None):
     """Return the collector ``execute_operation`` expects, idempotent by Take id."""
     folder = Path(folder)
 
@@ -81,13 +82,15 @@ def collect_forward(work: str | Path, folder: Path, *, compiled_graph):
             folder / 'take.cond.safetensors', root=folder, work=work,
             captured_graph=compiled_graph, take_id=operation_id,
             graph_completeness='complete', graph_source='operator_capture',
-            source_job=remote_job.id, operator_label='native-forward')
+            source_job=remote_job.id, operator_label='native-forward',
+            references=(reference_path,) if reference_path is not None else ())
         return record.take_id
     return collect
 
 
 def submit_forward(work: str | Path, take_id: str, request, *, client, models,
                    reference, target_fingerprint, work_root: str | Path,
+                   reference_path: str | Path | None = None,
                    operation_id: str | None = None):
     """Run the whole chain for one Forward request and return the operation view.
 
@@ -113,7 +116,8 @@ def submit_forward(work: str | Path, take_id: str, request, *, client, models,
                      seed=request.seed, parents=(take_id,),
                      target_fingerprint=target_fingerprint)
     folder = Path(work) / 'media' / f'forward-{operation_id}'
-    collect = collect_forward(work, folder, compiled_graph=compiled.graph)
+    collect = collect_forward(work, folder, compiled_graph=compiled.graph,
+                              reference_path=reference_path)
     return execute_operation(work_root, operation_id, client,
                              target_fingerprint=target_fingerprint, collect=collect,
                              timeout=FORWARD_TIMEOUT)

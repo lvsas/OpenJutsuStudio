@@ -581,3 +581,51 @@ assert list(pathlib.Path('.').iterdir()) == []
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TakeIdentityTests(unittest.TestCase):
+    """References belong to the take: they are declared and copied with it."""
+
+    # Reuse the synthetic family fixture without re-running the parent suite.
+    setUp = ContinuableTakeTests.setUp
+    do_import = ContinuableTakeTests.do_import
+    directory = ContinuableTakeTests.directory
+    write_mctx = ContinuableTakeTests.write_mctx
+
+    def reference(self, name='character.png', payload=b'\x89PNG\r\n\x1a\nSYNTHETIC'):
+        path = self.root / name
+        path.write_bytes(payload)
+        return path
+
+    def test_a_reference_is_declared_and_copied_inside_the_take(self):
+        reference = self.reference()
+        record = self.do_import(references=(reference,))
+        capsule = record.to_manifest()
+        declared = capsule['identity']['references']
+        self.assertEqual(declared, [{'filename': 'reference-1.png',
+                                     'sha256': hashlib.sha256(reference.read_bytes()).hexdigest()}])
+        copied = self.directory / 'reference-1.png'
+        self.assertTrue(copied.is_file())
+        self.assertEqual(copied.read_bytes(), reference.read_bytes())
+
+    def test_the_family_triplet_is_untouched_by_a_reference(self):
+        record = self.do_import(references=(self.reference(),))
+        self.assertEqual(sorted(record.to_manifest()['family']['assets']),
+                         ['conditioning', 'mctx', 'video'])
+
+    def test_order_is_preserved_across_several_references(self):
+        first, second = self.reference('a.png', b'ONE'), self.reference('b.png', b'TWO')
+        capsule = self.do_import(references=(first, second)).to_manifest()
+        self.assertEqual([item['filename'] for item in capsule['identity']['references']],
+                         ['reference-1.png', 'reference-2.png'])
+        self.assertEqual((self.directory / 'reference-2.png').read_bytes(), b'TWO')
+
+    def test_a_take_without_references_stays_valid(self):
+        self.assertNotIn('identity', self.do_import().to_manifest())
+
+    def test_a_non_image_reference_is_refused_before_publication(self):
+        bad = self.root / 'notes.txt'
+        bad.write_bytes(b'not an image')
+        with self.assertRaisesRegex(ValueError, 'PNG, JPEG or WebP'):
+            self.do_import(references=(bad,))
+        self.assertFalse(self.directory.exists())

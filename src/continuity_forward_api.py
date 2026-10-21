@@ -92,11 +92,29 @@ def make_forward_runner(*, client_factory, models_factory, fingerprint, work_roo
         reference_path = paths[0]
         client = client_factory()
         reference = client.assets.from_file(reference_path).as_reference()
+        # The operator writes a direction, not an H3 prompt. The refiner turns one
+        # into the other, and the refined text is what the graph receives.
+        refined = refine_prompt(client, request.prompt, reference)
+        request = request.model_copy(update={'prompt': refined})
         return submit_forward(work, take_id, request, client=client,
                               models=models_factory(), reference=reference,
                               target_fingerprint=fingerprint, work_root=work_root,
                               reference_path=reference_path)
     return run
+
+
+PROMPT_TIMEOUT = 900
+
+
+def refine_prompt(client, direction: str, reference) -> str:
+    """Run the R2VA refiner and return its text, never a guess."""
+    from h3_prompt_generator import build_prompt_graph, read_prompt_text
+
+    job = client.run(client.workflows.from_json(build_prompt_graph(direction, reference)),
+                     timeout=PROMPT_TIMEOUT)
+    if getattr(job, 'status', None) != 'succeeded':
+        raise ValueError('The prompt could not be prepared. Your take is unchanged.')
+    return read_prompt_text(job)
 
 
 def create_forward_router(get_work_dir, *, runner=None) -> APIRouter:

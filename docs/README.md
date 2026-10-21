@@ -51,6 +51,7 @@ browser-quality result.
 | [Native Swap capture](validation/native-swap-capture.md) | first real GPU Swap with native capture: one submit, family retrieved, Take re-validated |
 | [Native forward](validation/native-forward.md) | first real continuation: restaged parent, loader consumed its state, child linked by native identity |
 | [Forward through the SDK](validation/native-forward-sdk.md) | restage → compile → GPU → SDK-collected family → child Take with lineage; trim confirmed twice |
+| [Forward UX plan](plans/2026-10-21-forward-ux.md) | états, copies, refus, critères de délice et d'acceptation avant tout code d'interface |
 | [Dependencies](dependencies.md) | every node class and model file this repository needs, verified against a live ComfyUI |
 | [`dependencies.json`](../dependencies.json) | the same list machine-readably, with `scripts/check_dependencies.py` to verify a machine |
 | [Character reference probe](validation/character-reference-probe.md) | historical visual/model experiments that established the FLUX 3 prompt and identity constraints |

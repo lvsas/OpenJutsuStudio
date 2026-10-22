@@ -54,29 +54,45 @@ def policy_text() -> str:
     return json.loads(TEMPLATE.read_text())['5833_26']['inputs']['string']
 
 
-def build_prompt_graph(direction: str, reference: dict, *, mode: str = 'rewrite',
+def build_prompt_graph(direction: str, references, *, mode: str = 'from-prompt',
                        filename_prefix: str = 'OpenGenjutsu/prompts/h3') -> dict:
-    """Compile the prompt job. One reference image, one captured text output."""
-    if not isinstance(direction, str) or not direction.strip():
-        raise ValueError('A direction is required')
+    """Compile the prompt job exactly as the authored workflow runs it.
+
+    ``from-prompt`` is the authored mode: the guide builds its six sections from
+    the attached pictures plus whatever the operator wrote, which may be nothing.
+    The ``rewrite`` default was our invention and turned a hand-written
+    declaration into a full new-video description.
+    """
+    if not isinstance(direction, str):
+        raise ValueError('A direction must be text')
     if len(direction) > MAX_DIRECTION:
         raise ValueError(f'A direction is limited to {MAX_DIRECTION} characters')
     if mode not in MODES:
         raise ValueError(f'Mode must be one of {MODES}')
+    if isinstance(references, (dict, str)):
+        references = [references]
+    if not isinstance(references, (list, tuple)) or not references:
+        raise ValueError('At least one reference image is required')
     graph = copy.deepcopy(json.loads(TEMPLATE.read_text()))
 
-    graph[DIRECTION_NODE]['inputs']['string'] = (
-        f'{REFERENCE_DECLARATION}\n\nDirection:\n{direction}')
+    # The operator's words go in untouched; empty is legitimate, the guide
+    # describes the pictures on its own.
+    graph[DIRECTION_NODE]['inputs']['string'] = direction.strip()
     graph[MODE_NODE]['inputs']['choice'] = mode
-    graph[REFERENCE_NODE]['inputs']['image'] = _asset(reference)
+    graph[REFERENCE_NODE]['inputs']['image'] = _asset(references[0])
 
-    # The installed ImageBatchMulti requires at least two images, so the same
-    # committed reference fills both slots. Inventing a second picture would
-    # silently change what the model is asked to look at.
+    # The installed ImageBatchMulti requires at least two images. With one
+    # reference the same asset fills both slots; with several, each is attached.
     batch = graph[BATCH_NODE]['inputs']
-    batch['inputcount'] = 2
+    extra = list(references[1:])
+    for position, asset in enumerate(extra, start=2):
+        graph[f'{REFERENCE_NODE}_{position}'] = {
+            'class_type': 'LoadImage', 'inputs': {'image': _asset(asset)}}
+    batch['inputcount'] = max(2, len(references))
     batch['image_1'] = [REFERENCE_NODE, 0]
-    batch['image_2'] = [REFERENCE_NODE, 0]
+    batch['image_2'] = [f'{REFERENCE_NODE}_2', 0] if extra else [REFERENCE_NODE, 0]
+    for position in range(3, len(references) + 1):
+        batch[f'image_{position}'] = [f'{REFERENCE_NODE}_{position}', 0]
     for node in (*PREVIEW_NODES, *UNUSED_NODES):
         graph.pop(node, None)
 

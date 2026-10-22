@@ -9,6 +9,7 @@ asset upload or a GPU submission.
 """
 from __future__ import annotations
 
+import tempfile
 import uuid
 from pathlib import Path
 
@@ -64,12 +65,25 @@ def parent_from_registry(work: str | Path, take_id: str, *, models, clip):
 
 
 def restage_parent(client, artifacts, family_name):
-    """Upload the three files and let the installed pack rebuild a loadable family."""
-    references = {role: client.assets.from_file(path).as_reference()
-                  for role, path in (('video', artifacts.video), ('mctx', artifacts.mctx),
-                                     ('conditioning', artifacts.conditioning))}
-    job = client.run(client.workflows.from_json(build_restage_graph(references, family_name)),
-                     timeout=RESTAGE_TIMEOUT)
+    """Upload the three files under names the application chooses.
+
+    The target stores uploads by filename and appends a " (1)" marker on a
+    collision, which every role validator downstream then rejects. Naming the
+    uploads from the unique family name removes that class of failure instead of
+    teaching each validator to tolerate it.
+    """
+    sources = (('video', artifacts.video, '.mp4'),
+               ('mctx', artifacts.mctx, '.mctx.safetensors'),
+               ('conditioning', artifacts.conditioning, '.cond.safetensors'))
+    with tempfile.TemporaryDirectory(prefix='restage-') as staging:
+        references = {}
+        for role, path, suffix in sources:
+            # Copy rather than rename: the stored family stays untouched.
+            unique = Path(staging) / f'{family_name}{suffix}'
+            unique.write_bytes(Path(path).read_bytes())
+            references[role] = client.assets.from_file(unique).as_reference()
+        job = client.run(client.workflows.from_json(build_restage_graph(references, family_name)),
+                         timeout=RESTAGE_TIMEOUT)
     if getattr(job, 'status', None) != 'succeeded':
         raise ValueError('The parent family could not be restaged on the target')
     return read_clip_handle(job, family_name)

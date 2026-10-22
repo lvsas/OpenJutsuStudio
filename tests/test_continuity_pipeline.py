@@ -119,3 +119,32 @@ class ParentContextShapeTests(unittest.TestCase):
             'width': 960, 'height': 544, 'delivered_frames': 20, 'fps': 24}})
         with self.assertRaisesRegex(ValueError, 'tail pin'):
             pipeline.parent_context(types.SimpleNamespace(artifacts=measured))
+
+
+class RestageNamingTests(unittest.TestCase):
+    """The upload name is chosen by the application, never by the target's dedup."""
+
+    def test_uploads_use_the_unique_family_name_and_leave_the_source_intact(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import MagicMock
+        import continuity_pipeline as pipeline
+        import types
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            video, mctx, cond = root / 'take.mp4', root / 'take.mctx.safetensors', root / 'take.cond.safetensors'
+            for path, data in ((video, b'V'), (mctx, b'M'), (cond, b'C')):
+                path.write_bytes(data)
+            artifacts = types.SimpleNamespace(video=video, mctx=mctx, conditioning=cond)
+            seen = []
+            client = MagicMock()
+            client.assets.from_file.side_effect = lambda p: seen.append(Path(p).name) or types.SimpleNamespace(
+                as_reference=lambda: {'__type': 'core/ASSET', 'info': {'id': 'x'}})
+            client.run.return_value = types.SimpleNamespace(status='succeeded')
+            client.workflows.from_json.side_effect = lambda graph: graph
+            with patch.object(pipeline, 'read_clip_handle', return_value='opengenjutsu/x/take.mp4'):
+                pipeline.restage_parent(client, artifacts, 'a' * 32)
+            self.assertEqual(seen, ['a' * 32 + '.mp4', 'a' * 32 + '.mctx.safetensors',
+                                    'a' * 32 + '.cond.safetensors'])
+            self.assertEqual(video.read_bytes(), b'V', 'the stored family is copied, never renamed')

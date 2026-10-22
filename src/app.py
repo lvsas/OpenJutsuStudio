@@ -27,7 +27,10 @@ from h3_studio_app import register_optional_h3
 from comfy_transport import make_client
 from config import comfy_base_url
 from continuity_forward_api import (create_forward_router, make_forward_runner,
-                                    target_fingerprint)
+                                    parent_references, refine_prompt, target_fingerprint)
+from continuity_attempt_api import create_router as create_attempt_router
+from continuity_attempts import Worker
+from continuity_pipeline import submit_forward
 from h3_recipe import H3Models
 from h3_continuity_graphs import H3ContinuityModels, Weight
 
@@ -75,6 +78,37 @@ _REEL_SERVICE = ReelService(lambda: MEDIA_DIR)
 app.include_router(create_share_reel_router(_REEL_SERVICE))
 app.include_router(create_timeline_router(lambda: core.WORK, lambda: MEDIA_DIR, MAX_UPLOAD_BYTES))
 app.include_router(create_continuity_router(lambda: core.WORK))
+# A hunt runs on its own single worker: candidates are submitted one at a time,
+# and the browser polls a durable record instead of holding a request open.
+_HUNT_ROOT = Path(core.WORK) / 'native-attempts'
+
+
+def _hunt_refine(prompt, take_id):
+    client = make_client()
+    paths = parent_references(core.WORK, take_id)
+    references = [client.assets.from_file(path).as_reference() for path in paths]
+    return refine_prompt(client, prompt, references)
+
+
+def _hunt_submit(operation_id, refined, seed, raw_frames, take_id):
+    from continuity_requests import ForwardRequest
+    import uuid as _uuid
+    client = make_client()
+    paths = parent_references(core.WORK, take_id)
+    references = [client.assets.from_file(path).as_reference() for path in paths]
+    request = ForwardRequest(request_id=_uuid.uuid4().hex, prompt=refined,
+                             seed=seed, raw_frames=raw_frames)
+    view = submit_forward(core.WORK, take_id, request, client=client,
+                          models=_continuity_models(), references=references,
+                          target_fingerprint=target_fingerprint(comfy_base_url(), H3Models()),
+                          work_root=Path(core.WORK) / 'native-operations',
+                          reference_paths=paths, operation_id=operation_id)
+    return view['take_id']
+
+
+app.include_router(create_attempt_router(
+    lambda: _HUNT_ROOT,
+    worker=Worker(_HUNT_ROOT, refine=_hunt_refine, submit=_hunt_submit)))
 app.include_router(create_forward_router(
     lambda: core.WORK,
     runner=make_forward_runner(

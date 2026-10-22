@@ -1,7 +1,7 @@
 /* Native sequence workspace; generation only after explicit submission. */
 import {validCharacterId} from './character-handoff.js';
 import {mountSequence} from './sequence-workspace.js';
-import {forwardBody,randomSeed} from './sequence-state.js';
+import {exactSeed,randomSeed} from './sequence-state.js';
 const byId = id => document.getElementById(id);
 const validId = id => typeof id === 'string' && /^[a-f0-9]{32}$/.test(id);
 let entries = [], active = null, epoch = 0, loading = false;
@@ -228,54 +228,106 @@ function frozenPending(value) {
   try { value ? localStorage.setItem(pendingKey, JSON.stringify(value)) : localStorage.removeItem(pendingKey); }
   catch { /* the server operation remains authoritative */ }
 }
+/* A hunt is one frozen request with N seeds; the browser polls a durable record. */
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+function seedsFor(count) {
+  const seeds = new Set();
+  while (seeds.size < count) seeds.add(randomSeed());
+  return [...seeds];
+}
+function drawCandidates(view, frozen) {
+  const tray = byId('candidate-tray'), list = byId('candidate-list');
+  const done = view.candidates.filter(c => c.status === 'done').length;
+  byId('candidate-summary').textContent =
+    `${done}/${view.candidates.length} ready · ${view.status}`;
+  list.replaceChildren();
+  view.candidates.forEach((candidate, index) => {
+    const item = document.createElement('li'); item.className = 'candidate';
+    const name = document.createElement('strong');
+    name.textContent = candidate.status === 'done' ? `Take ${index + 1}` : `Candidate ${index + 1}`;
+    const meta = document.createElement('small');
+    meta.textContent = candidate.status === 'failed'
+      ? (candidate.error || 'Failed')
+      : candidate.status === 'running' ? 'Generating…' : candidate.status;
+    item.append(name, meta);
+    if (candidate.status === 'done' && candidate.take_id) {
+      const poster = document.createElement('img');
+      poster.className = 'candidate-poster'; poster.alt = ''; poster.loading = 'lazy';
+      poster.src = `/api/continuity/takes/${candidate.take_id}/poster`;
+      const keep = document.createElement('button');
+      keep.type = 'button'; keep.className = 'btn btn-primary'; keep.textContent = 'Keep';
+      keep.addEventListener('click', async () => {
+        keep.disabled = true;
+        try {
+          const placed = await sequence.insertResult(candidate.take_id, frozen.project_id, frozen.after);
+          forwardState(placed || 'This candidate could not be placed.');
+          if (placed) { tray.hidden = true; closeForward(); }
+        } catch (error) { forwardState(error.message); keep.disabled = false; }
+      });
+      item.append(poster, keep);
+    }
+    list.append(item);
+  });
+  tray.hidden = false;
+}
 byId('forward-form').addEventListener('submit', async event => {
   event.preventDefault();
   if (!active || !activePlacement || inFlight) return;
   const fields = draftFields();
+  const count = Number(byId('forward-variants').value) || 1;
   let body;
   try {
-    body = forwardBody({request_id: crypto.randomUUID().replace(/-/g, ''), ...fields,
-                        seed: fields.seed || randomSeed()});
+    const seeds = fields.seed ? [exactSeed(fields.seed)] : seedsFor(count);
+    // Emit the validated decimal literals: Number() would round a 64-bit seed.
+    body = JSON.stringify({request_id: crypto.randomUUID().replace(/-/g, ''),
+      prompt: fields.prompt, raw_frames: fields.raw_frames}).slice(0, -1)
+      + ',"seeds":[' + seeds.map(exactSeed).join(',') + ']}';
   } catch (error) { forwardState(error.message); return; }
-  const submit = byId('forward-submit');
+  const submit = byId('forward-submit'), tray = byId('candidate-tray');
   inFlight = true; submit.disabled = true; byId('forward-open').disabled = true;
-  // Freeze the anchor and the project before the request: the response must not
-  // be attached to whatever the operator happens to look at when it returns.
+  tray.hidden = true;
   const frozen = {take_id: active.take.take_id, after: activePlacement.placement_id,
                   project_id: sequence.state().project_id};
   frozenPending(frozen); unconfirmed = true;
   forwardState('Preparing the direction…');
-  const stages = [[4000, 'Formatting the prompt from your references…'],
-                  [20000, 'Generating new footage…'], [90000, 'Still generating — the GPU is working…']];
-  const timers = stages.map(([delay, text]) => setTimeout(() => { if (inFlight) forwardState(text); }, delay));
   try {
-    const response = await fetch(`/api/continuity/takes/${frozen.take_id}/forward`, {
+    const start = await fetch(`/api/continuity/takes/${frozen.take_id}/attempts`, {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
       headers: {'Content-Type': 'application/json'}, body,
     });
-    if (!response.ok) {
-      let detail = '';
-      try { detail = (await response.json()).detail || ''; } catch { /* generic below */ }
-      forwardState(detail || (response.status === 503
-        ? 'The studio is not reachable right now.' : 'Nothing was created. Your draft and sequence are unchanged.'));
+    if (!start.ok) {
+      let detail = ''; try { detail = (await start.json()).detail || ''; } catch { /* generic */ }
+      forwardState(detail || 'Nothing was created. Your draft and sequence are unchanged.');
       return;
     }
-    forwardState('Collecting the saved result…');
-    const view = await response.json();
+    let view = await start.json();
+    const attemptId = view.attempt_id;
+    for (let tick = 0; tick < 900; tick += 1) {
+      drawCandidates(view, frozen);
+      if (view.status === 'done' || view.status === 'failed') break;
+      forwardState(view.status === 'running'
+        ? `Generating ${view.candidates.filter(c => c.status === 'done').length + 1} of ${view.candidates.length}…`
+        : 'Queued on the GPU…');
+      await wait(4000);
+      const poll = await fetch(`/api/continuity/attempts/${attemptId}`,
+        {credentials: 'same-origin', cache: 'no-store'});
+      if (!poll.ok) { forwardState('Lost contact with the saved attempt. It keeps running on the server.'); break; }
+      view = await poll.json();
+    }
     frozenPending(null); unconfirmed = false;
+    inFlight = false; submit.disabled = false;
+    byId('forward-open').disabled = !canExtend;
     await refresh();
-    const placed = await sequence.insertResult(view.take_id, frozen.project_id, frozen.after);
-    if (placed) { closeForward(); forwardState(placed.status || 'Saved with continuation state.'); }
-    else { notice('The extension was saved but the sequence changed while it ran. Find it in your library.'); }
+    drawCandidates(view, frozen);
+    const ready = view.candidates.filter(c => c.status === 'done').length;
+    forwardState(ready
+      ? `${ready} candidate${ready > 1 ? 's' : ''} ready. Keep the one you want.`
+      : (view.error || 'No candidate completed. Your sequence is unchanged.'));
   } catch {
-    // The POST may have been accepted. Never offer a silent second submission.
-    forwardState('Outcome unknown. Check the sequence and your library before trying again.');
-    unconfirmed = true;
+    forwardState('Outcome unknown. The attempt keeps running on the server; reopen the sequence to check.');
+    inFlight = false; submit.disabled = false;
   } finally {
-    timers.forEach(clearTimeout); inFlight = false; submit.disabled = false;
-    byId('forward-open').disabled = !canExtend || unconfirmed;
-    byId('forward-open').hidden = !byId('forward-form').hidden;
-    frozenPending(unconfirmed ? JSON.parse(localStorage.getItem(pendingKey) || 'null') : null);
+    if (unconfirmed) frozenPending(JSON.parse(localStorage.getItem(pendingKey) || 'null'));
   }
 });
 let editorLoaded = false;

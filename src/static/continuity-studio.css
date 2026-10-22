@@ -128,3 +128,13 @@
   .sequence-take-tools .btn{min-height:44px;min-width:44px}.sequence-slot{flex-basis:150px}
 }
 @media(prefers-reduced-motion:reduce){.sequence-shell *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+/* Candidate comparison: the choice stays explicit and the others survive. */
+.candidate-tray{margin-top:.8rem;border-top:1px solid var(--line);padding-top:.6rem}
+.candidate-list{list-style:none;margin:.5rem 0;padding:0;display:grid;gap:.4rem}
+.candidate{display:flex;align-items:center;gap:.55rem;min-width:0;border:1px solid var(--line);
+  border-radius:.6rem;padding:.4rem;background:var(--surface-soft)}
+.candidate strong{font-size:.74rem;flex:1;min-width:0;overflow-wrap:anywhere}
+.candidate small{font-size:.66rem;color:var(--muted)}
+.candidate-poster{width:64px;height:44px;object-fit:contain;border-radius:.35rem;background:var(--bg,#101014)}
+.candidate .btn{font-size:.7rem;padding:.4rem .7rem;min-height:36px}

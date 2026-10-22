@@ -24,6 +24,7 @@ MODE_NODE = '5833_28'           # from-prompt | rewrite
 REFERENCE_NODE = '5836'
 BATCH_NODE = '5837'
 GENERATE_NODE = '5833_6'
+CLIP_NODE = '5833_23'
 PREVIEW_NODES = ('5839', '5833_14', '5833_7')
 UNUSED_NODES = ('5838',)
 MODES = ('from-prompt', 'rewrite')
@@ -35,6 +36,7 @@ INSTRUCTIONS = {
 MAX_DIRECTION = 4000
 MAX_PROMPT_BYTES = 20000
 _ASSET = re.compile(r'[A-Za-z0-9_.:-]{1,256}\Z')
+_MODEL = re.compile(r'[A-Za-z0-9_./-]{1,256}\Z')
 
 # The guide defines labels from what the text says, not from what the model sees.
 # Without this line the generator answers that no reference assets were provided
@@ -60,6 +62,7 @@ def policy_text() -> str:
 
 
 def build_prompt_graph(direction: str, references, *, mode: str = 'from-prompt',
+                       clip_name: str | None = None,
                        filename_prefix: str = 'OpenGenjutsu/prompts/h3') -> dict:
     """Compile the prompt job exactly as the authored workflow runs it.
 
@@ -85,6 +88,10 @@ def build_prompt_graph(direction: str, references, *, mode: str = 'from-prompt',
     # describes the pictures on its own.
     graph[DIRECTION_NODE]['inputs']['string'] = direction.strip()
     graph[MODE_NODE]['inputs']['choice'] = mode
+    if clip_name is not None:
+        if not isinstance(clip_name, str) or not _MODEL.fullmatch(clip_name):
+            raise ValueError('clip_name must be a plain model filename')
+        graph[CLIP_NODE]['inputs']['clip_name'] = clip_name
     graph[REFERENCE_NODE]['inputs']['image'] = _asset(references[0])
 
     # The installed ImageBatchMulti requires at least two images. With one

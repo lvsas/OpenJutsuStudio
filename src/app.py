@@ -35,7 +35,12 @@ from h3_continuity_graphs import H3ContinuityModels, Weight
 def _continuity_models() -> H3ContinuityModels:
     """The continuity compiler needs Weight objects, not the recipe's filenames."""
     recipe = H3Models()
-    return H3ContinuityModels(unet=Weight(recipe.unet), clip=Weight(recipe.clip),
+    # Continuation uses ref2va, the Swap keeps the recipe's fl2va. Measured: with
+    # ref2va the motion carries for ~1.2 s past the parent's end; with fl2va the
+    # clip cuts three frames in. OPENGENJUTSU_UNET remains as a measurement hook.
+    unet = (os.environ.get('OPENGENJUTSU_UNET')
+            or 'minimax_h3_ref2va_pruned_int8_convrot.safetensors')
+    return H3ContinuityModels(unet=Weight(unet), clip=Weight(recipe.clip),
                               video_vae=Weight(recipe.video_vae),
                               audio_vae=Weight(recipe.audio_vae))
 from character_studio_app import register_optional_characters

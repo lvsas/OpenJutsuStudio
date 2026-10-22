@@ -87,6 +87,22 @@ class ContinuityTests(unittest.TestCase):
         self.assertNotIn(str(self.root), manifest)
         self.assertFalse(json.loads(manifest)['verification']['model_runtime_compatibility'])
 
+    def test_restage_accepts_an_sdk_absolute_path_only_inside_the_input_root(self):
+        nodes = self.nodes
+        # The SDK returns absolute paths to the assets it uploaded; the node must
+        # take them when they are inside the input root and still refuse the rest.
+        absolute = [str(path) for path in self.paths]
+        result = nodes.OpenGenjutsuH3RestageFamily().execute(*absolute, 'proof-abs')
+        self.assertEqual(result['result'][0], 'opengenjutsu_continuity/proof-abs/take.mp4')
+        outside = self.root / 'outside.mp4'
+        outside.write_bytes(self.paths[0].read_bytes())
+        with self.assertRaisesRegex(Exception, 'unsafe_path'):
+            nodes.OpenGenjutsuH3RestageFamily().execute(
+                str(outside), absolute[1], absolute[2], 'proof-bad')
+        with self.assertRaisesRegex(Exception, 'unsafe_path'):
+            nodes.OpenGenjutsuH3RestageFamily().execute(
+                absolute[0] + '/../../etc/passwd', absolute[1], absolute[2], 'proof-bad2')
+
     def test_clip_publisher_consumes_actual_saved_path_without_scanning(self):
         first = self.restage()
         clip = first['result'][0]
@@ -147,7 +163,13 @@ class ContinuityTests(unittest.TestCase):
         for name in ('../escape', '/absolute', '.', '..', 'x/y', 'x\\y', '', '.hidden', 'x\n'):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 self.restage(family_name=name)
-        for value in ('../missing.mp4', str(self.paths[0]), 'uploads/./a/dedup.mp4', 'x\\y.mp4'):
+        # An absolute path is now accepted when it is strictly inside the input
+        # root (the SDK uploads there); everything else is still refused.
+        for value in ('../missing.mp4', 'uploads/./a/dedup.mp4', 'x\\y.mp4'):
+            with self.subTest(path=value), self.assertRaises(ValueError):
+                self.restage(video=value)
+        for value in (str(self.paths[0].parent.parent.parent.parent / 'outside.mp4'),
+                      '/etc/passwd', str(self.paths[0]) + '/../../etc/passwd'):
             with self.subTest(path=value), self.assertRaises(ValueError):
                 self.restage(video=value)
         (self.input / 'escape.mp4').symlink_to(self.paths[0])

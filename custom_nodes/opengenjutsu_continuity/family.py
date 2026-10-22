@@ -260,7 +260,10 @@ def restage(video, mctx, conditioning, family_name):
         if not isinstance(family_name, str) or not _FAMILY.fullmatch(family_name):
             raise _error('unsafe_family_name')
         input_root, output = roots()
-        with _sources(input_root, (video, mctx, conditioning), False) as (_, files, family, hashes, check):
+        # The SDK hands back absolute paths to the assets it just uploaded. Refusing
+        # them on shape alone made the node reject its own inputs; _relative still
+        # refuses anything that is not strictly under the ComfyUI input root.
+        with _sources(input_root, (video, mctx, conditioning), True) as (_, files, family, hashes, check):
             with _staging(output) as (parent_fd, stage_fd, stage_name, stage_path):
                 for fd, name in zip(files, NAMES):
                     _copy_file(fd, stage_fd, name)

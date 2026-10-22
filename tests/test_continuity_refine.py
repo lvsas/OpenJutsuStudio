@@ -75,6 +75,19 @@ class PumpTests(unittest.TestCase):
                 FakeRequest(request_id='a' * 32, prompt=DIRECTION, seed=7, raw_frames=158))
         self.assertEqual(len(refine.call_args.args[2]), 2)
         self.assertEqual(len(submit.call_args.kwargs['references']), 2)
+        self.assertEqual(submit.call_args.kwargs['reference_paths'],
+                         [Path('/a.png'), Path('/b.png')])
+
+    def test_an_explicit_empty_context_is_forwarded_without_indexing_a_first_image(self):
+        with patch.object(api, 'parent_references', return_value=[]), \
+             patch.object(api, 'refine_prompt', return_value=REFINED) as refine, \
+             patch.object(api, 'submit_forward', return_value={'take_id': 'f' * 32}) as submit:
+            self.runner(fake_client())(
+                '/work', 'b' * 32,
+                FakeRequest(prompt=DIRECTION, seed=7, raw_frames=158))
+        self.assertEqual(refine.call_args.args[2], [])
+        self.assertEqual(submit.call_args.kwargs['references'], [])
+        self.assertEqual(submit.call_args.kwargs['reference_paths'], [])
 
 
 if __name__ == '__main__':

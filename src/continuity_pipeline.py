@@ -76,30 +76,33 @@ def restage_parent(client, artifacts, family_name):
 
 
 def collect_forward(work: str | Path, folder: Path, *, compiled_graph,
-                    reference_path: str | Path | None = None):
+                    reference_path: str | Path | None = None,
+                    reference_paths=None):
     """Return the collector ``execute_operation`` expects, idempotent by Take id."""
     # Absolute, because the source-root confinement compares resolved paths and a
     # relative root made every freshly downloaded artifact look like an escape.
     folder = Path(folder).resolve()
+    # An explicit sequence, even empty, wins over the historical singular input.
+    paths = tuple(reference_paths) if reference_paths is not None else (
+        (reference_path,) if reference_path is not None else ())
 
     def collect(remote_job, intent, operation_id):
         download_h3_artifacts(remote_job, FAMILY_NODE, folder)
-        # The reference comes from the parent take, which is outside this import
-        # root by construction. Bring it into the folder first, so the take can
-        # carry it and the source-root confinement still means something.
-        carried = ()
-        if reference_path is not None:
-            suffix = Path(reference_path).suffix.lower()
-            target = folder / f'reference-1{suffix}'
-            target.write_bytes(Path(reference_path).read_bytes())
-            carried = (target,)
+        # Parent/context images live outside this import root. Copy every image
+        # into it, in prompt order, before applying import_family's confinement.
+        carried = []
+        for index, reference in enumerate(paths, start=1):
+            source = Path(reference)
+            target = folder / f'reference-{index}{source.suffix.lower()}'
+            target.write_bytes(source.read_bytes())
+            carried.append(target)
         record = import_family(
             folder / 'take.mp4', folder / 'take.mctx.safetensors',
             folder / 'take.cond.safetensors', root=folder, work=work,
             captured_graph=compiled_graph, take_id=operation_id,
             graph_completeness='complete', graph_source='operator_capture',
             source_job=remote_job.id, operator_label='native-forward',
-            references=carried)
+            references=tuple(carried))
         return record.take_id
     return collect
 
@@ -107,6 +110,7 @@ def collect_forward(work: str | Path, folder: Path, *, compiled_graph,
 def submit_forward(work: str | Path, take_id: str, request, *, client, models,
                    references, target_fingerprint, work_root: str | Path,
                    reference_path: str | Path | None = None,
+                   reference_paths=None,
                    operation_id: str | None = None):
     """Run the whole chain for one Forward request and return the operation view.
 
@@ -133,7 +137,8 @@ def submit_forward(work: str | Path, take_id: str, request, *, client, models,
                      target_fingerprint=target_fingerprint)
     folder = Path(work) / 'media' / f'forward-{operation_id}'
     collect = collect_forward(work, folder, compiled_graph=compiled,
-                              reference_path=reference_path)
+                              reference_path=reference_path,
+                              reference_paths=reference_paths)
     return execute_operation(work_root, operation_id, client,
                              target_fingerprint=target_fingerprint, collect=collect,
                              timeout=FORWARD_TIMEOUT)

@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Path as ApiPath
 from fastapi.responses import FileResponse, JSONResponse
 
 from continuable_take import get_take, get_validated_family, list_takes
-from continuable_take_preview import prepare_preview, PreviewUnavailable
+from continuable_take_preview import prepare_preview, prepare_poster, PreviewUnavailable
 
 
 TakeId = Annotated[str, ApiPath(pattern=r'^[0-9a-f]{32}$')]
@@ -47,6 +47,7 @@ def create_router(get_work_dir: Callable[[], Path]) -> APIRouter:
     @router.get('')
     def listing():
         records = _read(list_takes, get_work_dir(), missing_status=409)
+        # The library lists assets; intentional order belongs to the workspace.
         return JSONResponse({'takes': [_entry(record) for record in records]}, headers=_PRIVATE)
 
     @router.get('/{take_id}')
@@ -64,6 +65,28 @@ def create_router(get_work_dir: Callable[[], Path]) -> APIRouter:
         if download:
             headers['Content-Disposition'] = f'attachment; filename="take-{take_id}.capsule.json"'
         return JSONResponse(document, headers=headers)
+
+    @router.get('/{take_id}/poster')
+    def poster(take_id: TakeId):
+        work = get_work_dir()
+        family = _read(get_validated_family, work, take_id, missing_status=409)
+        path = _read(prepare_poster, work, family, missing_status=409)
+        return FileResponse(path, media_type='image/jpeg', headers={**_PRIVATE,
+            'X-Content-Type-Options': 'nosniff'})
+
+    @router.get('/{take_id}/readiness')
+    def readiness(take_id: TakeId):
+        work = get_work_dir()
+        _read(get_take, work, take_id)
+        try:
+            family = get_validated_family(work, take_id)
+        except (FileNotFoundError, ValueError, OSError):
+            return JSONResponse({'verified': False, 'extend': False,
+                'reason': 'The saved state could not be verified. No generation will start.'}, headers=_PRIVATE)
+        context = family.record.to_manifest()['family']['context']
+        available = context['delivered_frames'] >= 39 and context['fps'] == 24
+        return JSONResponse({'verified': True, 'extend': available,
+            'reason': None if available else 'Extend needs at least 39 delivered frames at 24 fps.'}, headers=_PRIVATE)
 
     @router.get('/{take_id}/media')
     def media(take_id: TakeId, download: bool = False):

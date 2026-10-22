@@ -47,6 +47,44 @@ def _cached(folder, binding):
     return path
 
 
+def prepare_poster(work: Path, family: ValidatedTakeFamily) -> Path:
+    """Small cached JPEG bound to a validated native capsule, never a video fallback."""
+    record = family.record
+    binding = {'capsule_sha256': record.capsule_sha256, 'policy': 'poster-jpeg-v1'}
+    with _LOCK:
+        root = _directory(Path(work).absolute() / 'timeline' / 'previews' / 'poster-jpeg-v1', create=True)
+        destination = root / (record.take_id + '-' + record.capsule_sha256)
+        if not os.path.lexists(destination):
+            staging = Path(tempfile.mkdtemp(prefix='.' + record.take_id, suffix='.part', dir=root))
+            try:
+                output = staging / 'poster.jpg'
+                try:
+                    subprocess.run(['ffmpeg', '-nostdin', '-v', 'error',
+                        '-protocol_whitelist', 'file', '-f', 'mov', '-enable_drefs', '0',
+                        '-use_absolute_path', '0', '-i', str(family.video),
+                        '-map', '0:v:0', '-frames:v', '1', '-an',
+                        '-vf', 'scale=320:320:force_original_aspect_ratio=decrease',
+                        '-map_metadata', '-1', '-threads', '1', '-q:v', '4', str(output)],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=True, timeout=30)
+                except (OSError, subprocess.SubprocessError) as exc:
+                    raise PreviewUnavailable('Could not prepare take poster') from exc
+                _write_json(staging / 'poster.json', {**binding, 'sha256': _hash(output)})
+                try:
+                    _publish_directory(staging, destination)
+                except FileExistsError:
+                    pass
+            finally:
+                if staging.exists():
+                    shutil.rmtree(staging)
+        _directory(destination)
+        metadata = _read_json(destination / 'poster.json')
+        path = destination / 'poster.jpg'
+        if (any(metadata.get(key) != value for key, value in binding.items())
+                or metadata.get('sha256') != _hash(path)):
+            raise ValueError('Poster cache integrity mismatch')
+        return path
+
+
 def prepare_preview(work: Path, family: ValidatedTakeFamily) -> Path:
     """Return an exact-source-bound derivative, never a raw native MP4 fallback."""
     record = family.record

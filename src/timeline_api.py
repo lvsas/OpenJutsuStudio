@@ -15,7 +15,7 @@ from python_multipart.multipart import parse_options_header
 from starlette.concurrency import run_in_threadpool
 
 from timeline_export import ExportManager
-from timeline_models import CreateProject, EditProject, ExportProject, ImportJob
+from timeline_models import CreateProject, EditNativeWorkspace, EditProject, ExportProject, ImportJob
 from timeline_store import TimelineError, TimelineStore
 
 
@@ -179,6 +179,14 @@ def create_router(get_work_dir: Callable[[], Path], get_media_dir: Callable[[], 
     @router.patch("/projects/{project_id}")
     def edit_project(project_id: str, payload: EditProject):
         return invoke(store().edit, project_id, payload)
+
+    @router.get("/projects/{project_id}/native-workspace")
+    def get_native_workspace(project_id: str):
+        return invoke(store().get_native_workspace, project_id)
+
+    @router.patch("/projects/{project_id}/native-workspace")
+    def edit_native_workspace(project_id: str, payload: EditNativeWorkspace):
+        return invoke(store().edit_native_workspace, project_id, payload)
 
     @router.post("/projects/{project_id}/clips", status_code=201)
     def import_job(project_id: str, payload: ImportJob):

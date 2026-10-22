@@ -29,56 +29,62 @@
     </nav>
     <span class="badge">Native take workspace</span>
   </header>
-  <aside class="studio-wip" aria-label="Development status"><strong>Work in progress</strong><span>Recover and inspect native H3 takes. Generation, seed variants and continuation are not available in this workspace yet.</span></aside>
-  <main class="timeline-shell">
-    <section class="native-intro"><div><p class="eyebrow">Generative Timeline</p><h1>One take.<br><em>More possibilities.</em></h1><p class="muted">The result, its capsule and its native state belong together.</p></div><button id="native-refresh" class="btn btn-secondary" type="button">Refresh takes</button></section>
-    <aside id="native-character" class="native-character" hidden><img id="native-character-image" alt="Selected reference for a future native take"><div><strong>Your character reference</strong><p>This reference is for a new take. It does not change a recovered take or start a generation.</p></div></aside>
-    <p id="native-error" class="native-error" role="alert" hidden></p>
-    <section class="native-workspace" aria-label="Native H3 take recovery">
-      <aside class="native-shelf"><p class="eyebrow">Choose a starting point</p><h2>Native takes</h2><div id="native-takes" class="native-list"><p class="microcopy">Loading native takes…</p></div></aside>
-      <section class="native-canvas" aria-label="Selected native take"><div class="native-stage"><div id="native-empty" class="native-empty"><strong>A take is more than a video.</strong><p>Recover its visible result, captured recipe, MCTX, conditioning and lineage together.</p></div><video id="native-video" controls playsinline preload="metadata" hidden></video></div><p id="native-status" class="native-caption" role="status" aria-live="polite">No generation starts on this page.</p></section>
-      <aside class="native-inspector"><p class="eyebrow">What this take keeps</p><h2 id="native-title">Select a native take</h2><dl><dt>Visible result</dt><dd id="native-geometry">—</dd><dt>Native state</dt><dd id="native-state">—</dd><dt>Lineage</dt><dd id="native-lineage">—</dd><dt>Recipe evidence</dt><dd id="native-recipe">—</dd><dt>Replay compatibility</dt><dd id="native-compatibility">Not verified</dd></dl><details id="native-capsule" class="native-capsule"><summary>Inspect capsule</summary><pre id="native-capsule-json">Select a take to inspect its public capsule.</pre><a id="native-capsule-download" class="btn btn-secondary" hidden download>Download capsule JSON</a><p class="microcopy">This public JSON is not a complete Take backup. Private native files remain stored on the server.</p></details></aside>
-    </section>
-    <section class="native-next" aria-label="Continue this take">
-      <div class="forward-head">
-        <div><p class="eyebrow">Next</p><h2>Continue this take</h2></div>
-        <button id="forward-open" class="btn btn-primary" type="button" disabled>Continue this take</button>
+  <aside class="studio-wip" aria-label="Development status"><strong>Work in progress</strong><span>Build a sequence and extend native H3 takes. Additional generation modes are being integrated.</span></aside>
+  <main class="timeline-shell sequence-shell">
+    <section class="native-intro sequence-toolbar" aria-label="Sequence workspace">
+      <div><p class="eyebrow">Generative workspace</p><h1>Sequence</h1></div>
+      <label class="sequence-name"><span class="sr-only">Sequence name</span><input id="native-project-title" maxlength="160" value="Untitled sequence" aria-label="Sequence name"><small id="native-save-state" role="status" aria-live="polite">Loading…</small></label>
+      <div class="sequence-toolbar-actions">
+        <select id="native-project-picker" aria-label="Open a saved sequence"><option value="">New unsaved sequence</option></select>
+        <button id="native-new-sequence" class="btn btn-ghost" type="button">New</button>
+        <button id="native-library-toggle" class="btn btn-secondary" type="button" aria-expanded="false" aria-controls="native-library">Library</button>
+        <button id="native-refresh" class="btn btn-ghost" type="button" aria-label="Refresh available takes">↻</button>
       </div>
-      <form id="forward-form" class="forward-form" hidden>
-        <figure id="forward-references" class="forward-references" hidden>
-          <figcaption>References for this shot<span id="forward-reference-count"></span></figcaption>
-          <div id="forward-reference-list" class="forward-reference-list"></div>
-          <label class="forward-reference-add">
-            <input id="forward-reference-input" type="file" hidden
-              accept="image/png,image/jpeg,image/webp">
-            <span class="btn btn-secondary">Add a reference</span>
-          </label>
-        </figure>
-        <label class="forward-field forward-direction">
-          <span>What happens next?</span>
-          <textarea id="forward-prompt" rows="2" maxlength="4000" required
-            placeholder="She keeps walking at the same pace, then glances over her shoulder."></textarea>
-        </label>
-        <label class="forward-field"><span>Length</span>
-          <select id="forward-length">
-            <option value="158">5 s</option>
-            <option value="226">8 s</option>
-            <option value="277" selected>10 s</option>
-            <option value="328">12 s</option>
-            <option value="396">15 s</option>
-          </select>
-        </label>
-        <label class="forward-field"><span>Seed</span>
-          <input id="forward-seed" type="text" inputmode="numeric" pattern="[0-9]{1,20}" autocomplete="off">
-        </label>
-        <div class="forward-actions">
-          <button id="forward-submit" class="btn btn-primary" type="submit">Generate continuation</button>
-          <button id="forward-cancel" class="btn btn-secondary" type="button">Cancel</button>
-        </div>
-        <p id="forward-state" class="forward-state" role="status" aria-live="polite"></p>
-      </form>
-      <p class="microcopy">Prepend and bridge arrive with the same composer. The take you start from is never replaced.</p>
     </section>
+    <p id="native-error" class="native-error" role="alert" hidden></p>
+    <button id="native-reload" class="btn btn-secondary" type="button" hidden>Reload saved version · local recovery draft is kept</button>
+    <aside id="native-character" class="native-character" hidden><img id="native-character-image" alt="Selected character reference"><div><strong>Character reference received</strong><p>Direct creation is not available yet. Use this character in a Swap, then add the saved take here.</p></div></aside>
+    <div class="sequence-workbench">
+      <aside id="native-library" class="sequence-library" aria-label="Take library" hidden>
+        <div class="rail-head"><h2>Your takes</h2><span id="pool-count" class="microcopy"></span></div>
+        <label class="sr-only" for="native-search">Find a take</label><input id="native-search" type="search" placeholder="Find a take…" autocomplete="off">
+        <p class="microcopy">Preview a take, then add it. Dragging never starts generation.</p>
+        <ul id="native-takes" class="library-takes"><li class="microcopy">Loading takes…</li></ul>
+        <a class="btn btn-secondary" href="/h3">Create a Swap in H3 Studio ↗</a>
+      </aside>
+      <div class="sequence-main">
+        <section class="native-workspace" aria-label="Preview and generation context">
+          <div class="native-canvas">
+            <div class="native-stage"><div id="native-empty" class="native-empty"><strong>Choose where the story goes.</strong><p>Add a take from your library to build a sequence. Its saved state stays attached.</p><button id="native-rail-add" class="btn btn-secondary" type="button">Add a starting take</button></div><video id="native-video" controls playsinline preload="metadata" hidden></video></div>
+            <p id="native-status" class="native-caption" role="status" aria-live="polite">Nothing is generated by adding or selecting a take.</p>
+            <details id="native-capsule" class="native-capsule"><summary>Capsule &amp; saved state</summary>
+              <dl><dt>Visible result</dt><dd id="native-geometry">—</dd><dt>Saved state</dt><dd id="native-state">Select a take to verify its saved state.</dd><dt>Generated from</dt><dd id="native-lineage">—</dd><dt>Recipe</dt><dd id="native-recipe">—</dd><dt>Compatibility</dt><dd id="native-compatibility">Not checked</dd></dl>
+              <pre id="native-capsule-json">Open a take to inspect its public receipt.</pre><a id="native-capsule-download" class="btn btn-secondary" hidden download>Download public receipt</a><p class="microcopy">This public JSON is not a complete Take backup. Native state and original files remain on the server.</p>
+            </details>
+          </div>
+          <aside class="sequence-composer" aria-label="Generation context">
+            <p class="eyebrow">Create from this moment</p><h2 id="native-title">Your next take</h2>
+            <p id="composer-anchor" class="microcopy">Select a take on your sequence to continue it.</p>
+            <p id="native-readiness" class="sequence-readiness" role="status"></p>
+            <button id="forward-open" class="btn btn-primary" type="button" disabled>Extend this take →</button>
+            <form id="forward-form" class="forward-form" hidden>
+              <label class="forward-field forward-direction"><span>What should happen?</span><textarea id="forward-prompt" rows="3" maxlength="4000" required placeholder="Keep the motion. She slows down and looks over her shoulder."></textarea></label>
+              <figure id="forward-references" class="forward-references" hidden><figcaption>References for the next generation<span id="forward-reference-count"></span></figcaption><div id="forward-reference-list" class="forward-reference-list"></div><label class="forward-reference-add"><input id="forward-reference-input" type="file" hidden accept="image/png,image/jpeg,image/webp"><span class="btn btn-secondary">+ Add reference</span></label></figure>
+              <label class="forward-field"><span>New footage</span><select id="forward-length"><option value="158">About 5 s</option><option value="226">About 8 s</option><option value="277" selected>About 10 s</option><option value="328">About 12 s</option><option value="396">About 15 s</option></select></label>
+              <details class="sequence-settings"><summary>Seed &amp; generation details</summary><label class="forward-field"><span>Seed · blank for random</span><input id="forward-seed" type="text" inputmode="numeric" pattern="[0-9]{1,20}" autocomplete="off"></label><p class="microcopy">One take per request. The parent determines the aspect ratio. Delivered duration is confirmed from the result.</p></details>
+              <div class="forward-actions"><button id="forward-submit" class="btn btn-primary" type="submit">Generate extension</button><button id="forward-cancel" class="btn btn-ghost" type="button">Close draft</button></div>
+            </form>
+            <p id="forward-state" class="forward-state" role="status" aria-live="polite"></p>
+            <details class="sequence-capabilities"><summary>Other ways to create</summary><dl><dt>Generate before</dt><dd>New footage leading into a take — not reversed playback.</dd><dt>Bridge A → B</dt><dd>New footage joining two explicitly selected takes.</dd><dt>New take</dt><dd>Start directly from references, without a Swap.</dd><dt>Variants &amp; quality</dt><dd>Compare seeds, choose a future, or improve a chosen result.</dd></dl><p class="microcopy">These modes remain in the MVP plan. They are not available in this workspace yet; no button here silently substitutes Extend.</p></details>
+          </aside>
+        </section>
+        <section id="take-board" class="take-board sequence-rail" aria-label="Chosen sequence" tabindex="0">
+          <div class="rail-head"><div><p class="eyebrow">Your sequence</p><span id="board-hint" class="microcopy">Nothing is added automatically</span></div><span class="microcopy">Place · select · extend</span></div>
+          <p id="native-rail-empty" class="sequence-empty">Drop a take here or use + in the library. You choose the order; the original takes stay untouched.</p>
+          <ol id="board-track" class="board-track" aria-label="Takes chosen for this sequence"></ol>
+        </section>
+      </div>
+    </div>
     <details id="supporting-tools" class="timeline-supporting"><summary>Assembly &amp; export — supporting tools</summary>
     <span id="save-status" class="badge" role="status" aria-live="polite">Local assembly workspace</span>
     <section class="timeline-intro">

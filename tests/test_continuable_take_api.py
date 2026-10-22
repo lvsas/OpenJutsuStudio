@@ -55,6 +55,32 @@ class ContinuableTakeApiTests(unittest.TestCase):
         with TestClient(fresh) as client:
             self.assertEqual(client.get(self.url).json(), data)
 
+    def test_poster_is_a_safe_image_not_the_raw_native_video(self):
+        self.imported()
+        poster = self.fixture.root / 'poster.jpg'
+        poster.write_bytes(b'\xff\xd8\xffsynthetic-poster')
+        with patch.object(api, 'prepare_poster', return_value=poster, create=True) as prepare:
+            response = self.client.get(self.url + '/poster')
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.headers['content-type'], 'image/jpeg')
+        self.assertEqual(response.content, poster.read_bytes())
+        prepare.assert_called_once()
+        self.fixture.rewrite('take.cond.safetensors', b'corrupt')
+        self.assertEqual(self.client.get(self.url + '/poster').status_code, 409)
+
+    def test_readiness_is_separate_from_metadata_and_never_submits(self):
+        self.imported()
+        response = self.client.get(self.url + '/readiness')
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()['verified'])
+        # Synthetic fixture has too few delivered frames for the 39-frame pin.
+        self.assertFalse(response.json()['extend'])
+        self.fixture.rewrite('take.cond.safetensors', b'corrupt')
+        response = self.client.get(self.url + '/readiness')
+        self.assertFalse(response.json()['verified'])
+        self.assertFalse(response.json()['extend'])
+        self.assertNotIn(str(self.fixture.work), response.text)
+
     def test_media_uses_complete_fresh_validation_and_supports_ranges(self):
         self.imported()
         with patch.object(api, 'get_validated_family', wraps=fixtures.ct.get_validated_family) as validate:

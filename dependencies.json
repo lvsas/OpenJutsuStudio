@@ -1,10 +1,34 @@
 {
   "schema": 1,
   "runtime_model_bindings": {
-    "__H3_BIND_UNET__": {"loader": "UNETLoader", "field": "unet_name", "folder": "diffusion_models", "role": "native H3 denoiser", "requires_measured_sha256": true},
-    "__H3_BIND_CLIP__": {"loader": "CLIPLoader", "field": "clip_name", "folder": "text_encoders", "role": "native H3 text encoder", "requires_measured_sha256": true},
-    "__H3_BIND_VIDEO_VAE__": {"loader": "VAELoader", "field": "vae_name", "folder": "vae", "role": "native H3 video VAE", "requires_measured_sha256": true},
-    "__H3_BIND_AUDIO_VAE__": {"loader": "VAELoader", "field": "vae_name", "folder": "vae", "role": "native H3 audio VAE", "requires_measured_sha256": true}
+    "__H3_BIND_UNET__": {
+      "loader": "UNETLoader",
+      "field": "unet_name",
+      "folder": "diffusion_models",
+      "role": "native H3 denoiser",
+      "requires_measured_sha256": true
+    },
+    "__H3_BIND_CLIP__": {
+      "loader": "CLIPLoader",
+      "field": "clip_name",
+      "folder": "text_encoders",
+      "role": "native H3 text encoder",
+      "requires_measured_sha256": true
+    },
+    "__H3_BIND_VIDEO_VAE__": {
+      "loader": "VAELoader",
+      "field": "vae_name",
+      "folder": "vae",
+      "role": "native H3 video VAE",
+      "requires_measured_sha256": true
+    },
+    "__H3_BIND_AUDIO_VAE__": {
+      "loader": "VAELoader",
+      "field": "vae_name",
+      "folder": "vae",
+      "role": "native H3 audio VAE",
+      "requires_measured_sha256": true
+    }
   },
   "note": "What this application needs on a ComfyUI machine. Verified against a live /object_info rather than assembled from memory. Folders are ComfyUI's own model directories.",
   "verified_against": {
@@ -15,76 +39,194 @@
     {
       "name": "ComfyUI-VideoHelperSuite",
       "source": "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite",
-      "nodes": ["VHS_LoadVideo", "VHS_VideoCombine"],
-      "used_by": ["ltx-ripple", "ltx-frame-edit", "h3-recast"],
+      "nodes": [
+        "VHS_LoadVideo",
+        "VHS_VideoCombine"
+      ],
+      "used_by": [
+        "ltx-ripple",
+        "ltx-frame-edit",
+        "h3-recast"
+      ],
       "required": true
     },
     {
       "name": "ComfyUI-LTXVideo",
       "source": "https://github.com/Lightricks/ComfyUI-LTXVideo",
-      "nodes": ["LTXAddVideoICLoRAGuide"],
-      "used_by": ["ltx-ripple"],
+      "nodes": [
+        "LTXAddVideoICLoRAGuide"
+      ],
+      "used_by": [
+        "ltx-ripple"
+      ],
       "required": true
     },
     {
       "name": "ComfyUI-KJNodes",
       "source": "https://github.com/kijai/ComfyUI-KJNodes",
-      "nodes": ["ImageResizeKJv2", "PathchSageAttentionKJ", "VAELoaderKJ", "LTX2MemoryEfficientSageAttentionPatch", "INTConstant"],
-      "used_by": ["ltx-ripple"],
+      "nodes": [
+        "ImageResizeKJv2",
+        "PathchSageAttentionKJ",
+        "VAELoaderKJ",
+        "LTX2MemoryEfficientSageAttentionPatch",
+        "INTConstant"
+      ],
+      "used_by": [
+        "ltx-ripple"
+      ],
       "required": true,
       "warning": "On the reference machine these arrive from a locally bundled folder named comfyui-workflow-encrypt. Install KJNodes upstream; the bundled name is not installable."
     },
     {
       "name": "ComfyUI_Res4lyf",
       "source": "https://github.com/ClownsharkBatwing/RES4LYF",
-      "nodes": ["Frames Slice"],
-      "used_by": ["ltx-ripple"],
+      "nodes": [
+        "Frames Slice"
+      ],
+      "used_by": [
+        "ltx-ripple"
+      ],
       "required": true
     },
     {
       "name": "MiniMaxH3-LatentUpscaler",
       "source": "https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler",
-      "nodes": ["MinimaxH3LatentUpscaler3D"],
-      "used_by": ["h3-recast"],
+      "nodes": [
+        "MinimaxH3LatentUpscaler3D"
+      ],
+      "used_by": [
+        "h3-recast"
+      ],
       "required": true,
       "warning": "Two packs of this name are installed on the reference machine. Pin one and assert the resolved python_module at startup."
     },
     {
       "name": "comfyui-obvpm",
       "source": "https://github.com/chanon/comfyui-obvpm",
-      "nodes": ["AudioOptionalGate (obvpm)", "Bundle (obvpm)", "LazyCaseSwitch (obvpm)", "LazySwitch (obvpm)", "ModelOptionalGate (obvpm)", "MuteGate (obvpm)", "Unbundle (obvpm)", "ValuePresets (obvpm)"],
-      "used_by": ["h3-native-continuity-experimental"],
+      "nodes": [
+        "AudioOptionalGate (obvpm)",
+        "Bundle (obvpm)",
+        "CleanVRAM (obvpm)",
+        "LazyCaseSwitch (obvpm)",
+        "LazySwitch (obvpm)",
+        "ModelOptionalGate (obvpm)",
+        "MuteGate (obvpm)",
+        "Unbundle (obvpm)",
+        "ValuePresets (obvpm)"
+      ],
+      "used_by": [
+        "h3-native-continuity-experimental"
+      ],
       "required": false,
       "warning": "Required by the experimental native compiler, not by the existing Swap renderer. Node availability is not rendering proof."
     },
     {
       "name": "comfyui-obvpm-timeline",
       "source": "https://github.com/chanon/comfyui-obvpm-timeline",
-      "nodes": ["H3LoadVideoWithMCtx", "H3LoadMCtx", "H3MCtxApplyPins", "H3MCtxPinSpec", "H3TrimAndSaveVideoWithMCtx", "H3VramHeadroom"],
-      "used_by": ["h3-native-continuity-experimental"],
+      "nodes": [
+        "H3LoadVideoWithMCtx",
+        "H3LoadMCtx",
+        "H3MCtxApplyPins",
+        "H3MCtxPinSpec",
+        "H3TrimAndSaveVideoWithMCtx",
+        "H3VramHeadroom"
+      ],
+      "used_by": [
+        "h3-native-continuity-experimental"
+      ],
       "required": false,
       "warning": "Native state/pin/saver contracts are separate from core MiniMax H3 support. The app's generation path is still work in progress."
+    },
+    {
+      "name": "MiniMaxH3-joint-extras",
+      "nodes": [
+        "BlockSparseAttention",
+        "H3ContextWindows",
+        "H3JointAudioMask",
+        "H3JointConditioning",
+        "H3JointLatent",
+        "H3JointRender",
+        "MiniMaxH3MemoryEfficientSageAttentionPatch",
+        "MiniMaxH3TurboLoRA",
+        "SpectrumApplyMiniMaxH3"
+      ],
+      "used_by": [
+        "h3-continuity"
+      ],
+      "note": "named by the adopted continuity templates; pack origin not verified on the target"
+    },
+    {
+      "name": "utility-nodes",
+      "nodes": [
+        "ComfyMathExpression",
+        "ComfyNotNode",
+        "CustomCombo",
+        "ImageBatchMulti",
+        "JoinStringMulti",
+        "LoadAudio",
+        "PixaromaH3AudioSync",
+        "PrimitiveFloat",
+        "SeedNode",
+        "StringConstantMultiline",
+        "easy anythingIndexSwitch"
+      ],
+      "used_by": [
+        "h3-continuity"
+      ],
+      "note": "named by the adopted continuity templates; pack origin not verified on the target"
     }
   ],
   "core_nodes": {
     "note": "Provided by ComfyUI itself; nothing to install. Listed so a version floor can be checked.",
     "from_comfy_extras": [
-      "MiniMaxH3ReferenceToVideo", "MiniMaxH3AddGuide",
-      "SamplerCustomAdvanced", "BasicGuider", "CFGGuider", "BasicScheduler",
-      "KSamplerSelect", "RandomNoise", "SplitSigmas",
-      "EmptyLTXVLatentVideo", "LTXVConditioning", "LTXVCropGuides",
-      "LTXVConcatAVLatent", "LTXVSeparateAVLatent", "LTXVEmptyLatentAudio",
-      "EmptyFlux2LatentImage", "Flux2Scheduler", "ReferenceLatent",
-      "VAEDecodeAudio", "BatchImagesNode", "ResizeImageMaskNode",
-      "GetImageSize", "ModelAttentionBackend",
-      "ComfySwitchNode", "PreviewAny", "PrimitiveStringMultiline",
-      "ResolutionSelector", "TextGenerate", "CreateBoundingBoxes", "Flux3LayoutPrompt",
-      "MiniMaxH3SigmaShift", "PrimitiveBoolean", "PrimitiveString", "SaveText"
+      "MiniMaxH3ReferenceToVideo",
+      "MiniMaxH3AddGuide",
+      "SamplerCustomAdvanced",
+      "BasicGuider",
+      "CFGGuider",
+      "BasicScheduler",
+      "KSamplerSelect",
+      "RandomNoise",
+      "SplitSigmas",
+      "EmptyLTXVLatentVideo",
+      "LTXVConditioning",
+      "LTXVCropGuides",
+      "LTXVConcatAVLatent",
+      "LTXVSeparateAVLatent",
+      "LTXVEmptyLatentAudio",
+      "EmptyFlux2LatentImage",
+      "Flux2Scheduler",
+      "ReferenceLatent",
+      "VAEDecodeAudio",
+      "BatchImagesNode",
+      "ResizeImageMaskNode",
+      "GetImageSize",
+      "ModelAttentionBackend",
+      "ComfySwitchNode",
+      "PreviewAny",
+      "PrimitiveStringMultiline",
+      "ResolutionSelector",
+      "TextGenerate",
+      "CreateBoundingBoxes",
+      "Flux3LayoutPrompt",
+      "MiniMaxH3SigmaShift",
+      "PrimitiveBoolean",
+      "PrimitiveString",
+      "SaveText"
     ],
     "from_core": [
-      "LoadImage", "UNETLoader", "VAELoader", "CLIPLoader", "CLIPTextEncode",
-      "LoraLoaderModelOnly", "KSampler", "VAEDecode", "VAEEncode", "ConditioningZeroOut",
-      "ImageScaleToTotalPixels", "SaveImage"
+      "LoadImage",
+      "UNETLoader",
+      "VAELoader",
+      "CLIPLoader",
+      "CLIPTextEncode",
+      "LoraLoaderModelOnly",
+      "KSampler",
+      "VAEDecode",
+      "VAEEncode",
+      "ConditioningZeroOut",
+      "ImageScaleToTotalPixels",
+      "SaveImage"
     ],
     "note_on_flux3": "TextGenerate is what runs the prompt upsampler: it takes the upsampler loaded through CLIPLoader and produces the caption that CLIPTextEncode receives. None of the FLUX 3 nodes is a custom pack, which is why an installed FLUX 3 can look incomplete when it is not."
   },
@@ -94,84 +236,117 @@
       "folder": "diffusion_models",
       "loader": "UNETLoader",
       "role": "MiniMax H3 base, character recast",
-      "engines": ["h3-recast"]
+      "engines": [
+        "h3-recast"
+      ]
     },
     {
       "file": "minimax_h3_video_vae_fp16.safetensors",
       "folder": "vae",
       "loader": "VAELoader",
       "role": "H3 video decode",
-      "engines": ["h3-recast"]
+      "engines": [
+        "h3-recast"
+      ]
     },
     {
       "file": "minimax_h3_audio_vae_fp32.safetensors",
       "folder": "vae",
       "loader": "VAELoader",
       "role": "H3 audio decode, keeps the source soundtrack",
-      "engines": ["h3-recast"]
+      "engines": [
+        "h3-recast"
+      ]
     },
     {
       "file": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
       "folder": "text_encoders",
       "loader": "CLIPLoader",
       "role": "H3 text encoder",
-      "engines": ["h3-recast"]
+      "engines": [
+        "h3-recast"
+      ]
     },
     {
       "file": "minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors",
       "folder": "upscale_models",
       "loader": "MinimaxH3LatentUpscaler3D",
       "role": "H3 latent upscaler, used by the two-pass runtime",
-      "engines": ["h3-recast"]
+      "engines": [
+        "h3-recast"
+      ]
     },
     {
       "file": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
       "folder": "diffusion_models",
       "loader": "UNETLoader",
       "role": "LTX 2.5 transformer",
-      "engines": ["ltx-ripple"]
+      "engines": [
+        "ltx-ripple"
+      ]
     },
     {
       "file": "ltx-2.5-video-vae-conv-bf16.safetensors",
       "folder": "vae",
       "loader": "VAELoader",
       "role": "LTX video decode",
-      "engines": ["ltx-ripple"]
+      "engines": [
+        "ltx-ripple"
+      ]
     },
     {
       "file": "ltx-2.5-audio-vae-bf16.safetensors",
       "folder": "vae",
       "loader": "VAELoader",
       "role": "LTX audio decode",
-      "engines": ["ltx-ripple"]
+      "engines": [
+        "ltx-ripple"
+      ]
     },
     {
       "file": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
       "folder": "text_encoders",
       "loader": "CLIPLoader",
       "role": "LTX text encoder",
-      "engines": ["ltx-ripple"]
+      "engines": [
+        "ltx-ripple"
+      ]
     },
     {
       "file": "flux-2-klein-9b-fp8.safetensors",
       "folder": "diffusion_models",
       "loader": "UNETLoader",
       "role": "first-frame editor of the LTX path",
-      "engines": ["ltx-frame-edit"]
+      "engines": [
+        "ltx-frame-edit"
+      ]
     },
     {
       "file": "full_encoder_small_decoder.safetensors",
       "folder": "vae",
       "loader": "VAELoader",
       "role": "VAE for the first-frame editor",
-      "engines": ["ltx-frame-edit"]
+      "engines": [
+        "ltx-frame-edit"
+      ]
     },
     {
       "file": "qwen_3_8b_fp8mixed.safetensors",
       "folder": "text_encoders",
       "loader": "CLIPLoader",
       "role": "text encoder for the first-frame editor",
-      "engines": ["ltx-frame-edit"]
+      "engines": [
+        "ltx-frame-edit"
+      ]
+    },
+    {
+      "file": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+      "folder": "diffusion_models",
+      "loader": "UNETLoader",
+      "role": "MiniMax H3 reference-to-video, used for continuations",
+      "engines": [
+        "h3-continuity"
+      ]
     }
   ],
   "loras": [
@@ -180,20 +355,62 @@
       "folder": "loras",
       "role": "the character-swap adapter the H3 studio is built on",
       "author": "akatz-ai",
-      "engines": ["h3-recast"]
+      "engines": [
+        "h3-recast"
+      ]
     },
     {
       "file": "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
       "folder": "loras",
       "role": "step-distillation adapter, H3 speed",
-      "engines": ["h3-recast"]
+      "engines": [
+        "h3-recast"
+      ]
     },
     {
       "file": "LTX25_Ripple_v11.safetensors",
       "folder": "loras",
       "role": "the Ripple IC-LoRA that carries an edit through motion",
       "author": "WepeNerd",
-      "engines": ["ltx-ripple"]
+      "engines": [
+        "ltx-ripple"
+      ]
+    },
+    {
+      "file": "H3/FlatAnime_MiniMax_H3.safetensors",
+      "folder": "loras",
+      "engines": [
+        "h3-continuity"
+      ],
+      "optional": true,
+      "role": "optional adapter named by the adopted continuity template"
+    },
+    {
+      "file": "H3/MysticXXX_MMH3-V4.safetensors",
+      "folder": "loras",
+      "engines": [
+        "h3-continuity"
+      ],
+      "optional": true,
+      "role": "optional adapter named by the adopted continuity template"
+    },
+    {
+      "file": "H3/Snorricam_H3.safetensors",
+      "folder": "loras",
+      "engines": [
+        "h3-continuity"
+      ],
+      "optional": true,
+      "role": "optional adapter named by the adopted continuity template"
+    },
+    {
+      "file": "H3/h3_photoreal_ph0t0r34l_1024-step00003780.safetensors",
+      "folder": "loras",
+      "engines": [
+        "h3-continuity"
+      ],
+      "optional": true,
+      "role": "optional adapter named by the adopted continuity template"
     }
   ],
   "character_generator": {
@@ -242,7 +459,9 @@
         "role": "vae",
         "required": true,
         "installed": "flux2-vae.safetensors",
-        "alternatives": ["flux2-vae.safetensors"],
+        "alternatives": [
+          "flux2-vae.safetensors"
+        ],
         "note": "Shared with the FLUX 2 path; already there for the first-frame editor."
       }
     ],

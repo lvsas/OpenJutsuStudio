@@ -302,3 +302,43 @@ permits contest validation — which is a different question from commercial use
    `models/loras` (the H3 LoRA keeps its `H3/` subfolder, because the workflow names it that way).
 6. A Comfy target the app can reach, and a GPU with enough VRAM for the model in use.
 7. `bash scripts/run_app.sh`, then open the port it prints.
+
+## Named by the adopted continuity and prompt workflows
+
+These are referenced by `workflows/h3-continuity-latent.api.json` and
+`workflows/h3-prompt-r2va.api.json`. They are recorded so the inventory check
+stays honest; the pack origin of the node groups above is not yet verified on the
+target machine. A style adapter listed as optional is not required to generate.
+
+### Nodes
+
+- `BlockSparseAttention`
+- `CleanVRAM (obvpm)`
+- `ComfyMathExpression`
+- `ComfyNotNode`
+- `CustomCombo`
+- `H3ContextWindows`
+- `H3JointAudioMask`
+- `H3JointConditioning`
+- `H3JointLatent`
+- `H3JointRender`
+- `ImageBatchMulti`
+- `JoinStringMulti`
+- `LoadAudio`
+- `MiniMaxH3MemoryEfficientSageAttentionPatch`
+- `MiniMaxH3TurboLoRA`
+- `PixaromaH3AudioSync`
+- `PrimitiveFloat`
+- `SeedNode`
+- `SpectrumApplyMiniMaxH3`
+- `StringConstantMultiline`
+- `easy anythingIndexSwitch`
+
+### Models and adapters
+
+- `H3/FlatAnime_MiniMax_H3.safetensors`
+- `H3/MysticXXX_MMH3-V4.safetensors`
+- `H3/Snorricam_H3.safetensors`
+- `H3/h3_photoreal_ph0t0r34l_1024-step00003780.safetensors`
+- `QWEN/qwen3vl_4b_fp8_scaled.safetensors`
+- `minimax_h3_ref2va_pruned_int8_convrot.safetensors`

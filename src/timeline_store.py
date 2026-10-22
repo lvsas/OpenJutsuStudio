@@ -20,7 +20,7 @@ import uuid
 from fractions import Fraction
 
 from media_probe import probe_mp4
-from timeline_models import CreateProject, EditProject, MAX_CLIPS, MAX_KNOWN_CLIPS
+from timeline_models import CreateProject, EditNativeWorkspace, EditProject, MAX_CLIPS, MAX_KNOWN_CLIPS
 
 _ID = re.compile(r"[0-9a-f]{32}\Z")
 _LOCKS: dict[str, threading.RLock] = {}
@@ -224,11 +224,42 @@ class TimelineStore:
         with self.lock:
             return self._public(self._project(project_id))
 
-    def _save_edit(self, project: dict) -> dict:
+    def _native_public(self, project: dict) -> dict:
+        """Path-free rail projection; reading a legacy project never migrates it."""
+        workspace = project.get("native_workspace", {})
+        return {**{k: project[k] for k in ("project_id", "title", "revision", "updated_at")},
+                "placements": workspace.get("placements", []),
+                "selected_placement_id": workspace.get("selected_placement_id"),
+                "drafts": workspace.get("drafts", {})}
+
+    def get_native_workspace(self, project_id: str) -> dict:
+        with self.lock:
+            return self._native_public(self._project(project_id))
+
+    def edit_native_workspace(self, project_id: str, edit: EditNativeWorkspace) -> dict:
+        import continuable_take
+        with self.lock:
+            project = self._project(project_id)
+            check_revision(edit.revision, project["revision"])
+            for take_id in dict.fromkeys(p.take_id for p in edit.placements):
+                try:
+                    # Only read frozen metadata, not media integrity or ancestry.
+                    continuable_take.get_take(self.work, take_id)
+                except FileNotFoundError as exc:
+                    raise TimelineError(404, "Native Take not found") from exc
+                except ValueError as exc:
+                    raise TimelineError(422, "Native Take metadata cannot be read") from exc
+            project["native_workspace"] = edit.model_dump(include={
+                "placements", "selected_placement_id", "drafts"})
+            if edit.title is not None:
+                project["title"] = edit.title
+            return self._save_edit(project, native=True)
+
+    def _save_edit(self, project: dict, *, native: bool = False) -> dict:
         project["revision"] += 1
         project["updated_at"] = time.time()
         atomic_json(self._path("projects", project["project_id"]), project)
-        return self._public(project)
+        return self._native_public(project) if native else self._public(project)
 
     def edit(self, project_id: str, edit: EditProject) -> dict:
         with self.lock:

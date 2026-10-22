@@ -33,53 +33,63 @@ def target_fingerprint(base_url: str, models) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def parent_references(work: str | Path, take_id: str) -> list[Path]:
-    """The character reference the parent take was generated with.
+class MissingHistoricalReferences(ValueError):
+    """Legacy take has no usable history; an explicit new context may start empty."""
 
-    A continuation must reuse the identity the take already carries. Asking the
-    operator to upload it again would be both redundant and a chance to drift.
-    """
+
+def parent_references(work: str | Path, take_id: str) -> list[Path]:
+    """Prepared references override inheritance, including an explicit empty set."""
+    if continuity_context.has_context(work, take_id):
+        return context_references(work, take_id)
+    return inherited_references(work, take_id)
+
+
+def inherited_references(work: str | Path, take_id: str) -> list[Path]:
+    """Original ordered identity, hash-verified; legacy origin is a fallback only."""
     record = get_take(work, take_id)
+    capsule = record.to_manifest()
     folder = Path(work) / 'timeline' / 'continuable-takes' / take_id
-    # A context prepared for the next generation wins: it is how the operator adds
-    # a third character or a set that was not in the previous video.
-    prepared = context_references(work, take_id)
-    if prepared:
-        return prepared
-    identity = record.to_manifest().get('identity') or {}
-    declared = identity.get('references') or []
-    if declared:
+    if 'identity' in capsule:
         resolved = []
-        for item in declared:
+        for item in capsule['identity']['references']:
             path = folder / item['filename']
-            if not path.is_file() or _sha256(path) != item['sha256']:
+            if (path.is_symlink() or not path.is_file()
+                    or not 0 < path.stat().st_size <= MAX_BYTES
+                    or _sha256(path) != item['sha256']):
                 raise ValueError('This take reference no longer matches what it was generated with.')
             resolved.append(path)
         return resolved
-    # TakeRecord is (take_id, capsule_sha256, _json): the capsule is a method,
-    # never an attribute. Reading record.origin silently returned None for every
-    # take, which is what produced the "no origin job" answer.
-    origin = record.to_manifest().get('origin') or {}
+    origin = capsule.get('origin') or {}
     job_id = origin.get('source_job')
     if not job_id:
-        raise ValueError('This take has no origin job, so its reference is unknown')
+        raise MissingHistoricalReferences('This take has no origin job, so its reference is unknown')
     import core  # local: keeps the module importable without the job store
 
     try:
         job = core.Job.load(job_id)
     except KeyError:
-        # Native continuations record the remote ComfyUI job, which this store
-        # never held. The reference has to come from the take itself.
-        raise ValueError(
+        raise MissingHistoricalReferences(
             'This take does not record its character reference. Add one below to '
             'continue it.') from None
     references = (job.meta or {}).get('h3_references') or []
     if not references:
-        raise ValueError('The take origin job recorded no character reference')
-    path = Path(references[0])
-    if not path.is_file():
-        raise ValueError('The take character reference file is missing')
-    return [path]
+        raise MissingHistoricalReferences('The take origin job recorded no character reference')
+    paths = [Path(reference) for reference in references]
+    for path in paths:
+        if not path.is_file():
+            raise MissingHistoricalReferences('The take character reference file is missing')
+        if path.is_symlink() or not 0 < path.stat().st_size <= MAX_BYTES:
+            raise ValueError('The historical reference is unsafe or exceeds the accepted limit')
+    return paths
+
+
+def _seed_context(work, take_id):
+    def inherited():
+        try:
+            return inherited_references(work, take_id)
+        except MissingHistoricalReferences:
+            return []
+    return continuity_context.seed_context(work, take_id, inherited)
 
 
 def _sha256(path: Path) -> str:
@@ -94,7 +104,6 @@ def make_forward_runner(*, client_factory, models_factory, fingerprint, work_roo
     """Build the production runner once, so the route stays free of wiring."""
     def run(work, take_id, request):
         paths = parent_references(work, take_id)
-        reference_path = paths[0]
         client = client_factory()
         references = [client.assets.from_file(path).as_reference() for path in paths]
         # The operator writes natural language; the refiner turns it into the
@@ -104,7 +113,7 @@ def make_forward_runner(*, client_factory, models_factory, fingerprint, work_roo
         return submit_forward(work, take_id, request, client=client,
                               models=models_factory(), references=references,
                               target_fingerprint=fingerprint, work_root=work_root,
-                              reference_path=reference_path)
+                              reference_paths=paths)
     return run
 
 
@@ -129,7 +138,7 @@ def create_forward_router(get_work_dir, *, runner=None) -> APIRouter:
 
     @router.get('/{take_id}/references')
     def references(take_id: TakeId):
-        """What this take was generated with, in the order the prompt numbered it."""
+        """Effective next-generation references, in <Picture N> order."""
         try:
             paths = parent_references(str(get_work_dir()), take_id)
         except FileNotFoundError:
@@ -143,7 +152,7 @@ def create_forward_router(get_work_dir, *, runner=None) -> APIRouter:
 
     @router.get('/{take_id}/references/{index}')
     def reference_image(take_id: TakeId, index: int):
-        if not 1 <= index <= 64:
+        if index < 1:
             raise HTTPException(404, 'Unknown reference')
         try:
             paths = parent_references(str(get_work_dir()), take_id)
@@ -169,24 +178,40 @@ def create_forward_router(get_work_dir, *, runner=None) -> APIRouter:
             raise HTTPException(422, str(exc)) from None
         return view
 
-    @router.post('/{take_id}/references', status_code=201)
-    async def add_reference(take_id: TakeId, image: UploadFile = File(...)):
+    async def edit_reference(take_id, image, position=None):
         payload = await image.read(MAX_BYTES + 1)
         if len(payload) > MAX_BYTES:
             raise HTTPException(413, 'That image is too large')
         suffix = Path(image.filename or '').suffix
         try:
-            manifest = continuity_context.add_reference(
-                str(get_work_dir()), take_id, payload, suffix)
+            work = str(get_work_dir())
+            _seed_context(work, take_id)
+            if position is None:
+                manifest = continuity_context.add_reference(work, take_id, payload, suffix)
+            else:
+                manifest = continuity_context.replace_reference(work, take_id, position, payload, suffix)
+        except FileNotFoundError:
+            raise HTTPException(404, 'Unknown take') from None
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from None
         return {'references': _reference_view(take_id, manifest)}
 
+    @router.post('/{take_id}/references', status_code=201)
+    async def add_reference(take_id: TakeId, image: UploadFile = File(...)):
+        return await edit_reference(take_id, image)
+
+    @router.put('/{take_id}/references/{position}', status_code=200)
+    async def replace_reference(take_id: TakeId, position: int, image: UploadFile = File(...)):
+        return await edit_reference(take_id, image, position)
+
     @router.delete('/{take_id}/references/{position}', status_code=200)
     def remove_reference(take_id: TakeId, position: int):
         try:
+            _seed_context(str(get_work_dir()), take_id)
             manifest = continuity_context.remove_reference(
                 str(get_work_dir()), take_id, position)
+        except FileNotFoundError:
+            raise HTTPException(404, 'Unknown take') from None
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from None
         return {'references': _reference_view(take_id, manifest)}

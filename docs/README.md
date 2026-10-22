@@ -80,6 +80,8 @@ browser-quality result.
 
 | Document | Outcome |
 | --- | --- |
+| [Generative workspace UX audit](audits/2026-10-22-timeline-ux-audit.md) | current page and proposed rail audited against the whole MVP; REQUEST CHANGES, with source/browser evidence and corrected design gates |
+| [Timeline UX proposal — reviewed, not approved](plans/2026-10-22-timeline-ux.md) | original proposal retained with audit notice; do not implement without resolving the audit |
 | [H3/LTX UI gaps, deep pass](audits/h3-ltx-ui-gaps-deep-2026-10-17.md) | every measured interface difference and its cause; most are now fixed |
 | [H3/LTX UI gaps](audits/h3-ltx-ui-gaps-2026-10-17.md) | the first pass, kept because it named the capsule colour and cache defects |
 | [H3 preview and capsule review](audits/h3-preview-capsule-review-2026-10-17.md) | work that was rejected and reworked; the reasoning that produced the current interface |

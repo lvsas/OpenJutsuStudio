@@ -6,6 +6,7 @@ import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {resolve, dirname} from 'node:path';
 import {File} from 'node:buffer';
+import {randomUUID,webcrypto} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const A='a'.repeat(32), B='b'.repeat(32), C='c'.repeat(32);
@@ -33,15 +34,17 @@ class Element {
   play(){this.paused=false;return this.fire('play');}
   load(){if(this.src)queueMicrotask(()=>this.onloadedmetadata?.());}
   close(){this.open=false;void this.fire('close');} showModal(){this.open=true;}
+  querySelectorAll(){return [];}
   focus(){} select(){} click(){return this.fire('click');}
 }
-async function environment(fetcher,search='') {
+async function environment(fetcher,search='',initialStorage={}) {
   const markup=readFileSync(resolve(root,'src/templates/timeline.html'),'utf8');
   const elements=new Map([...markup.matchAll(/id="([^"]+)"/g)].map(([,id])=>[id,new Element()]));
-  const notices=[],events={},storage=new Map();const location={search};
+  const notices=[],events={},storage=new Map(Object.entries(initialStorage));const location={search,href:'http://test.invalid/timeline'};
   const document={getElementById:id=>elements.get(id),createElement:()=>new Element()};
   const context=vm.createContext({document,location,console,URLSearchParams,URL,Response,File,
-    Blob,AbortSignal,queueMicrotask,fetch:fetcher,setTimeout,clearTimeout,
+    Blob,AbortSignal,queueMicrotask,fetch:fetcher,setTimeout,clearTimeout,structuredClone,
+    crypto:{randomUUID,getRandomValues:a=>webcrypto.getRandomValues(a)},
     Option:class extends Element{constructor(text,value){super();this.textContent=text;this.value=value;}},
     navigator:{share:async()=>{},canShare:()=>true},
     localStorage:{getItem:key=>storage.get(key)??null,setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},
@@ -56,7 +59,7 @@ async function environment(fetcher,search='') {
     return module;
   }
   async function entry(name){const module=await load(resolve(root,'src/static',name));await module.evaluate();return module.namespace;}
-  return {elements,notices,entry};
+  return {elements,notices,entry,storage,events};
 }
 
 test('native seeking/play cannot replay trimmed-away prefix; sequence still advances',async()=>{
@@ -127,4 +130,79 @@ test('reload cannot start or release editor locks while save PATCH is pending',a
   } finally {patch.resolve();await saving;await flush();}
   assert.equal(e.get('project-title').value,'A new name');assert.equal(e.get('project-title').disabled,false);
   assert.equal(e.get('save-status').textContent,'All changes saved');
+});
+
+const nativeEntry=id=>({take:{take_id:id,family:{context:{width:1280,height:704,
+  delivered_frames:89,fps:24}},lineage:{parent_id:null},recipe:{availability:'captured_execution_graph'}},
+  media_url:`/api/continuity/takes/${id}/media`,capsule_url:`/api/continuity/takes/${id}/capsule`});
+function nativeBackend({saved=null,extra=null}={}) {
+  const calls=[];let current=saved;
+  const fetcher=async(url,options={})=>{
+    calls.push({url,method:options.method||'GET',body:options.body});
+    if(url==='/api/continuity/takes')return response({takes:[nativeEntry(A),nativeEntry(B)]});
+    if(url.endsWith('/readiness'))return response({verified:true,extend:true,reason:null});
+    if(extra){const value=await extra(url,options);if(value)return value;}
+    if(url.endsWith('/references'))return response({references:[{index:1}]});
+    if(url==='/api/timeline/projects'&&options.method==='POST') {
+      current={project_id:C,title:JSON.parse(options.body).title,revision:0,
+        placements:[],selected_placement_id:null,drafts:{}};return response(current);
+    }
+    if(url==='/api/timeline/projects')return response({projects:current?[current]:[]});
+    if(url===`/api/timeline/projects/${C}/native-workspace`) {
+      if(options.method==='PATCH')current={...current,...JSON.parse(options.body),revision:current.revision+1};
+      return response(current);
+    }
+    throw Error(`Unexpected native request: ${url}`);
+  };
+  return {fetcher,calls,saved:()=>current};
+}
+test('library preview exposes direction and references; placement is explicit and never generates',async()=>{
+  const backend=nativeBackend(),app=await environment(backend.fetcher);
+  await app.entry('continuity-studio.js');await flush();
+  const e=app.elements;
+  await e.get('native-takes').children[0].children[0].click();await flush();
+  assert.equal(e.get('forward-form').hidden,false,'setup may not disappear behind placement requirement');
+  assert.equal(e.get('forward-references').hidden,false);
+  assert.equal(e.get('forward-reference-list').children.length,1);
+  assert.equal(e.get('forward-open').disabled,false);
+  assert.equal(e.get('forward-submit').disabled,true,'library preview is not an implicit placement');
+  e.get('forward-prompt').value='Continue the shot';
+  e.get('forward-seed').value='18446744073709551615';
+  await e.get('forward-open').click();await flush();
+  assert.equal(e.get('forward-form').hidden,false);
+  assert.equal(e.get('forward-submit').disabled,false);
+  const saved=backend.saved();assert.equal(saved.placements.length,1);
+  assert.equal(saved.drafts[saved.selected_placement_id].prompt,'Continue the shot');
+  assert.equal(saved.drafts[saved.selected_placement_id].seed,'18446744073709551615');
+  assert.equal(backend.calls.some(c=>c.url.endsWith('/attempts')),false);
+});
+test('reloaded lost-response receipt reconnects by request without hiding setup or issuing POST',async()=>{
+  const placement='1'.repeat(32),request='2'.repeat(32),attempt='3'.repeat(32);
+  const saved={project_id:C,title:'Saved',revision:1,placements:[{placement_id:placement,take_id:A}],
+    selected_placement_id:placement,drafts:{[placement]:{prompt:'My saved direction',seed:'7',raw_frames:158}}};
+  const receipt={version:2,project_id:C,after:placement,take_id:A,request_id:request,
+    attempt_id:null,status:'unknown',body:'literal saved JSON'};
+  const backend=nativeBackend({saved,extra:async url=>url.endsWith(`/attempts/by-request/${request}`)
+    ?response({attempt_id:attempt,take_id:A,status:'failed',error:'Transport failed',candidates:[]}):null});
+  const app=await environment(backend.fetcher,'',{'opengenjutsu.sequence.project':C,
+    'opengenjutsu.sequence.pending-generation':JSON.stringify(receipt)});
+  await app.entry('continuity-studio.js');await flush();
+  assert.equal(app.elements.get('forward-form').hidden,false);
+  assert.equal(app.elements.get('forward-prompt').value,'My saved direction');
+  assert.equal(app.elements.get('forward-submit').disabled,false,'terminal recovery must unlock explicit generation');
+  assert.equal(app.elements.get('attempt-recovery').hidden,false);
+  assert.equal(app.elements.get('attempt-dismiss').hidden,false);
+  assert.equal(backend.calls.some(c=>c.method==='POST'),false);
+  assert.equal(JSON.parse(app.storage.get('opengenjutsu.sequence.pending-generation')).attempt_id,attempt);
+});
+test('late references from a previous preview never overwrite the selected take setup',async()=>{
+  const first=deferred();
+  const backend=nativeBackend({extra:async url=>url===`/api/continuity/takes/${A}/references`?first.promise:null});
+  const app=await environment(backend.fetcher);await app.entry('continuity-studio.js');await flush();
+  const e=app.elements;
+  await e.get('native-takes').children[0].children[0].click();await flush();
+  await e.get('native-takes').children[1].children[0].click();await flush();
+  first.resolve(response({references:[{index:9}]}));await flush();
+  const image=e.get('forward-reference-list').children[0].children[0];
+  assert.equal(image.src,`/api/continuity/takes/${B}/references/1`);
 });

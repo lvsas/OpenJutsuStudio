@@ -26,7 +26,9 @@ class TimelineStudioUITests(unittest.TestCase):
         self.assertIn("await import('./timeline.js')", script)
         self.assertIn("getJSON('/api/continuity/takes')", script)
         self.assertNotIn('innerHTML', script)
-        self.assertNotIn("method:'POST'", script)
+        # Generation is supported. The async contract below verifies that only
+        # an explicit submit can POST; a whitespace-sensitive no-POST assertion
+        # would pass despite real submission code and conceal regressions.
         self.assertNotIn('/api/h3/jobs', script)
         self.assertIn('This public JSON is not a complete Take backup', markup)
         for path in ('timeline.html', 'character.html'):
@@ -47,6 +49,13 @@ class TimelineStudioUITests(unittest.TestCase):
         result = subprocess.run(['node', '--experimental-default-type=module',
                                  '--experimental-vm-modules', '--test',
                                  'tests/timeline_async_contract.mjs'], cwd=ROOT,
+                                capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    @unittest.skipUnless(shutil.which('node'), 'Node required for attempt recovery checks')
+    def test_attempt_client_contract(self):
+        result = subprocess.run(['node', '--experimental-default-type=module', '--test',
+                                 'tests/continuity_attempt_client_contract.mjs'], cwd=ROOT,
                                 capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 

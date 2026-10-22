@@ -65,9 +65,14 @@ export function mountSequence({onSelect,onPreview,onCompose,onError}) {
   function select(id) {
     change({...state,selected_placement_id:id},{select:true});
   }
-  function add(id,afterId=null) {
+  function closeLibrary() {
+    el('native-library').hidden=true;el('native-library-toggle').setAttribute('aria-expanded','false');
+  }
+  function add(id,afterId=null,draft=null) {
     if(!entryFor(id))return;
-    change(addPlacement(state,id,uuid(),afterId),{select:true});
+    let next=addPlacement(state,id,uuid(),afterId);
+    if(draft)next=saveDraft(next,next.selected_placement_id,draft);
+    closeLibrary();change(next,{select:true});
   }
   function poster(entry) {
     const image=document.createElement('img');image.alt='';image.loading='lazy';
@@ -197,9 +202,10 @@ export function mountSequence({onSelect,onPreview,onCompose,onError}) {
     state:()=>structuredClone(state), selected,
     draft(){const p=selected();return p?state.drafts[p.placement_id]:null;},
     setDraft(changes){const p=selected();if(p)change(saveDraft(state,p.placement_id,changes));},
-    flush,
+    flush,closeLibrary,
+    place(takeId,draft){add(takeId,null,draft);},
     async insertResult(takeId,projectId,afterId) {
-      if(state.project_id!==projectId||!state.placements.some(p=>p.placement_id===afterId))return false;
+      if(!entryFor(takeId)||state.project_id!==projectId||!state.placements.some(p=>p.placement_id===afterId))return false;
       add(takeId,afterId);await flush();return 'Saved with continuation state.';
     },
     compose(){const p=selected();if(p)onCompose(entryFor(p.take_id),p);}

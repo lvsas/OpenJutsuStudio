@@ -1,9 +1,10 @@
 """HTTP surface for bounded seed attempts over the proven forward chain."""
 from __future__ import annotations
 
-from pathlib import Path
+from contextlib import asynccontextmanager
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Path as ApiPath
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
 
@@ -11,6 +12,8 @@ import continuity_attempts as attempts
 from continuable_take_api import TakeId
 
 ATTEMPT_ID = r'^[0-9a-f]{32}$'
+RequestId = Annotated[str, ApiPath(pattern=ATTEMPT_ID, min_length=32, max_length=32)]
+_PRIVATE = {'Cache-Control': 'private, no-store'}
 
 
 class AttemptRequest(BaseModel):
@@ -46,21 +49,53 @@ class AttemptRequest(BaseModel):
 
 
 def create_router(get_root, *, worker=None, create=None) -> APIRouter:
-    """`worker.start(id)` queues the hunt; nothing runs inside the request."""
-    router = APIRouter(prefix='/api/continuity', tags=['continuity'])
+    """Only a newly persisted request queues work; recovery routes are read-only.
+
+    The optional creation hook follows create_or_get's (record, created) contract.
+    """
+    @asynccontextmanager
+    async def lifespan(app):
+        reconcile = getattr(worker, 'reconcile', None)
+        if reconcile is not None:
+            reconcile()
+        yield
+
+    router = APIRouter(prefix='/api/continuity', tags=['continuity'], lifespan=lifespan)
 
     @router.post('/takes/{take_id}/attempts', status_code=202)
     def start(take_id: TakeId, request: AttemptRequest):
         if worker is None:
             raise HTTPException(503, 'Variants are not configured on this instance.')
         try:
-            attempt = (create or attempts.create)(
-                get_root(), take_id=take_id, prompt=request.prompt,
+            attempt, created = (create or attempts.create_or_get)(
+                get_root(), take_id=take_id, request_id=request.request_id, prompt=request.prompt,
                 raw_frames=request.raw_frames, seeds=request.seeds)
+        except attempts.AttemptConflict as error:
+            raise HTTPException(409, str(error)) from None
         except attempts.AttemptError as error:
             raise HTTPException(422, str(error)) from None
-        worker.start(attempt['attempt_id'])
-        return JSONResponse(attempts.public(attempt), status_code=202)
+        if created:
+            worker.start(attempt['attempt_id'])
+        return JSONResponse(attempts.public(attempt), status_code=202, headers=_PRIVATE)
+
+    @router.get('/takes/{take_id}/attempts/by-request/{request_id}')
+    def recover(take_id: TakeId, request_id: RequestId):
+        try:
+            attempt = attempts.by_request(get_root(), take_id, request_id)
+        except attempts.AttemptNotFound as error:
+            raise HTTPException(404, str(error)) from None
+        except (attempts.AttemptError, OSError) as error:
+            raise HTTPException(503, 'Attempt storage is unavailable.') from error
+        return JSONResponse(attempts.public(attempt), headers=_PRIVATE)
+
+    @router.get('/takes/{take_id}/attempts')
+    def listing(take_id: TakeId):
+        try:
+            records = attempts.list_for_take(get_root(), take_id)
+        except (attempts.AttemptError, OSError) as error:
+            raise HTTPException(503, 'Attempt storage is unavailable.') from error
+        return JSONResponse({'attempts': [attempts.public(a) for a in records[:50]],
+                             'total': len(records), 'has_more': len(records) > 50}, headers=_PRIVATE)
 
     @router.get('/attempts/{attempt_id}')
     def status(attempt_id: str):

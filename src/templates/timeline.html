@@ -72,10 +72,15 @@
               <figure id="forward-references" class="forward-references" hidden><figcaption>References for the next generation<span id="forward-reference-count"></span></figcaption><div id="forward-reference-list" class="forward-reference-list"></div><label class="forward-reference-add"><input id="forward-reference-input" type="file" hidden accept="image/png,image/jpeg,image/webp"><span class="btn btn-secondary">+ Add reference</span></label></figure>
               <label class="forward-field"><span>Candidates</span><select id="forward-variants"><option value="1" selected>1 take</option><option value="2">2 takes · compare</option><option value="3">3 takes · compare</option></select></label>
               <label class="forward-field"><span>New footage</span><select id="forward-length"><option value="158">About 5 s</option><option value="226">About 8 s</option><option value="277" selected>About 10 s</option><option value="328">About 12 s</option><option value="396">About 15 s</option></select></label>
-              <details class="sequence-settings"><summary>Seed &amp; generation details</summary><label class="forward-field"><span>Seed · blank for random</span><input id="forward-seed" type="text" inputmode="numeric" pattern="[0-9]{1,20}" autocomplete="off"></label><p class="microcopy">One take per request. The parent determines the aspect ratio. Delivered duration is confirmed from the result.</p></details>
+              <details class="sequence-settings"><summary>Seed &amp; generation details</summary><label class="forward-field"><span>Seed · blank for random</span><input id="forward-seed" type="text" inputmode="numeric" pattern="[0-9]{1,20}" autocomplete="off"></label><p class="microcopy">One take by default; a hunt is your choice. With an explicit seed, further candidates use the following seeds, wrapping after the uint64 maximum. The parent determines the aspect ratio.</p></details>
               <div class="forward-actions"><button id="forward-submit" class="btn btn-primary" type="submit">Generate extension</button><button id="forward-cancel" class="btn btn-ghost" type="button">Close draft</button></div>
             </form>
             <p id="forward-state" class="forward-state" role="status" aria-live="polite"></p>
+            <section id="attempt-recovery" class="attempt-recovery" aria-label="Saved generation recovery" hidden>
+              <p id="attempt-recovery-message" role="status" aria-live="polite"></p>
+              <div class="forward-actions"><button id="attempt-reconnect" class="btn btn-secondary" type="button" hidden>Reconnect saved attempt</button><button id="attempt-resubmit" class="btn btn-secondary" type="button" hidden>Retry same request</button><button id="attempt-dismiss" class="btn btn-ghost" type="button" hidden>Dismiss finished recovery note</button></div>
+              <ul id="attempt-legacy-list" class="attempt-legacy-list"></ul>
+            </section>
             <section id="candidate-tray" class="candidate-tray" aria-label="Candidates" hidden>
               <div class="rail-head"><p class="eyebrow">Candidates</p><span id="candidate-summary" class="microcopy"></span></div>
               <ul id="candidate-list" class="candidate-list"></ul>

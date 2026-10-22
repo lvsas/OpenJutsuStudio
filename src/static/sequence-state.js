@@ -42,6 +42,24 @@ export function randomSeed() {
   const words=new Uint32Array(2); crypto.getRandomValues(words);
   return ((BigInt(words[0])<<32n)|BigInt(words[1])).toString();
 }
+export function attemptBody({request_id,prompt,raw_frames,count=1,seed='',random=randomSeed}) {
+  if(!Number.isInteger(count)||count<1||count>4)throw new Error('Choose between one and four candidates.');
+  const seeds=[];
+  if(seed) {
+    const first=BigInt(exactSeed(seed));
+    for(let i=0;i<count;i++)seeds.push(((first+BigInt(i))%(1n<<64n)).toString());
+  } else {
+    const unique=new Set();
+    for(let tries=0;unique.size<count&&tries<128;tries++)unique.add(exactSeed(random()));
+    if(unique.size!==count)throw new Error('Distinct seeds could not be prepared. Try again.');
+    seeds.push(...unique);
+  }
+  // Reuse the existing strict direction/frame/ID validation, without parsing
+  // either the single seed or the exact multi-seed JSON through Number().
+  forwardBody({request_id,prompt,raw_frames,seed:seeds[0]});
+  const fields=JSON.stringify({request_id,prompt,raw_frames});
+  return fields.slice(0,-1)+',"seeds":['+seeds.join(',')+']}';
+}
 export function forwardBody({request_id,prompt,raw_frames,seed}) {
   assertId(request_id);
   if(typeof prompt!=='string' || !prompt.trim()) throw new Error('Describe what should happen.');

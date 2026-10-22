@@ -118,16 +118,34 @@
   .studio-wip span{display:none}
   .sequence-toolbar{margin:.5rem 0;gap:.5rem}.sequence-toolbar h1{font-size:1.3rem}
   .sequence-toolbar .eyebrow{display:none}
-  .sequence-toolbar-actions{width:100%}.sequence-toolbar-actions select{flex:1;max-width:none}
+  .sequence-toolbar-actions{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto auto 44px;gap:.3rem}
+  .sequence-toolbar-actions select{width:100%;min-width:0;max-width:none;min-height:44px}
+  .sequence-toolbar-actions .btn{padding:.45rem .55rem;min-height:44px;min-width:44px}
   .sequence-library{position:fixed;inset:150px .75rem .75rem;z-index:30;overflow:auto;box-shadow:0 0 0 100vmax rgba(0,0,0,.45)}
   .library-takes{max-height:none}.sequence-main{display:flex;flex-direction:column;width:100%}
-  .sequence-rail{order:-1;margin:0 0 .7rem}.sequence-stage{height:240px}
-  .native-workspace{display:flex;flex-direction:column}
-  .sequence-composer{order:-1;border-top:0;border-bottom:1px solid var(--line)}
-  .native-stage{height:210px}.sequence-composer{padding:.85rem}.forward-form{grid-template-columns:minmax(0,1fr)}
-  .sequence-take-tools .btn{min-height:44px;min-width:44px}.sequence-slot{flex-basis:150px}
+  .sequence-rail{order:-1;margin:0 0 .7rem}
+  .sequence-rail .rail-head>.microcopy{display:none}
+  .sequence-empty{margin:.5rem 0;padding:.35rem;line-height:1.4}
+  .native-workspace{display:flex;flex-direction:column;overflow:visible}
+  .sequence-composer{order:-1;border-top:0;border-bottom:1px solid var(--line);width:100%;padding:.85rem}
+  .sequence-composer>p.microcopy{margin:.4rem 0;line-height:1.4}
+  .native-stage{height:210px}
+  .forward-form{grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}
+  .sequence-settings{grid-column:1/-1}
+  .sequence-settings summary,.sequence-capabilities summary{min-height:44px}
+  .forward-reference-slot{display:inline-flex;align-items:center;gap:.25rem;line-height:normal}
+  .forward-reference-drop{position:static;min-height:44px;min-width:44px}
+  .forward-reference-add .btn{display:inline-flex;align-items:center;min-height:44px}
+  .sequence-take-tools .btn,.sequence-shell .candidate .btn{min-height:44px;min-width:44px}.sequence-slot{flex-basis:150px}
 }
 @media(prefers-reduced-motion:reduce){.sequence-shell *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+/* Existing attempt records stay visible through disconnect/reload. */
+.attempt-recovery{margin:.75rem 0;padding:.7rem;border:1px solid var(--accent-line);border-radius:.6rem;background:var(--surface-soft);font-size:.75rem}
+.attempt-recovery p{margin:0 0 .5rem;line-height:1.5}
+.attempt-recovery .btn{min-height:44px;white-space:normal}
+.attempt-legacy-list{list-style:none;margin:.5rem 0 0;padding:0;display:grid;gap:.35rem;max-height:200px;overflow:auto}
+.attempt-legacy-list:empty{display:none}
 
 /* Candidate comparison: the choice stays explicit and the others survive. */
 .candidate-tray{margin-top:.8rem;border-top:1px solid var(--line);padding-top:.6rem}

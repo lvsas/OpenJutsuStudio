@@ -22,11 +22,11 @@ from h3_family_graphs import build_restage_graph, read_clip_handle
 FAMILY_NODE = 'native_family'
 RESTAGE_TIMEOUT = 900
 FORWARD_TIMEOUT = 7200
-# The pin holds the parent verbatim; these frames are the model's runway to
-# arrive. The node's own guidance recommends one frame past a latent step offset
-# (6/10/14/19/23), and 23 is about one second at 24 fps.
-PIN_RAMP_FRAMES = 23
-PIN_RAMP_EDGE = 0.6
+# Calliope's working full-latent forward uses ramp 0 / edge 0 / hold 0 with the
+# parent latent concatenated. The ramp is kept as a parameter, but matching the
+# proven recipe matters more than tuning a symptom of the missing concat.
+PIN_RAMP_FRAMES = 0
+PIN_RAMP_EDGE = 0.0
 
 
 def parent_context(artifacts):

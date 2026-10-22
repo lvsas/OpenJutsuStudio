@@ -122,7 +122,54 @@ class ParentContextShapeTests(unittest.TestCase):
 
 
 class RestageNamingTests(unittest.TestCase):
-    """The upload name is chosen by the application, never by the target's dedup."""
+    """Requested upload names must not be confused with SDK-resolved locations."""
+
+    def test_real_sdk_dedup_reuses_old_asset_ids_despite_unique_requested_names(self):
+        import tempfile
+        from comfy_sdk.assets import AssetFactory
+        from comfy_sdk import _hashing
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            paths = [root / name for name in ('take.mp4', 'take.mctx.safetensors',
+                                             'take.cond.safetensors')]
+            old_names = ('take (1).mp4', 'take.mctx (1).safetensors',
+                         'take.cond (1).safetensors')
+            existing = {}
+            for index, (path, name) in enumerate(zip(paths, old_names)):
+                path.write_bytes(f'unit role {index}'.encode())
+                digest = _hashing.hash_file(str(path))
+                existing[digest] = SimpleNamespace(
+                    id=f'existing-{index}', hash=digest, created_new=False,
+                    url='http://unit.invalid/content', job_id=None, expires_at=None,
+                    comfy_ref={'filename': name, 'subfolder': '', 'type': 'input'})
+            low = MagicMock()
+            low.head_asset_by_hash.side_effect = lambda digest: digest in existing
+            low.asset_from_hash.side_effect = lambda digest, **kwargs: existing[digest]
+            client = MagicMock()
+            # Exercise actual SDK hashing and its by-hash branch, not a fake
+            # from_file() that assumes the requested path wins.
+            client.assets = AssetFactory(low)
+            client.workflows.from_json.side_effect = lambda graph: graph
+            client.run.return_value = SimpleNamespace(status='succeeded')
+            artifacts = SimpleNamespace(video=paths[0], mctx=paths[1], conditioning=paths[2])
+            with patch.object(pipeline, 'read_clip_handle', return_value='verified/take.mp4'):
+                self.assertEqual(pipeline.restage_parent(client, artifacts, 'a' * 32),
+                                 'verified/take.mp4')
+            low.post_assets.assert_not_called()
+            self.assertEqual(low.asset_from_hash.call_count, 3)
+            requested = [call.kwargs['file_path'] for call in low.asset_from_hash.call_args_list]
+            self.assertEqual(requested, ['a' * 32 + suffix for suffix in
+                             ('.mp4', '.mctx.safetensors', '.cond.safetensors')])
+            graph = client.run.call_args.args[0]
+            for index, role in enumerate(('video', 'mctx', 'conditioning')):
+                reference = graph['native_family']['inputs'][role]
+                self.assertEqual(reference, {'__type': 'core/ASSET',
+                                             'info': {'id': f'existing-{index}'}})
+                # The stored proxy record, not file_path, owns this location.
+                old = next(asset for asset in existing.values() if asset.id == reference['info']['id'])
+                self.assertEqual(old.comfy_ref['filename'], old_names[index])
+                self.assertEqual(paths[index].read_bytes(), f'unit role {index}'.encode())
 
     def test_uploads_use_the_unique_family_name_and_leave_the_source_intact(self):
         import tempfile

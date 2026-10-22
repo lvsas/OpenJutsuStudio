@@ -7,12 +7,19 @@ It is not a new video model or a replacement for the upstream H3 timeline pack.
 
 ## Installation (manual approval required)
 
-This archive contains exactly one standalone custom-node folder. After review,
-unzip it **under the selected ComfyUI installation's `custom_nodes/` directory**,
-so the entrypoint is `custom_nodes/opengenjutsu_continuity/__init__.py` (not a
-second nested copy). Restart that ComfyUI instance normally. No repo-root
-entrypoint is supplied, and installing the whole application repository as a
-node pack is not supported. Nothing auto-installs dependencies or edits graphs.
+Install the standalone repository under the selected ComfyUI installation:
+
+```bash
+cd /path/to/ComfyUI/custom_nodes
+git clone https://github.com/lvsas/ComfyUI-OpenJutsu-Capsules.git
+```
+
+For updates, run `git pull --ff-only` **inside that pack directory**, then restart
+ComfyUI normally. The entrypoint is
+`custom_nodes/ComfyUI-OpenJutsu-Capsules/__init__.py`, not a nested second copy.
+The application's archive is a reproducible build artifact, not the update path.
+Do not install the whole application repository as a node pack. Nothing
+auto-installs dependencies or edits graphs.
 
 Requirements: Linux with `renameat2(RENAME_NOREPLACE)`, local `/proc` mounted,
 Python 3.10+, and `ffprobe` on the ComfyUI service's PATH. No pip, GPU, SDK,
@@ -114,12 +121,18 @@ no jobs are running. Final directories are immutable by convention, not ACLs.
 
 ## Validation and limits
 
-No symlinks (including parent components), traversal, absolute restager paths,
-FIFOs, sockets or directories are accepted as files. Portable filename
-components start alphanumeric and contain ASCII letters/digits, `_`, `-`, `.`,
-or spaces, are at most 200 characters and do not end in a dot or space.
-Files require their exact lowercase role suffix. Repeated stat and byte hashes
-refuse detected mutation. Streaming uses 1 MiB blocks; bounded safetensors
+No symlinks (including parent components), traversal, paths outside the configured
+root, FIFOs, sockets or directories are accepted as files. Confined absolute
+restager paths are supported. Portable filename components start alphanumeric
+and contain ASCII letters/digits, `_`, `-`, `.`, spaces or parentheses, are at
+most 200 characters and do not end in a dot or space.
+The shared role-suffix policy accepts ComfyUI's numeric collision marker before
+the final extension, such as `take.mctx (1).safetensors` and
+`take.cond (1).safetensors`. Only the suffix comparison is normalized: the exact
+supplied path is opened, hashed and copied. The SDK may reuse an existing
+content-addressed upload even when a new filename was requested; clearing old
+inputs or bypassing deduplication is neither needed nor a repair.
+Repeated stat and byte hashes refuse detected mutation. Streaming uses 1 MiB blocks; bounded safetensors
 headers and conditioning JSON are inspected, never materialized as tensors.
 FFprobe checks real MP4 width, height, frame count and FPS with a file-only,
 MOV/MP4 demuxer policy and external references disabled.

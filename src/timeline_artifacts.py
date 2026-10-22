@@ -27,6 +27,15 @@ _INTEGER = re.compile(r'[0-9]{1,10}\Z')
 _FRAME_RATE = re.compile(r'(?:[0-9]{1,6}(?:\.[0-9]{1,9})?|[0-9]{1,9}/[0-9]{1,9})\Z')
 _SUFFIXES = {'video': '.mp4', 'mctx': '.mctx.safetensors', 'conditioning': '.cond.safetensors'}
 _FLOAT_DTYPES = frozenset({'F16', 'BF16', 'F32', 'F64'})
+# ComfyUI inserts a collision counter immediately before the final extension.
+# Normalize only for role checking; always open/hash the actual supplied path.
+_UPLOAD_DEDUP = re.compile(r' \([0-9]+\)(?=\.[^./]+$)')
+
+
+def has_h3_role_suffix(path: str | Path, role: str) -> bool:
+    """One suffix policy for native files and SDK/ComfyUI deduplicated uploads."""
+    name = _UPLOAD_DEDUP.sub('', Path(path).name.lower())
+    return name.endswith(_SUFFIXES[role])
 
 
 class ArtifactValidationError(ValueError):
@@ -80,7 +89,7 @@ def _fingerprint(info) -> tuple[int, ...]:
 
 
 def _resolve(path: str | Path, root: Path, role: str) -> Path:
-    if not str(path).lower().endswith(_SUFFIXES[role]):
+    if not has_h3_role_suffix(path, role):
         raise ArtifactValidationError('unsupported_suffix', role, 'Artifact has the wrong role suffix')
     try:
         candidate = Path(path)

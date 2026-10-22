@@ -14,13 +14,18 @@ import stat
 import sys
 import uuid
 
-from ._contract.timeline_artifacts import ArtifactValidationError, validate_h3_artifact_set
+from ._contract.timeline_artifacts import (
+    ArtifactValidationError, has_h3_role_suffix, validate_h3_artifact_set,
+)
 
 ROLES = ('video', 'mctx', 'conditioning')
 NAMES = ('take.mp4', 'take.mctx.safetensors', 'take.cond.safetensors')
 SUFFIXES = ('.mp4', '.mctx.safetensors', '.cond.safetensors')
 PACK_DIRECTORY = 'opengenjutsu_continuity'
-_COMPONENT = re.compile(r'[A-Za-z0-9][A-Za-z0-9_. -]{0,199}\Z')
+# ComfyUI deduplicates uploads as "take (1).mp4", so parentheses and spaces are
+# legitimate. Separators, control characters, a leading dot and a trailing dot or
+# space remain refused; every component is still opened with O_NOFOLLOW.
+_COMPONENT = re.compile(r'[A-Za-z0-9][A-Za-z0-9_. ()\-]{0,199}\Z')
 _FAMILY = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,79}\Z')
 BLOCK_BYTES = 1024 * 1024
 
@@ -117,7 +122,9 @@ def _digest(fd):
 @contextmanager
 def _sources(root, values, absolute_allowed):
     relative = [_relative(value, root, absolute_allowed) for value in values]
-    if any(not path.endswith(suffix) for path, suffix in zip(relative, SUFFIXES)):
+    # Use the very same policy as the validator below; two independent suffix
+    # rules previously disagreed on "take.mctx (1).safetensors".
+    if any(not has_h3_role_suffix(path, role) for path, role in zip(relative, ROLES)):
         raise _error('unsupported_suffix')
     root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     files = []

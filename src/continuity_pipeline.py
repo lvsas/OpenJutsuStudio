@@ -67,12 +67,11 @@ def parent_from_registry(work: str | Path, take_id: str, *, models, clip):
 
 
 def restage_parent(client, artifacts, family_name):
-    """Upload the three files under names the application chooses.
+    """Upload immutable copies with unique requested names through the SDK.
 
-    The target stores uploads by filename and appends a " (1)" marker on a
-    collision, which every role validator downstream then rejects. Naming the
-    uploads from the unique family name removes that class of failure instead of
-    teaching each validator to tolerate it.
+    Names are hints, not resolved target paths: content-addressed SDK/proxy dedup
+    can reuse an existing upload (including ComfyUI's collision counter). The
+    restager and shared validator must both accept those actual names.
     """
     sources = (('video', artifacts.video, '.mp4'),
                ('mctx', artifacts.mctx, '.mctx.safetensors'),
@@ -84,12 +83,10 @@ def restage_parent(client, artifacts, family_name):
             unique = Path(staging) / f'{family_name}{suffix}'
             unique.write_bytes(Path(path).read_bytes())
             references[role] = client.assets.from_file(unique).as_reference()
-        # Diagnostic: the names actually handed to the target. If a "(1)" appears
-        # later in the executed graph, it was added by the target, not by us.
-        log.info('restaging %s with uploads %s', family_name,
-                 [Path(item['info'].get('filename', item['info'].get('name', '?')))
-                  if isinstance(item, dict) and isinstance(item.get('info'), dict) else '?'
-                  for item in references.values()])
+        # Log only requested basenames, not opaque ids or local/private paths.
+        # They are hints: resolved ComfyUI inputs must be read from job history.
+        log.info('restaging %s with requested upload names %s', family_name,
+                 [f'{family_name}{suffix}' for _, _, suffix in sources])
         job = client.run(client.workflows.from_json(build_restage_graph(references, family_name)),
                          timeout=RESTAGE_TIMEOUT)
     if getattr(job, 'status', None) != 'succeeded':

@@ -159,6 +159,28 @@ class ContinuityTests(unittest.TestCase):
             self.restage()
         self.assertTrue((self.output / first['result'][0]).is_file())
 
+    def test_restage_real_comfyui_final_extension_dedup_names(self):
+        # Exact names observed in the failed ComfyUI history, not the previous
+        # fixture's "take (1).mctx.safetensors" (which never broke the suffix).
+        names = ['take (1).mp4', 'take.mctx (1).safetensors',
+                 'take.cond (1).safetensors']
+        for source, name in zip(self.paths, names):
+            (self.input / name).write_bytes(source.read_bytes())
+        for absolute in (False, True):
+            with self.subTest(absolute=absolute):
+                values = [str(self.input / name) if absolute else name for name in names]
+                result = self.nodes.OpenGenjutsuH3RestageFamily().execute(
+                    *values, f'proof-final-extension-{absolute}')
+                clip, manifest = result['result']
+                self.assertEqual(clip, f'opengenjutsu_continuity/proof-final-extension-{absolute}/take.mp4')
+                for role, source in zip(self.io.ROLES, self.paths):
+                    self.assertEqual(json.loads(manifest)['assets'][role]['sha256'],
+                                     hashlib.sha256(source.read_bytes()).hexdigest())
+                # The staged family must pass the publisher's own validation too.
+                self.assertEqual(self.nodes.OpenGenjutsuH3PublishClip().execute(clip), result)
+        for source, name in zip(self.paths, names):
+            self.assertEqual((self.input / name).read_bytes(), source.read_bytes())
+
     def test_names_traversal_absolute_and_symlink_escape(self):
         for name in ('../escape', '/absolute', '.', '..', 'x/y', 'x\\y', '', '.hidden', 'x\n'):
             with self.subTest(name=name), self.assertRaises(ValueError):

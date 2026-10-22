@@ -149,6 +149,30 @@ class ArtifactSetTests(unittest.TestCase):
     def validate(self, **kwargs):
         return validate_h3_artifact_set(self.video, self.mctx, self.cond, root=self.root, **kwargs)
 
+    def test_exact_comfyui_dedup_paths_keep_bytes_and_manifest(self):
+        baseline = self.validate()
+        for count in (1, 23):
+            names = (f'take ({count}).mp4', f'take.mctx ({count}).safetensors',
+                     f'take.cond ({count}).safetensors')
+            paths = []
+            for source, name in zip((self.video, self.mctx, self.cond), names):
+                path = self.root / name
+                path.write_bytes(source.read_bytes())
+                paths.append(path)
+            self.assertEqual(validate_h3_artifact_set(*paths, root=self.root), baseline)
+
+    def test_suffix_policy_is_role_specific_and_only_allows_numeric_final_extension_counters(self):
+        from timeline_artifacts import has_h3_role_suffix
+        for name in ('take.mctx (1).safetensors', 'take.mctx (23).safetensors',
+                     'take (1).mctx.safetensors', 'take.mctx.safetensors'):
+            with self.subTest(name=name):
+                self.assertTrue(has_h3_role_suffix(name, 'mctx'))
+        for name in ('take.cond (1).safetensors', 'take.mctx (x).safetensors',
+                     'take.mctx (-1).safetensors', 'take.mctx (1).safetensors.exe',
+                     'take.mctx.safetensors (1)', 'take.mctx (1).safetensors/missing'):
+            with self.subTest(name=name):
+                self.assertFalse(has_h3_role_suffix(name, 'mctx'))
+
     def assert_invalid(self, code, call=None):
         with self.assertRaises(ArtifactValidationError) as raised:
             (call or self.validate)()

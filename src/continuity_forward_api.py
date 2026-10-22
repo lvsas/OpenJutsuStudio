@@ -19,8 +19,6 @@ from continuable_take import get_take
 from continuable_take_api import TakeId
 from continuity_pipeline import submit_forward
 from continuity_requests import ForwardRequest
-import os
-
 from h3_prompt_generator import build_prompt_graph, read_prompt_text
 from continuity_context import MAX_BYTES, context_references
 
@@ -112,22 +110,14 @@ def make_forward_runner(*, client_factory, models_factory, fingerprint, work_roo
 
 PROMPT_TIMEOUT = 900
 
-# Which model formats the prompt. The comparison exists because a lighter refiner
-# would mean one fewer model to download; the default stays the proven one.
-REFINER_ENGINES = ('text', 'vision')
-REFINER = os.environ.get('OPENGENJUTSU_REFINER', 'text')
-
-
 def refine_prompt(client, direction: str, references) -> str:
-    """Run the authored R2VA generator and return its text, never a guess."""
-    if REFINER not in REFINER_ENGINES:
-        raise ValueError(f'The refiner must be one of {REFINER_ENGINES}')
-    if REFINER == 'vision':
-        from h3_prompt_generator import build_vl_prompt_graph
+    """Run the R2VA generator on the vision 4B and return its text.
 
-        graph = build_vl_prompt_graph(direction, references[0])
-    else:
-        graph = build_prompt_graph(direction, references)
+    The 2B was measured on the same guide, picture and direction: it sees the
+    image but invents subjects and never reaches all six sections, so one refiner
+    stays, and it is the vision 4B.
+    """
+    graph = build_prompt_graph(direction, references)
     job = client.run(client.workflows.from_json(graph), timeout=PROMPT_TIMEOUT)
     if getattr(job, 'status', None) != 'succeeded':
         raise ValueError('The prompt could not be prepared. Your take is unchanged.')

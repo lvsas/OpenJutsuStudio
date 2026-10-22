@@ -64,7 +64,7 @@ class SubmitForwardOrderingTests(unittest.TestCase):
                 patch.object(pipeline, 'get_take', return_value=TAKE):
             return pipeline.submit_forward(
                 '/work', TAKE.take_id, self.request(), client=client, models=MODELS,
-                reference={'__type': 'core/ASSET', 'info': {'id': 'ref'}},
+                references=[{'__type': 'core/ASSET', 'info': {'id': 'ref'}}],
                 target_fingerprint='f' * 64, work_root='/operations')
 
     def test_a_take_below_the_pin_window_costs_no_upload_and_no_submission(self):
@@ -88,7 +88,7 @@ class SubmitForwardOrderingTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 pipeline.submit_forward(
                     '/work', TAKE.take_id, self.request(), client=client, models=MODELS,
-                    reference={'__type': 'core/ASSET', 'info': {'id': 'ref'}},
+                    references=[{'__type': 'core/ASSET', 'info': {'id': 'ref'}}],
                     target_fingerprint='f' * 64, work_root='/operations')
         client.assets.from_file.assert_not_called()
         client.run.assert_not_called()

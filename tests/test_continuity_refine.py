@@ -73,15 +73,16 @@ class ContinuationPromptTests(unittest.TestCase):
                 '/work', 'b' * 32,
                 FakeRequest(request_id='a' * 32, prompt=DIRECTION, seed=7, raw_frames=158))
 
-    def test_two_references_are_refused_before_any_job(self):
+    def test_several_references_are_all_passed_in_order(self):
+        seen = {}
         with patch.object(api, 'parent_references',
                           return_value=[Path('/a.png'), Path('/b.png')]), \
-             patch.object(api, 'submit_forward') as submit:
-            with self.assertRaisesRegex(ValueError, 'character references'):
-                self.runner(fake_client())(
-                    '/work', 'b' * 32,
-                    FakeRequest(request_id='a' * 32, prompt=DIRECTION, seed=7, raw_frames=158))
-        submit.assert_not_called()
+             patch.object(api, 'submit_forward', return_value={'take_id': 'f' * 32}) as submit:
+            self.runner(fake_client())(
+                '/work', 'b' * 32,
+                FakeRequest(request_id='a' * 32, prompt=DIRECTION, seed=7, raw_frames=158))
+        seen = submit.call_args.kwargs['references']
+        self.assertEqual(len(seen), 2)
 
 
 if __name__ == '__main__':

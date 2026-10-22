@@ -94,13 +94,9 @@ def make_forward_runner(*, client_factory, models_factory, fingerprint, work_roo
     """Build the production runner once, so the route stays free of wiring."""
     def run(work, take_id, request):
         paths = parent_references(work, take_id)
-        if len(paths) > 1:
-            raise ValueError(
-                f'This take was generated with {len(paths)} character references. '
-                'Continuation with more than one reference is not implemented yet.')
         reference_path = paths[0]
         client = client_factory()
-        reference = client.assets.from_file(reference_path).as_reference()
+        references = [client.assets.from_file(path).as_reference() for path in paths]
         # A continuation prompt says what happens next, in one or two sentences.
         # The R2VA refiner writes a complete new video description (six sections,
         # style, camera): sending it here makes the model cut to a new shot, which
@@ -108,7 +104,7 @@ def make_forward_runner(*, client_factory, models_factory, fingerprint, work_roo
         request = request.model_copy(update={
             'prompt': continuation_prompt(request.prompt, references=len(paths))})
         return submit_forward(work, take_id, request, client=client,
-                              models=models_factory(), reference=reference,
+                              models=models_factory(), references=references,
                               target_fingerprint=fingerprint, work_root=work_root,
                               reference_path=reference_path)
     return run

@@ -90,6 +90,18 @@ class LatentGraphTests(unittest.TestCase):
             with self.subTest(over=list(over)), self.assertRaises(ValueError):
                 build(**over)
 
+    def test_publication_consumes_the_saver_clip_and_exposes_a_handle(self):
+        g = build(publish_family=True)
+        self.assertEqual(g['native_family']['class_type'], 'OpenGenjutsuH3PublishClip')
+        self.assertEqual(g['native_family']['inputs']['clip'], ['1216', 0])
+        self.assertEqual(g['native_clip_handle']['inputs']['text'], ['native_family', 0])
+        self.assertIn(OP, g['native_clip_handle']['inputs']['filename_prefix'])
+
+    def test_publication_is_absent_unless_requested(self):
+        g = build()
+        self.assertNotIn('native_family', g)
+        self.assertNotIn('native_clip_handle', g)
+
 
 if __name__ == '__main__':
     unittest.main()

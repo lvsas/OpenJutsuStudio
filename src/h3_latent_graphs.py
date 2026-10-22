@@ -34,6 +34,8 @@ SAVER_NODE = '1216'
 PARENT_NODE = '2010'
 SEED_NODE = '2004'
 DURATION_NODE = '2001'
+FAMILY_NODE = 'native_family'
+HANDLE_NODE = 'native_clip_handle'
 
 
 def _asset(value):
@@ -108,6 +110,15 @@ def build_latent_continuity(*, references, prompt, width, height, raw_frames, se
         node = f'ref_image_{position}'
         graph[node] = {'class_type': 'LoadImage', 'inputs': {'image': _asset(reference)}}
         graph[GENERATE_NODE]['inputs'][f'ref_images.ref_image_{position}'] = [node, 0]
+
+    # The template's saver exposes the clip path as its first output; our installed
+    # pack turns it into a published family plus a handle the app can read back.
+    if publish_family:
+        graph[FAMILY_NODE] = {'class_type': 'OpenGenjutsuH3PublishClip',
+                              'inputs': {'clip': [SAVER_NODE, 0]}}
+        graph[HANDLE_NODE] = {'class_type': 'SaveText', 'inputs': {
+            'text': [FAMILY_NODE, 0], 'format': 'txt',
+            'filename_prefix': f'OpenGenjutsu/continuity/takes/{operation_id}/handle'}}
 
     _verify(graph, width, height, raw_frames, seed, prompt, references, operation_id)
     return graph

@@ -15,18 +15,14 @@ from pathlib import Path
 from continuable_take import get_take, get_validated_family, import_family
 from continuity_jobs import create_operation, execute_operation
 from h3_artifact_transport import download_h3_artifacts
-from h3_continuity_graphs import (H3ContinuityModels, NativeH3Parent, PIN_WINDOW,
-                                  build_h3_continuity)
+from h3_continuity_graphs import H3ContinuityModels, NativeH3Parent, PIN_WINDOW
 from h3_family_graphs import build_restage_graph, read_clip_handle
+from h3_latent_graphs import build_latent_continuity
 
 FAMILY_NODE = 'native_family'
 RESTAGE_TIMEOUT = 900
 FORWARD_TIMEOUT = 7200
-# Calliope's working full-latent forward uses ramp 0 / edge 0 / hold 0 with the
-# parent latent concatenated. The ramp is kept as a parameter, but matching the
-# proven recipe matters more than tuning a symptom of the missing concat.
-PIN_RAMP_FRAMES = 0
-PIN_RAMP_EDGE = 0.0
+
 
 
 def parent_context(artifacts):
@@ -109,7 +105,7 @@ def collect_forward(work: str | Path, folder: Path, *, compiled_graph,
 
 
 def submit_forward(work: str | Path, take_id: str, request, *, client, models,
-                   reference, target_fingerprint, work_root: str | Path,
+                   references, target_fingerprint, work_root: str | Path,
                    reference_path: str | Path | None = None,
                    operation_id: str | None = None):
     """Run the whole chain for one Forward request and return the operation view.
@@ -126,17 +122,17 @@ def submit_forward(work: str | Path, take_id: str, request, *, client, models,
     clip = restage_parent(client, artifacts, family_name)
     parent = native_parent(get_take(work, take_id), artifacts, models=models, clip=clip)
 
-    compiled = build_h3_continuity(
-        'forward', reference, request.prompt, operation_id=operation_id,
-        seed=request.seed, width=context['width'], height=context['height'],
-        raw_frames=request.raw_frames, models=models, parents=(parent,),
-        publish_family=True, ramp_frames=PIN_RAMP_FRAMES, ramp_edge=PIN_RAMP_EDGE)
+    compiled = build_latent_continuity(
+        references=list(references), prompt=request.prompt,
+        width=context['width'], height=context['height'],
+        raw_frames=request.raw_frames, seed=request.seed, models=models,
+        parent_clip=parent.clip, operation_id=operation_id, publish_family=True)
 
-    create_operation(work_root, operation_id, mode='forward', graph=compiled.graph,
+    create_operation(work_root, operation_id, mode='forward', graph=compiled,
                      seed=request.seed, parents=(take_id,),
                      target_fingerprint=target_fingerprint)
     folder = Path(work) / 'media' / f'forward-{operation_id}'
-    collect = collect_forward(work, folder, compiled_graph=compiled.graph,
+    collect = collect_forward(work, folder, compiled_graph=compiled,
                               reference_path=reference_path)
     return execute_operation(work_root, operation_id, client,
                              target_fingerprint=target_fingerprint, collect=collect,

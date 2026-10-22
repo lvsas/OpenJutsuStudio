@@ -21,6 +21,9 @@ def continuation_prompt(direction: str, *, references: int = 1) -> str:
     text = direction.strip() or DEFAULT_DIRECTION
     if len(text) > 4000:
         raise ValueError('A direction is limited to 4000 characters')
+    # Operators write sentences with their own punctuation; appending another
+    # period produced "shoulder.." and made the prompt look machine-mangled.
+    text = text.rstrip(' .')
     lines = [f'Continue this shot: {text}.']
     if references:
         lines.append(SUBJECT)

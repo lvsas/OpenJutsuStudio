@@ -509,8 +509,12 @@ def get_validated_family(work: str | Path, take_id: str) -> ValidatedTakeFamily:
         meta = dict(read_safetensors_header(stream).metadata)
     recipe = _recipe(evidence['captured_graph'], value['recipe']['completeness'],
                      value['recipe']['source'] or 'operator_capture')
+    # The capsule is sealed with its identity block, so revalidation must rebuild
+    # it with the same block. Omitting it made every take that carries a reference
+    # fail against its own record.
     if (meta != evidence['mctx_metadata'] or _capsule(record.take_id, artifacts.to_manifest(),
-            meta, recipe, value['origin'], evidence) != value):
+            meta, recipe, value['origin'], evidence,
+            identity=value.get('identity')) != value):
         raise ValueError('Frozen Take evidence differs from validated family')
     if get_take(work, record.take_id) != record:
         raise ValueError('Capsule changed during validation')

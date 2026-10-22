@@ -37,6 +37,10 @@ def continuity_geometry(width: int, height: int, *, block: int = BLOCK,
     scale = min(1.0, math.sqrt(budget / (width * height)))
     base = width * scale
 
+    # Among the candidates whose ratio is acceptable, keep the one that uses the
+    # budget best: an exact ratio that throws away a third of the pixels is worse
+    # than a 0.3% ratio error at full size.
+    target_area = min(budget, width * height)
     best = None
     for step in range(-6, 7):
         candidate_w = int(round((base / block) + step)) * block
@@ -48,8 +52,10 @@ def continuity_geometry(width: int, height: int, *, block: int = BLOCK,
         if candidate_w * candidate_h > budget:
             continue
         error = abs(math.log((candidate_w / candidate_h) / ratio))
-        area_gap = abs(candidate_w * candidate_h - budget * min(1.0, width * height / budget))
-        score = (error, area_gap)
+        if error > RATIO_TOLERANCE:
+            continue
+        area_gap = abs(candidate_w * candidate_h - target_area)
+        score = (area_gap, error)
         if best is None or score < best[0]:
             best = (score, candidate_w, candidate_h)
 

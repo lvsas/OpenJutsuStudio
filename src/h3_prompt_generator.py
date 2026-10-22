@@ -63,8 +63,9 @@ def build_prompt_graph(direction: str, references, *, mode: str = 'from-prompt',
     The ``rewrite`` default was our invention and turned a hand-written
     declaration into a full new-video description.
     """
-    if not isinstance(direction, str):
-        raise ValueError('A direction must be text')
+    if not isinstance(direction, str) or not direction.strip():
+        raise ValueError('A direction is required; an empty one makes the guide '
+                         'copy its own example')
     if len(direction) > MAX_DIRECTION:
         raise ValueError(f'A direction is limited to {MAX_DIRECTION} characters')
     if mode not in MODES:
@@ -144,6 +145,39 @@ def read_prompt_text(job, node: str = OUTPUT_NODE) -> str:
     if not text.strip():
         raise ValueError('Generated prompt is empty')
     return text
+
+
+DESCRIBE_INSTRUCTION = (
+    'Describe only the character in this picture: face, hair, clothing, colours and '
+    'distinctive marks. Two sentences at most, no speculation, no scene description.')
+DESCRIBE_TIMEOUT = 420
+
+
+def describe_reference(client, reference, *, timeout: int = DESCRIBE_TIMEOUT) -> str:
+    """Read the character out of a reference with the vision model that can see it.
+
+    Measured: the text model writes a perfect six-section format but reads the
+    picture wrongly, and copies the guide's own example when given no text. The
+    small vision model describes the same picture correctly, so its words are what
+    the formatter receives.
+    """
+    graph = build_vl_prompt_graph(DESCRIBE_INSTRUCTION, reference, max_tokens=220)
+    job = client.run(client.workflows.from_json(graph), timeout=timeout)
+    if getattr(job, 'status', None) != 'succeeded':
+        raise ValueError('The reference could not be described. Your take is unchanged.')
+    text = read_prompt_text(job).strip().replace('\n', ' ')
+    if not text:
+        raise ValueError('The reference description came back empty.')
+    return text
+
+
+def subject_block(descriptions) -> str:
+    """One ordered definition per reference, numbered like the pictures."""
+    items = [d.strip() for d in descriptions]
+    if not items or any(not d for d in items):
+        raise ValueError('Every reference needs a description')
+    return '\n'.join(f'<Subject {index}> is the character shown in <Picture {index}>: {text}'
+                     for index, text in enumerate(items, start=1))
 
 
 # The Swap already loads this model to describe references. Reusing it means no

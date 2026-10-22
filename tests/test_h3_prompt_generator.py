@@ -26,9 +26,10 @@ class PromptGraphTests(unittest.TestCase):
         graph = gen.build_prompt_graph('  she turns to the door.  ', REF1)
         self.assertEqual(graph['5833_15']['inputs']['string'], 'she turns to the door.')
 
-    def test_an_empty_direction_is_legitimate(self):
-        graph = gen.build_prompt_graph('', REF1)
-        self.assertEqual(graph['5833_15']['inputs']['string'], '')
+    def test_an_empty_direction_is_refused_because_the_guide_copies_its_example(self):
+        for bad in ('', '   '):
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, 'direction is required'):
+                gen.build_prompt_graph(bad, REF1)
 
     def test_one_reference_fills_both_batch_slots(self):
         graph = gen.build_prompt_graph('x', REF1)
@@ -68,3 +69,32 @@ class PromptGraphTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class DescriptionTests(unittest.TestCase):
+    def test_the_subject_block_is_ordered_and_numbered_like_the_pictures(self):
+        block = gen.subject_block(['blue ponytail, dark suit', 'red scarf'])
+        self.assertIn('<Subject 1> is the character shown in <Picture 1>: blue ponytail', block)
+        self.assertIn('<Subject 2> is the character shown in <Picture 2>: red scarf', block)
+        self.assertLess(block.index('Subject 1'), block.index('Subject 2'))
+
+    def test_an_empty_description_is_refused(self):
+        for bad in ([], [''], ['ok', '  ']):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                gen.subject_block(bad)
+
+    def test_a_failed_description_stops_before_any_video_work(self):
+        class Job:
+            status = 'failed'
+
+        class Client:
+            class workflows:
+                @staticmethod
+                def from_json(graph):
+                    return graph
+
+            def run(self, workflow, timeout=None):
+                return Job()
+
+        with self.assertRaisesRegex(ValueError, 'could not be described'):
+            gen.describe_reference(Client(), REF1)

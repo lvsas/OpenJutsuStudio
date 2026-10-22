@@ -19,7 +19,7 @@ from continuable_take import get_take
 from continuable_take_api import TakeId
 from continuity_pipeline import submit_forward
 from continuity_requests import ForwardRequest
-from h3_continuation_prompt import continuation_prompt
+from h3_prompt_generator import describe_reference, subject_block
 from continuity_context import MAX_BYTES, context_references
 
 FORWARD_PATH = '/{take_id}/forward'
@@ -97,17 +97,31 @@ def make_forward_runner(*, client_factory, models_factory, fingerprint, work_roo
         reference_path = paths[0]
         client = client_factory()
         references = [client.assets.from_file(path).as_reference() for path in paths]
-        # A continuation prompt says what happens next, in one or two sentences.
-        # The R2VA refiner writes a complete new video description (six sections,
-        # style, camera): sending it here makes the model cut to a new shot, which
-        # is measurable in the delivered clip. Refinement belongs to root takes.
-        request = request.model_copy(update={
-            'prompt': continuation_prompt(request.prompt, references=len(paths))})
+        # The pump: the vision model reads the references, the text model formats
+        # them into the R2VA structure, and that text is what the graph receives.
+        described = [describe_reference(client, reference) for reference in references]
+        direction = f'{subject_block(described)}\n\nDirection:\n{request.prompt}'
+        refined = refine_prompt(client, direction, references)
+        request = request.model_copy(update={'prompt': refined})
         return submit_forward(work, take_id, request, client=client,
                               models=models_factory(), references=references,
                               target_fingerprint=fingerprint, work_root=work_root,
                               reference_path=reference_path)
     return run
+
+
+PROMPT_TIMEOUT = 900
+
+
+def refine_prompt(client, direction: str, references) -> str:
+    """Run the authored R2VA generator and return its text, never a guess."""
+    from h3_prompt_generator import build_prompt_graph, read_prompt_text
+
+    job = client.run(client.workflows.from_json(build_prompt_graph(direction, references)),
+                     timeout=PROMPT_TIMEOUT)
+    if getattr(job, 'status', None) != 'succeeded':
+        raise ValueError('The prompt could not be prepared. Your take is unchanged.')
+    return read_prompt_text(job)
 
 
 def create_forward_router(get_work_dir, *, runner=None) -> APIRouter:

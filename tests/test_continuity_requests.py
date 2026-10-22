@@ -31,10 +31,10 @@ class ForwardRequestTests(unittest.TestCase):
             with self.subTest(patch=patch), self.assertRaises(ValidationError):
                 ForwardRequest(**(self.valid() | patch))
 
-    def test_an_empty_direction_is_accepted_because_the_shot_must_still_move(self):
+    def test_an_empty_direction_is_refused(self):
         for value in ("", "   "):
-            with self.subTest(value=value):
-                self.assertEqual(ForwardRequest(**(self.valid() | {"prompt": value})).prompt, value)
+            with self.subTest(value=value), self.assertRaises(ValidationError):
+                ForwardRequest(**(self.valid() | {"prompt": value}))
 
 
 if __name__ == "__main__":

@@ -49,29 +49,14 @@ class PumpTests(unittest.TestCase):
     def test_the_refined_text_is_what_reaches_the_graph(self):
         request = FakeRequest(request_id='a' * 32, prompt=DIRECTION, seed=7, raw_frames=158)
         with patch.object(api, 'parent_references', return_value=[Path('/ref.png')]), \
-             patch.object(api, 'describe_reference', return_value='blue ponytail, dark suit'), \
              patch.object(api, 'refine_prompt', return_value=REFINED) as refine, \
              patch.object(api, 'submit_forward', return_value={'take_id': 'f' * 32}) as submit:
             self.runner(fake_client())('/work', 'b' * 32, request)
         self.assertEqual(submit.call_args.args[2].prompt, REFINED)
-        direction = refine.call_args.args[1]
-        self.assertIn('<Subject 1> is the character shown in <Picture 1>', direction)
-        self.assertIn('blue ponytail, dark suit', direction)
-        self.assertIn(DIRECTION, direction)
+        self.assertEqual(refine.call_args.args[1], DIRECTION)
 
-    def test_a_failed_description_stops_before_any_video_work(self):
+    def test_a_failed_refiner_stops_before_any_video_work(self):
         with patch.object(api, 'parent_references', return_value=[Path('/ref.png')]), \
-             patch.object(api, 'describe_reference', side_effect=ValueError('no description')), \
-             patch.object(api, 'submit_forward') as submit:
-            with self.assertRaises(ValueError):
-                self.runner(fake_client())(
-                    '/work', 'b' * 32,
-                    FakeRequest(request_id='a' * 32, prompt=DIRECTION, seed=7, raw_frames=158))
-        submit.assert_not_called()
-
-    def test_a_failed_formatter_stops_before_any_video_work(self):
-        with patch.object(api, 'parent_references', return_value=[Path('/ref.png')]), \
-             patch.object(api, 'describe_reference', return_value='a character'), \
              patch.object(api, 'refine_prompt', side_effect=ValueError('could not be prepared')), \
              patch.object(api, 'submit_forward') as submit:
             with self.assertRaises(ValueError):
@@ -80,18 +65,17 @@ class PumpTests(unittest.TestCase):
                     FakeRequest(request_id='a' * 32, prompt=DIRECTION, seed=7, raw_frames=158))
         submit.assert_not_called()
 
-    def test_several_references_are_described_and_passed_in_order(self):
+    def test_several_references_reach_the_refiner_and_the_graph_in_order(self):
         with patch.object(api, 'parent_references',
                           return_value=[Path('/a.png'), Path('/b.png')]), \
-             patch.object(api, 'describe_reference', side_effect=['first', 'second']), \
              patch.object(api, 'refine_prompt', return_value=REFINED) as refine, \
              patch.object(api, 'submit_forward', return_value={'take_id': 'f' * 32}) as submit:
             self.runner(fake_client())(
                 '/work', 'b' * 32,
                 FakeRequest(request_id='a' * 32, prompt=DIRECTION, seed=7, raw_frames=158))
-        direction = refine.call_args.args[1]
-        self.assertLess(direction.index('first'), direction.index('second'))
+        self.assertEqual(len(refine.call_args.args[2]), 2)
         self.assertEqual(len(submit.call_args.kwargs['references']), 2)
+
 
 if __name__ == '__main__':
     unittest.main()

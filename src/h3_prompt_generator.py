@@ -27,6 +27,11 @@ GENERATE_NODE = '5833_6'
 PREVIEW_NODES = ('5839', '5833_14', '5833_7')
 UNUSED_NODES = ('5838',)
 MODES = ('from-prompt', 'rewrite')
+INSTRUCTIONS = {
+    'from-prompt': ('Create a Full-Reference Mode (R2VA) prompt with the following '
+                    'subjects and description:'),
+    'rewrite': 'Rewrite the following prompt to adhere to the Full-Reference Mode (R2VA) prompt guide:',
+}
 MAX_DIRECTION = 4000
 MAX_PROMPT_BYTES = 20000
 _ASSET = re.compile(r'[A-Za-z0-9_.:-]{1,256}\Z')
@@ -147,38 +152,6 @@ def read_prompt_text(job, node: str = OUTPUT_NODE) -> str:
     return text
 
 
-DESCRIBE_INSTRUCTION = (
-    'Describe only the character in this picture: face, hair, clothing, colours and '
-    'distinctive marks. Two sentences at most, no speculation, no scene description.')
-DESCRIBE_TIMEOUT = 420
-
-
-def describe_reference(client, reference, *, timeout: int = DESCRIBE_TIMEOUT) -> str:
-    """Read the character out of a reference with the vision model that can see it.
-
-    Measured: the text model writes a perfect six-section format but reads the
-    picture wrongly, and copies the guide's own example when given no text. The
-    small vision model describes the same picture correctly, so its words are what
-    the formatter receives.
-    """
-    graph = build_vl_prompt_graph(DESCRIBE_INSTRUCTION, reference, max_tokens=220)
-    job = client.run(client.workflows.from_json(graph), timeout=timeout)
-    if getattr(job, 'status', None) != 'succeeded':
-        raise ValueError('The reference could not be described. Your take is unchanged.')
-    text = read_prompt_text(job).strip().replace('\n', ' ')
-    if not text:
-        raise ValueError('The reference description came back empty.')
-    return text
-
-
-def subject_block(descriptions) -> str:
-    """One ordered definition per reference, numbered like the pictures."""
-    items = [d.strip() for d in descriptions]
-    if not items or any(not d for d in items):
-        raise ValueError('Every reference needs a description')
-    return '\n'.join(f'<Subject {index}> is the character shown in <Picture {index}>: {text}'
-                     for index, text in enumerate(items, start=1))
-
 
 # The Swap already loads this model to describe references. Reusing it means no
 # second download for a feature that only writes text.
@@ -189,19 +162,25 @@ VL_QUANTIZATION = '4-bit (VRAM-friendly)'
 
 def build_vl_prompt_graph(direction: str, reference: dict, *, model: str = VL_MODEL,
                           quantization: str = VL_QUANTIZATION, max_tokens: int = 2048,
-                          seed: int = 1,
+                          seed: int = 1, mode: str = 'from-prompt',
                           filename_prefix: str = 'OpenGenjutsu/prompts/h3') -> dict:
-    """Same policy, run on the vision model the Swap path already requires."""
+    """The same three blocks, run on the vision model the Swap already loads.
+
+    Identical composition to ``build_prompt_graph`` so a comparison measures the
+    model and nothing else: guide, instruction, operator text.
+    """
     if not isinstance(direction, str) or not direction.strip():
         raise ValueError('A direction is required')
     if len(direction) > MAX_DIRECTION:
         raise ValueError(f'A direction is limited to {MAX_DIRECTION} characters')
+    if mode not in MODES:
+        raise ValueError(f'Mode must be one of {MODES}')
     if type(max_tokens) is not int or not 64 <= max_tokens <= 2048:
         raise ValueError('max_tokens must be an integer between 64 and 2048')
     if type(seed) is not int or not 1 <= seed <= 4294967295:
         raise ValueError('seed must be an integer between 1 and 4294967295')
 
-    instruction = (f'{policy_text()}\n\n{REFERENCE_DECLARATION}\n\nDirection:\n{direction}')
+    instruction = f'{policy_text()}\n{INSTRUCTIONS[mode]}\n{direction.strip()}'
     return {
         'reference': {'class_type': 'LoadImage', 'inputs': {'image': _asset(reference)}},
         VL_NODE: {'class_type': VL_NODE, 'inputs': {

@@ -19,7 +19,9 @@ from continuable_take import get_take
 from continuable_take_api import TakeId
 from continuity_pipeline import submit_forward
 from continuity_requests import ForwardRequest
-from h3_prompt_generator import describe_reference, subject_block
+import os
+
+from h3_prompt_generator import build_prompt_graph, read_prompt_text
 from continuity_context import MAX_BYTES, context_references
 
 FORWARD_PATH = '/{take_id}/forward'
@@ -97,11 +99,9 @@ def make_forward_runner(*, client_factory, models_factory, fingerprint, work_roo
         reference_path = paths[0]
         client = client_factory()
         references = [client.assets.from_file(path).as_reference() for path in paths]
-        # The pump: the vision model reads the references, the text model formats
-        # them into the R2VA structure, and that text is what the graph receives.
-        described = [describe_reference(client, reference) for reference in references]
-        direction = f'{subject_block(described)}\n\nDirection:\n{request.prompt}'
-        refined = refine_prompt(client, direction, references)
+        # The operator writes natural language; the refiner turns it into the
+        # six-section H3 prompt, reading the references it is handed.
+        refined = refine_prompt(client, request.prompt, references)
         request = request.model_copy(update={'prompt': refined})
         return submit_forward(work, take_id, request, client=client,
                               models=models_factory(), references=references,
@@ -112,13 +112,23 @@ def make_forward_runner(*, client_factory, models_factory, fingerprint, work_roo
 
 PROMPT_TIMEOUT = 900
 
+# Which model formats the prompt. The comparison exists because a lighter refiner
+# would mean one fewer model to download; the default stays the proven one.
+REFINER_ENGINES = ('text', 'vision')
+REFINER = os.environ.get('OPENGENJUTSU_REFINER', 'text')
+
 
 def refine_prompt(client, direction: str, references) -> str:
     """Run the authored R2VA generator and return its text, never a guess."""
-    from h3_prompt_generator import build_prompt_graph, read_prompt_text
+    if REFINER not in REFINER_ENGINES:
+        raise ValueError(f'The refiner must be one of {REFINER_ENGINES}')
+    if REFINER == 'vision':
+        from h3_prompt_generator import build_vl_prompt_graph
 
-    job = client.run(client.workflows.from_json(build_prompt_graph(direction, references)),
-                     timeout=PROMPT_TIMEOUT)
+        graph = build_vl_prompt_graph(direction, references[0])
+    else:
+        graph = build_prompt_graph(direction, references)
+    job = client.run(client.workflows.from_json(graph), timeout=PROMPT_TIMEOUT)
     if getattr(job, 'status', None) != 'succeeded':
         raise ValueError('The prompt could not be prepared. Your take is unchanged.')
     return read_prompt_text(job)

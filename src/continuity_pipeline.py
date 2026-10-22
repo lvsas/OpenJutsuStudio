@@ -9,6 +9,7 @@ asset upload or a GPU submission.
 """
 from __future__ import annotations
 
+import logging
 import tempfile
 import uuid
 from pathlib import Path
@@ -21,6 +22,7 @@ from h3_family_graphs import build_restage_graph, read_clip_handle
 from h3_latent_graphs import build_latent_continuity
 
 FAMILY_NODE = 'native_family'
+log = logging.getLogger(__name__)
 RESTAGE_TIMEOUT = 900
 FORWARD_TIMEOUT = 7200
 
@@ -82,6 +84,12 @@ def restage_parent(client, artifacts, family_name):
             unique = Path(staging) / f'{family_name}{suffix}'
             unique.write_bytes(Path(path).read_bytes())
             references[role] = client.assets.from_file(unique).as_reference()
+        # Diagnostic: the names actually handed to the target. If a "(1)" appears
+        # later in the executed graph, it was added by the target, not by us.
+        log.info('restaging %s with uploads %s', family_name,
+                 [Path(item['info'].get('filename', item['info'].get('name', '?')))
+                  if isinstance(item, dict) and isinstance(item.get('info'), dict) else '?'
+                  for item in references.values()])
         job = client.run(client.workflows.from_json(build_restage_graph(references, family_name)),
                          timeout=RESTAGE_TIMEOUT)
     if getattr(job, 'status', None) != 'succeeded':

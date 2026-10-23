@@ -357,6 +357,7 @@ test('recovered candidates preview without changing draft or sequence; Keep uses
   await app.entry('continuity-studio.js');await flush();const e=app.elements;
   const find=(row,text)=>row.children.find(child=>child.textContent===text);
   const row=e.get('candidate-list').children[0];
+  assert.equal(e.get('forward-variants').value,'2','reconnect must show the saved hunt count, not a default one-take form');
   assert.ok(row.children.some(child=>child.textContent.includes('18446744073709551615')));
   const before=JSON.stringify(backend.saved()),calls=backend.calls.length;
   await find(row,'Preview video / audio').click();await flush();

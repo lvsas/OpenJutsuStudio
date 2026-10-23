@@ -334,6 +334,9 @@ function recoveryState(state) {
 }
 const attemptClient=createAttemptClient({onState:recoveryState,onMessage:forwardState,
   onView:async(view,frozen)=>{
+    if(view.take_id===active?.take.take_id&&frozen.project_id===sequence.state().project_id
+        &&frozen.after===activePlacement?.placement_id&&view.candidates.length>0&&view.candidates.length<=3)
+      byId('forward-variants').value=String(view.candidates.length);
     if(view.candidates.some(c=>c.status==='done'))await refresh();
     drawCandidates(view,frozen);
     forwardState(view.status==='running'?'Generating saved candidates…':

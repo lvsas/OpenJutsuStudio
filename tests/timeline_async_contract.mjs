@@ -82,6 +82,24 @@ test('positions use ordered placement identities and refuse a changed gap',async
   assert.equal(positionsOf({placements:[]})[0].mode,'root');
 });
 
+test('position drafts survive mode switching and cannot move with stale anchors',async()=>{
+  const app=await environment(()=>{throw Error('Pure drafts do not fetch');});
+  const {positionsOf,selectPosition,savePositionDraft,positionFromKey}=await app.entry('sequence-positions.js');
+  let state={placements:[{placement_id:A,take_id:A},{placement_id:B,take_id:B}],drafts:{},position_drafts:{}};
+  const gap=positionsOf(state)[1];
+  state=selectPosition(state,gap);
+  state=savePositionDraft(state,{prompt:'Connect these moments',seed:'18446744073709551615'});
+  const bridge=state.selected_position;
+  state=selectPosition(state,gap,{mode:'root'});
+  state=savePositionDraft(state,{prompt:'Independent new scene',reference_ids:[C]});
+  state=selectPosition(state,gap);
+  assert.equal(state.selected_position,bridge);
+  assert.equal(state.position_drafts[bridge].prompt,'Connect these moments');
+  assert.equal(state.position_drafts[bridge].seed,'18446744073709551615');
+  assert.equal(Object.keys(state.position_drafts).length,2);
+  assert.throws(()=>positionFromKey({...state,placements:[]},bridge),/position changed/i);
+});
+
 test('empty creation slot and exact drops never generate or overwrite drafts',async()=>{
   const saved={project_id:C,title:'Positions',revision:1,placements:[{placement_id:A,take_id:A},{placement_id:B,take_id:B}],
     selected_placement_id:A,drafts:{[A]:{prompt:'Original',seed:'18446744073709551615',raw_frames:158}}};

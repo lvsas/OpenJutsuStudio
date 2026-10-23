@@ -1,5 +1,5 @@
 """Bounded, path-free timeline API inputs (frame ranges are end-exclusive)."""
-from typing import Annotated
+from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 Identifier = Annotated[str, StringConstraints(strict=True, pattern=r"^[0-9a-f]{32}$")]
@@ -76,12 +76,40 @@ class NativeDraft(Payload):
         return self
 
 
+PositionKey = Annotated[str, StringConstraints(strict=True,
+    pattern=r"^(root|forward|prepend|bridge):(start|[0-9a-f]{32}):(end|[0-9a-f]{32})$")]
+
+
+def position_is_current(key, placements):
+    mode, left, right = key.split(':')
+    ids = [p.placement_id if hasattr(p, 'placement_id') else p['placement_id'] for p in placements]
+    pairs = list(zip(['start'] + ids, ids + ['end']))
+    inferred = 'root' if not ids else 'prepend' if left == 'start' else 'forward' if right == 'end' else 'bridge'
+    return (left, right) in pairs and mode in ('root', inferred)
+
+
+class PositionDraft(NativeDraft):
+    mode: Literal['root', 'forward', 'prepend', 'bridge']
+    reference_ids: list[Identifier] = Field(default_factory=list)
+    width: Annotated[int, Field(strict=True, ge=32, le=2048)] = 1024
+    height: Annotated[int, Field(strict=True, ge=32, le=2048)] = 576
+    count: Annotated[int, Field(strict=True, ge=1, le=4)] = 1
+
+    @model_validator(mode='after')
+    def aligned(self):
+        if self.width % 32 or self.height % 32:
+            raise ValueError('Picture size must be aligned to 32')
+        return self
+
+
 class EditNativeWorkspace(Payload):
     revision: Revision
     placements: Annotated[list[NativePlacement], Field(max_length=MAX_CLIPS)]
     selected_placement_id: Identifier | None
     drafts: dict[Identifier, NativeDraft]
     title: Title | None = None
+    selected_position: PositionKey | None = None
+    position_drafts: Annotated[dict[PositionKey, PositionDraft], Field(max_length=MAX_KNOWN_CLIPS)] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def coherent(self):
@@ -92,6 +120,12 @@ class EditNativeWorkspace(Payload):
             raise ValueError("Selected placement must belong to this workspace")
         if not self.drafts.keys() <= ids:
             raise ValueError("Drafts must belong to placements present in this workspace")
+        if any(key.split(':')[0] != draft.mode for key, draft in self.position_drafts.items()):
+            raise ValueError('Position draft mode must match its key')
+        if self.selected_position is not None and (
+                self.selected_position not in self.position_drafts
+                or not position_is_current(self.selected_position, self.placements)):
+            raise ValueError('Choose a current position with a saved draft')
         if "title" in self.model_fields_set and self.title is None:
             raise ValueError("Title cannot be null")
         return self

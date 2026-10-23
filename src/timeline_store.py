@@ -230,7 +230,8 @@ class TimelineStore:
         return {**{k: project[k] for k in ("project_id", "title", "revision", "updated_at")},
                 "placements": workspace.get("placements", []),
                 "selected_placement_id": workspace.get("selected_placement_id"),
-                "drafts": workspace.get("drafts", {})}
+                "drafts": workspace.get("drafts", {}),
+                **{k: workspace[k] for k in ('selected_position', 'position_drafts') if k in workspace}}
 
     def get_native_workspace(self, project_id: str) -> dict:
         with self.lock:
@@ -249,8 +250,20 @@ class TimelineStore:
                     raise TimelineError(404, "Native Take not found") from exc
                 except ValueError as exc:
                     raise TimelineError(422, "Native Take metadata cannot be read") from exc
-            project["native_workspace"] = edit.model_dump(include={
-                "placements", "selected_placement_id", "drafts"})
+            prior = project.get('native_workspace', {})
+            workspace = edit.model_dump(include={"placements", "selected_placement_id", "drafts"})
+            for key in ('selected_position', 'position_drafts'):
+                if key in edit.model_fields_set:
+                    workspace[key] = edit.model_dump()[key]
+                elif key in prior:
+                    workspace[key] = prior[key]
+            # An older client may reorder/remove anchors without sending the new
+            # fields. Preserve its drafts, but do not retain an impossible selection.
+            from timeline_models import position_is_current
+            selected = workspace.get('selected_position')
+            if selected and not position_is_current(selected, edit.placements):
+                workspace['selected_position'] = None
+            project["native_workspace"] = workspace
             if edit.title is not None:
                 project["title"] = edit.title
             return self._save_edit(project, native=True)

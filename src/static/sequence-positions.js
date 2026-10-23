@@ -14,7 +14,31 @@ export function resolvePosition(state,position) {
     throw new Error('Choose a current empty slot.');
   const found=positionsOf(state).find(p=>p.left===position.left&&p.right===position.right);
   if(!found)throw new Error('This position changed. Choose a current empty slot; your takes are untouched.');
-  return found;
+  return {...found,mode:position.mode==='root'?'root':found.mode};
+}
+export function positionKey(position) {
+  return `${position.mode}:${position.left??'start'}:${position.right??'end'}`;
+}
+export function positionFromKey(state,key) {
+  if(typeof key!=='string'||!/^(root|forward|prepend|bridge):(start|[a-f0-9]{32}):(end|[a-f0-9]{32})$/.test(key))
+    throw new Error('Choose a current empty slot.');
+  const [mode,left,right]=key.split(':');
+  const position=resolvePosition(state,{mode,left:left==='start'?null:left,right:right==='end'?null:right});
+  if(position.mode!==mode)throw new Error('This position changed. Choose a current empty slot.');
+  return position;
+}
+export function selectPosition(state,position,{mode=position.mode}={}) {
+  const actual=resolvePosition(state,{left:position.left,right:position.right});
+  if(mode!=='root'&&mode!==actual.mode)throw new Error('This operation does not match the chosen position.');
+  const chosen={...actual,mode},key=positionKey(chosen),drafts=state.position_drafts??{};
+  const draft=drafts[key]??{mode,prompt:'',seed:'',raw_frames:277,reference_ids:[],width:1024,height:576,count:1};
+  return {...state,selected_position:key,position_drafts:{...drafts,[key]:draft}};
+}
+export function savePositionDraft(state,changes) {
+  const position=positionFromKey(state,state.selected_position);
+  const key=positionKey(position),prior=state.position_drafts?.[key];
+  if(!prior)throw new Error('Select an empty slot before editing.');
+  return {...state,position_drafts:{...state.position_drafts,[key]:{...prior,...changes,mode:prior.mode}}};
 }
 export function insertAtPosition(state,takeId,placementId,position) {
   const gap=resolvePosition(state,position);

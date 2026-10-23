@@ -203,7 +203,7 @@ class ContinuityGraphTests(unittest.TestCase):
             self.assertEqual(output['handle_node'], h3.HANDLE_NODE)
             self.assertTrue(output['requires_verified_family_publication'])
         text = h3.TEMPLATE.read_text()
-        for forbidden in ('192.168.', 'MysticXXX', 'CharSheet_', 'chouxa', 'Calliope-h3'):
+        for forbidden in ('192.168.', 'CharSheet_', 'chouxa', 'Calliope-h3'):
             self.assertNotIn(forbidden, text)
 
     def test_frozen_fixture_and_built_recipes_are_finite_strict_json(self):

@@ -30,7 +30,7 @@ from continuity_forward_api import (create_forward_router, make_forward_runner,
                                     parent_references, refine_prompt, target_fingerprint)
 from continuity_attempt_api import create_router as create_attempt_router
 from continuity_attempts import Worker
-from continuity_pipeline import submit_forward
+from continuity_pipeline import preflight_continuation, submit_forward
 from h3_recipe import H3Models
 from h3_continuity_graphs import H3ContinuityModels, Weight
 
@@ -84,8 +84,10 @@ _HUNT_ROOT = Path(core.WORK) / 'native-attempts'
 
 
 def _hunt_refine(prompt, take_id):
-    client = make_client()
     paths = parent_references(core.WORK, take_id)
+    preflight_continuation(core.WORK, take_id, models=_continuity_models(),
+                           direction=prompt, reference_count=len(paths))
+    client = make_client()
     references = [client.assets.from_file(path).as_reference() for path in paths]
     return refine_prompt(client, prompt, references)
 
@@ -103,6 +105,8 @@ def _hunt_submit(operation_id, refined, seed, raw_frames, take_id):
                           target_fingerprint=target_fingerprint(comfy_base_url(), H3Models()),
                           work_root=Path(core.WORK) / 'native-operations',
                           reference_paths=paths, operation_id=operation_id)
+    if view['status'] != 'done':
+        raise ValueError(view.get('error_detail') or 'The continuation did not complete.')
     return view['take_id']
 
 

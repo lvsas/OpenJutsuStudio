@@ -336,9 +336,8 @@ target machine. A style adapter listed as optional is not required to generate.
 
 ### Models and adapters
 
-- `H3/FlatAnime_MiniMax_H3.safetensors`
-- `H3/MysticXXX_MMH3-V4.safetensors`
-- `H3/Snorricam_H3.safetensors`
-- `H3/h3_photoreal_ph0t0r34l_1024-step00003780.safetensors`
+No style LoRA: the adopted continuity template is compiled with its four
+dormant style adapters removed.
+
 - `QWEN/qwen3vl_4b_fp8_scaled.safetensors`
 - `minimax_h3_ref2va_pruned_int8_convrot.safetensors`

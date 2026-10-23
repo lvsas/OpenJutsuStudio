@@ -81,6 +81,9 @@ def _inventory(info, required_graph=None):
         inputs = info[name].get("input", {})
         specs = {**inputs.get("required", {}), **inputs.get("optional", {})}
         for key, value in node["inputs"].items():
+            # A bundle-fed field is a node reference, not a literal filename.
+            if not isinstance(value, str):
+                continue
             if key in {"unet_name", "clip_name", "vae_name", "lora_name", "model_name"}:
                 spec = specs.get(key, [])
                 choices = (spec[0] if spec and isinstance(spec[0], list) else
@@ -96,6 +99,35 @@ def _probe_v2_jobs(base, api_key):
     listing = _json_get(base + "/api/v2/jobs?limit=1", headers)
     if not isinstance(listing, dict) or not isinstance(listing.get("jobs"), list):
         raise ValueError("Expected Comfy API v2 job listing")
+
+
+def _target_object_info():
+    """Inventory of the configured target, or raise when it cannot be inspected."""
+    base = _valid_url(comfy_base_url())
+    mode = _target_mode(base)
+    if mode == 'self-hosted':
+        health = _json_get(base + "/api/v2/health")
+        if health.get("status") != "healthy" or not health.get("upstream"):
+            raise ValueError("The configured self-hosted Comfy API Proxy is not healthy or has no upstream.")
+        return _object_info(_valid_url(health["upstream"]) + "/object_info", cache=True)
+    if mode == 'comfy-cloud':
+        api_key = os.environ.get("COMFY_API_KEY", "").strip()
+        if not api_key:
+            raise ValueError("Set COMFY_API_KEY in the app process environment for this authenticated Comfy target.")
+        return _object_info(base + "/api/object_info", {"X-API-Key": api_key})
+    raise ValueError("This compute target does not expose a node/model inventory.")
+
+
+def missing_dependencies(required_graph):
+    """``(missing_nodes, missing_models)`` for one compiled graph.
+
+    Refuse loudly when the target cannot be inspected: the alternative is
+    submitting a graph the host may reject, which is the failure this gate
+    exists to prevent. Nothing here writes, uploads or queues.
+    """
+    if not isinstance(required_graph, dict) or not required_graph:
+        raise ValueError("A compiled graph is required for the target preflight")
+    return _inventory(_target_object_info(), required_graph)
 
 
 def check_readiness(required_graph=None):

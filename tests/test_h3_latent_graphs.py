@@ -97,6 +97,39 @@ class LatentGraphTests(unittest.TestCase):
         self.assertEqual(g['native_clip_handle']['inputs']['text'], ['native_family', 0])
         self.assertIn(OP, g['native_clip_handle']['inputs']['filename_prefix'])
 
+    def test_dormant_host_style_loras_are_not_compiled(self):
+        g = build(publish_family=True)
+        loras = {n: i['inputs'].get('lora_name') for n, i in g.items()
+                 if i.get('class_type') == 'LoraLoaderModelOnly'}
+        self.assertEqual(loras, {'1334:1319': ['1334:1330', 3]},
+                         'only the bundle-driven loader may survive; style LoRAs are gone')
+        literals = [value for node in g.values()
+                    for value in (node.get('inputs') or {}).values()
+                    if isinstance(value, str) and value.endswith('.safetensors')
+                    and 'lora' in (node.get('class_type') or '').lower()]
+        self.assertEqual([], literals, 'no style adapter may be named literally')
+
+    def test_every_literal_switch_is_compiled_away(self):
+        g = build()
+        for node_id, node in g.items():
+            if node.get('class_type') != 'ComfySwitchNode':
+                continue
+            source = g.get(node['inputs']['switch'][0], {})
+            self.assertNotEqual(source.get('class_type'), 'PrimitiveBoolean',
+                                f'{node_id} still selects on a literal boolean')
+
+    def test_collapsing_the_switches_keeps_the_model_chain_connected(self):
+        g = build()
+        self.assertIn('725', g)
+        # The UNET must still reach a consumer, and no reference may dangle.
+        consumers = [n for n, node in g.items() for ref in node['inputs'].values()
+                     if isinstance(ref, list) and ref and ref[0] == '725']
+        self.assertTrue(consumers, 'the UNET became unreachable')
+        for node_id, node in g.items():
+            for field, ref in node['inputs'].items():
+                if isinstance(ref, list) and len(ref) == 2 and isinstance(ref[0], str):
+                    self.assertIn(ref[0], g, f'{node_id}.{field} points at a removed node')
+
     def test_publication_is_absent_unless_requested(self):
         g = build()
         self.assertNotIn('native_family', g)

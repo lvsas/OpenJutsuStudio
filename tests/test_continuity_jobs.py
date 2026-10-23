@@ -70,6 +70,34 @@ class OperationTests(unittest.TestCase):
         self.client.submit.assert_called_once()
         self.assertEqual(jobs.get_operation(self.root, self.op)['status'], 'uncertain')
 
+    def test_a_validation_rejection_is_terminal_and_names_the_refused_input(self):
+        from comfy_sdk.exceptions import InvalidWorkflow
+        self.client.submit.side_effect = InvalidWorkflow(
+            'Failed to validate prompt', details={
+                '930': "Value not in list: lora_name: 'H3/example-style.safetensors'"})
+        view = self.execute()
+        self.assertEqual(view['status'], 'error')
+        self.assertEqual(view['error_code'], 'target_rejected_inputs')
+        self.assertIn('required nodes and models', view['error_detail'])
+        self.collect.assert_not_called()
+        # A definite rejection is terminal: a later execute never re-submits.
+        self.execute()
+        self.client.submit.assert_called_once()
+        self.assertNotIn(self.target, str(jobs.get_operation(self.root, self.op)))
+
+    def test_legacy_and_new_sdk_validation_details_never_leak_publicly(self):
+        from comfy_sdk.exceptions import InvalidWorkflow
+        secret = '/srv/private/model.safetensors?token=CONFIDENTIAL PRIVATE_PROMPT'
+        self.client.submit.side_effect = InvalidWorkflow(secret, details={'930': secret})
+        view = self.execute()
+        for token in ('/srv/private', 'CONFIDENTIAL', 'PRIVATE_PROMPT'):
+            self.assertNotIn(token, str(view))
+        record = jobs._read(jobs._path(self.root, self.op))
+        record['error_detail'] = secret  # A record from the interrupted implementation.
+        jobs._write(jobs._path(self.root, self.op), record)
+        for token in ('/srv/private', 'CONFIDENTIAL', 'PRIVATE_PROMPT'):
+            self.assertNotIn(token, str(jobs.get_operation(self.root, self.op)))
+
     def test_wait_timeout_and_collection_failure_resume_known_job_without_submit(self):
         self.remote.wait.side_effect = TimeoutError('wait expired')
         with self.assertRaises(TimeoutError):

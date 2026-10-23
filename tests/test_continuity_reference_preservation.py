@@ -197,7 +197,7 @@ class ReferencePreservationTests(unittest.TestCase):
                 SimpleNamespace(prompt='continue', seed=7, raw_frames=56),
                 client=object(), models=MODELS, references=[{'ref': 1}, {'ref': 2}],
                 target_fingerprint='f' * 64, work_root=self.work / 'operations',
-                reference_paths=paths)
+                reference_paths=paths, inventory=lambda graph: ([], []))
         self.assertEqual(collector.call_args.kwargs['reference_paths'], paths)
 
     def test_explicit_empty_collector_sequence_does_not_reuse_singular_argument(self):

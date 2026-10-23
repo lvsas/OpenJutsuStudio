@@ -19,12 +19,29 @@ from continuity_jobs import create_operation, execute_operation
 from h3_artifact_transport import download_h3_artifacts
 from h3_continuity_graphs import H3ContinuityModels, NativeH3Parent, PIN_WINDOW
 from h3_family_graphs import build_restage_graph, read_clip_handle
-from h3_latent_graphs import build_latent_continuity
+from h3_latent_graphs import PREFLIGHT_CLIP, build_latent_continuity
+from readiness import missing_dependencies
 
 FAMILY_NODE = 'native_family'
 log = logging.getLogger(__name__)
 RESTAGE_TIMEOUT = 900
 FORWARD_TIMEOUT = 7200
+
+
+class TargetMissingDependencies(ValueError):
+    """The target cannot run the compiled continuation; nothing was sent."""
+
+    def __init__(self, nodes=(), models=()):
+        self.nodes = tuple(nodes)
+        self.models = tuple(models)
+        parts = []
+        if self.models:
+            parts.append('missing models or LoRAs: ' + ', '.join(self.models))
+        if self.nodes:
+            parts.append('missing nodes: ' + ', '.join(self.nodes))
+        detail = '; '.join(parts) or 'the target inventory could not be validated'
+        super().__init__('This compute target cannot run the continuation ('
+                         + detail + '). The continuation was not submitted.')
 
 
 
@@ -126,30 +143,73 @@ def collect_forward(work: str | Path, folder: Path, *, compiled_graph,
     return collect
 
 
+def preflight_continuation(work, take_id, *, models, direction, reference_count,
+                           raw_frames=277, inventory=None):
+    """Read-only dependency gate before reference upload or prompt refinement.
+
+    Sentinel assets and parent handle are used only for compiling node/model
+    inventory, never submitted. Both authored graphs are inspected separately so
+    node identifiers cannot collide. This does not claim runtime validation of
+    bundle-fed settings or remote asset availability.
+    """
+    from h3_prompt_generator import build_prompt_graph
+    if type(reference_count) is not int or reference_count < 1:
+        raise ValueError('At least one reference image is required for continuation.')
+    context = parent_context(get_validated_family(work, take_id))
+    refs = [{'__type': 'core/ASSET', 'info': {'id': f'preflight-reference-{i}'}}
+            for i in range(reference_count)]
+    graph = build_latent_continuity(
+        references=refs, prompt=direction, width=context['width'], height=context['height'],
+        raw_frames=raw_frames, seed=0, models=models, parent_clip=PREFLIGHT_CLIP,
+        operation_id='f' * 32, publish_family=True)
+    probe = inventory or missing_dependencies
+    nodes, weights = set(), set()
+    for candidate in (graph, build_prompt_graph(direction, refs)):
+        absent_nodes, absent_weights = probe(candidate)
+        nodes.update(absent_nodes); weights.update(absent_weights)
+    if nodes or weights:
+        raise TargetMissingDependencies(sorted(nodes), sorted(weights))
+
+
 def submit_forward(work: str | Path, take_id: str, request, *, client, models,
                    references, target_fingerprint, work_root: str | Path,
                    reference_path: str | Path | None = None,
                    reference_paths=None,
-                   operation_id: str | None = None):
+                   operation_id: str | None = None,
+                   inventory=missing_dependencies):
     """Run the whole chain for one Forward request and return the operation view.
 
     ``request`` is a validated ``ForwardRequest``: prompt, explicit seed and native
     frame count only. The parent comes from the URL, the graph from the compiler,
     and the operation identity from the service.
+
+    ``inventory`` answers ``(missing_nodes, missing_models)`` for a compiled graph.
+    It runs before the parent upload so a target that cannot run the graph costs
+    nothing; a target that cannot be inspected refuses too, rather than queueing a
+    graph the host may reject.
     """
     operation_id = operation_id or uuid.uuid4().hex
     artifacts = get_validated_family(work, take_id)
     context = parent_context(artifacts)  # refuse before any upload
 
+    def compile_graph(clip):
+        return build_latent_continuity(
+            references=list(references), prompt=request.prompt,
+            width=context['width'], height=context['height'],
+            raw_frames=request.raw_frames, seed=request.seed, models=models,
+            parent_clip=clip, operation_id=operation_id, publish_family=True)
+
+    # The graph's installable dependencies do not depend on the parent handle, so
+    # the target is asked before the restage upload rather than after it.
+    missing_nodes, missing_models = inventory(compile_graph(PREFLIGHT_CLIP))
+    if missing_nodes or missing_models:
+        raise TargetMissingDependencies(missing_nodes, missing_models)
+
     family_name = uuid.uuid4().hex
     clip = restage_parent(client, artifacts, family_name)
     parent = native_parent(get_take(work, take_id), artifacts, models=models, clip=clip)
 
-    compiled = build_latent_continuity(
-        references=list(references), prompt=request.prompt,
-        width=context['width'], height=context['height'],
-        raw_frames=request.raw_frames, seed=request.seed, models=models,
-        parent_clip=parent.clip, operation_id=operation_id, publish_family=True)
+    compiled = compile_graph(parent.clip)
 
     create_operation(work_root, operation_id, mode='forward', graph=compiled,
                      seed=request.seed, parents=(take_id,),

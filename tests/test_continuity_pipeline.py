@@ -65,7 +65,8 @@ class SubmitForwardOrderingTests(unittest.TestCase):
             return pipeline.submit_forward(
                 '/work', TAKE.take_id, self.request(), client=client, models=MODELS,
                 references=[{'__type': 'core/ASSET', 'info': {'id': 'ref'}}],
-                target_fingerprint='f' * 64, work_root='/operations')
+                target_fingerprint='f' * 64, work_root='/operations',
+                inventory=lambda graph: ([], []))
 
     def test_a_take_below_the_pin_window_costs_no_upload_and_no_submission(self):
         client = MagicMock()
@@ -80,6 +81,78 @@ class SubmitForwardOrderingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '24 fps'):
             self.submit(client, fps=30.0)
         client.run.assert_not_called()
+
+    def test_a_missing_target_dependency_costs_no_upload_and_no_submission(self):
+        client = MagicMock()
+        with self.assertRaises(pipeline.TargetMissingDependencies) as error:
+            with patch.object(pipeline, 'get_validated_family', return_value=family()), \
+                    patch.object(pipeline, 'get_take', return_value=TAKE):
+                pipeline.submit_forward(
+                    '/work', TAKE.take_id, self.request(), client=client, models=MODELS,
+                    references=[{'__type': 'core/ASSET', 'info': {'id': 'ref'}}],
+                    target_fingerprint='f' * 64, work_root='/operations',
+                    inventory=lambda graph: (['SomeMissingNode'], ['H3/missing.safetensors']))
+        self.assertIn('H3/missing.safetensors', str(error.exception))
+        self.assertIn('continuation was not submitted', str(error.exception))
+        client.assets.from_file.assert_not_called()
+        client.run.assert_not_called()
+        client.submit.assert_not_called()
+
+    def test_the_target_is_asked_before_the_parent_is_uploaded(self):
+        client = MagicMock()
+        seen = {}
+        def inventory(graph):
+            seen['uploaded_before_check'] = client.assets.from_file.called
+            seen['graph_nodes'] = len(graph)
+            return [], []
+        with patch.object(pipeline, 'get_validated_family', return_value=family()), \
+                patch.object(pipeline, 'get_take', return_value=TAKE), \
+                patch.object(pipeline, 'restage_parent', return_value='isolated/take.mp4'), \
+                patch.object(pipeline, 'create_operation'), \
+                patch.object(pipeline, 'collect_forward'), \
+                patch.object(pipeline, 'execute_operation', return_value={'status': 'queued'}):
+            pipeline.submit_forward(
+                '/work', TAKE.take_id, self.request(), client=client, models=MODELS,
+                references=[{'__type': 'core/ASSET', 'info': {'id': 'ref'}}],
+                target_fingerprint='f' * 64, work_root='/operations', inventory=inventory)
+        self.assertFalse(seen['uploaded_before_check'],
+                         'the inventory gate must run before the parent upload')
+        self.assertGreater(seen['graph_nodes'], 50)
+
+    def test_early_preflight_checks_generation_and_prompt_models_read_only(self):
+        from unittest.mock import Mock
+        inventory = Mock(side_effect=[([], []), ([], ['missing-text-model.safetensors'])])
+        with patch.object(pipeline, 'get_validated_family', return_value=family()), \
+                self.assertRaises(pipeline.TargetMissingDependencies):
+            pipeline.preflight_continuation('/work', TAKE.take_id, models=MODELS,
+                direction='Continue walking', reference_count=2, inventory=inventory)
+        self.assertEqual(inventory.call_count, 2)
+        first, second = [call.args[0] for call in inventory.call_args_list]
+        self.assertIn('native_family', first)
+        self.assertIn('prompt_text', second)
+        self.assertFalse(any('style' in str(n.get('inputs', {}).get('lora_name', ''))
+                             for n in first.values()))
+
+    def test_production_hunt_checks_inventory_before_client_upload_or_refine(self):
+        import ast
+        from unittest.mock import Mock
+        source = Path(__file__).resolve().parents[1] / 'src/app.py'
+        function = next(n for n in ast.parse(source.read_text()).body
+                        if isinstance(n, ast.FunctionDef) and n.name == '_hunt_refine')
+        preflight = Mock(side_effect=pipeline.TargetMissingDependencies(['UnavailableNode']))
+        client = Mock()
+        refine = Mock()
+        namespace = {'core': SimpleNamespace(WORK='/work'),
+                     'parent_references': lambda *a: [Path('/ref.png')],
+                     '_continuity_models': lambda: MODELS,
+                     'preflight_continuation': preflight,
+                     'make_client': client, 'refine_prompt': refine}
+        exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), 'exec'), namespace)
+        with self.assertRaises(pipeline.TargetMissingDependencies):
+            namespace['_hunt_refine']('Continue moving', TAKE.take_id)
+        preflight.assert_called_once()
+        client.assert_not_called()
+        refine.assert_not_called()
 
     def test_an_unreadable_family_never_reaches_the_target(self):
         client = MagicMock()

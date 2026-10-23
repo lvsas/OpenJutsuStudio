@@ -36,6 +36,20 @@ SEED_NODE = '2004'
 DURATION_NODE = '2001'
 FAMILY_NODE = 'native_family'
 HANDLE_NODE = 'native_clip_handle'
+SWITCH_CLASS = 'ComfySwitchNode'
+BOOLEAN_LITERAL = 'PrimitiveBoolean'
+STYLE_LORA_CLASS = 'LoraLoaderModelOnly'
+PREFLIGHT_CLIP = 'preflight/not-a-real-clip.mp4'
+
+
+def _is_ref(value):
+    return (isinstance(value, list) and len(value) == 2
+            and isinstance(value[0], str) and type(value[1]) is int)
+
+
+
+
+
 
 
 def _asset(value):
@@ -76,6 +90,7 @@ def build_latent_continuity(*, references, prompt, width, height, raw_frames, se
         raise ValueError('Family publication must be an explicit boolean')
 
     graph = copy.deepcopy(json.loads(TEMPLATE.read_text()))
+    # The shipped template is already clean; never silently rewrite its topology.
 
     def bind(node, field, value):
         if node not in graph or field not in graph[node]['inputs']:
@@ -146,3 +161,13 @@ def _verify(graph, width, height, raw_frames, seed, prompt, references, operatio
     seconds = graph[DURATION_NODE]['inputs']['value']
     if abs(seconds * 24 - raw_frames) > 1e-9:
         raise ValueError('The duration binding would not produce the requested frames')
+    # A dormant dependency is what once turned a rejected prompt into a "success"
+    # with no outputs: nothing compiled may be unreachable or gated by a literal.
+    referenced = {reference[0] for node in graph.values() if isinstance(node, dict)
+                  for reference in node.get('inputs', {}).values() if _is_ref(reference)}
+    for node_id, node in graph.items():
+        if node.get('class_type') == STYLE_LORA_CLASS and node_id not in referenced:
+            raise ValueError(f'Style LoRA {node_id} is compiled but nothing consumes it')
+        if node.get('class_type') == SWITCH_CLASS and _is_ref(node['inputs'].get('switch')):
+            if graph.get(node['inputs']['switch'][0], {}).get('class_type') == BOOLEAN_LITERAL:
+                raise ValueError(f'Switch {node_id} still selects on a literal boolean')

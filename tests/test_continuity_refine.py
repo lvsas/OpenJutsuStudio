@@ -44,7 +44,25 @@ class PumpTests(unittest.TestCase):
     def runner(self, client):
         return api.make_forward_runner(client_factory=lambda: client,
                                        models_factory=lambda: 'models',
-                                       fingerprint='f' * 64, work_root='/ops')
+                                       fingerprint='f' * 64, work_root='/ops', preflight=lambda *a, **k: None)
+
+    def test_incompatible_target_is_refused_before_real_runner_creates_client(self):
+        from unittest.mock import Mock
+        from continuity_pipeline import TargetMissingDependencies
+        client_factory = Mock()
+        preflight = Mock(side_effect=TargetMissingDependencies(['UnavailableNode']))
+        runner = api.make_forward_runner(client_factory=client_factory,
+            models_factory=lambda: 'models', fingerprint='f' * 64,
+            work_root='/ops', preflight=preflight)
+        with patch.object(api, 'parent_references', return_value=[Path('/ref.png')]), \
+             patch.object(api, 'refine_prompt') as refine, \
+             patch.object(api, 'submit_forward') as submit:
+            with self.assertRaises(TargetMissingDependencies):
+                runner('/work', 'b' * 32, FakeRequest(prompt=DIRECTION, raw_frames=158))
+        client_factory.assert_not_called()
+        refine.assert_not_called()
+        submit.assert_not_called()
+        self.assertEqual(preflight.call_args.kwargs['reference_count'], 1)
 
     def test_the_refined_text_is_what_reaches_the_graph(self):
         request = FakeRequest(request_id='a' * 32, prompt=DIRECTION, seed=7, raw_frames=158)

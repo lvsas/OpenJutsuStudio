@@ -125,15 +125,19 @@ def create_operation(work_root, operation_id, *, mode, graph, seed, parents=(), 
         record = {'version': 1, 'id': operation_id, 'intent': intent,
                   'intent_digest': digest, 'idempotency_key': 'opengenjutsu-native-' + operation_id,
                   'status': 'queued', 'remote_job_id': None, 'take_id': None,
-                  'error_code': None, 'revision': 0}
+                  'error_code': None, 'error_detail': None, 'revision': 0}
         _write(path, record)
         return public_operation(record)
 
 
 def public_operation(record):
-    # Never return the graph, target, asset locations, model paths or SDK errors.
+    # Never expose raw SDK errors, even from older records: details can contain
+    # credentials, private paths and prompts. Only server-authored text is public.
     return {key: copy.deepcopy(record[key]) for key in
-            ('id', 'status', 'take_id', 'error_code', 'revision')} | {'mode': record['intent']['mode']}
+            ('id', 'status', 'take_id', 'error_code', 'revision')} | {
+        'mode': record['intent']['mode'],
+        'error_detail': ('The compute target rejected workflow inputs. Check the required nodes and models.'
+                         if record.get('error_code') == 'target_rejected_inputs' else None)}
 
 
 def get_operation(work_root, operation_id):
@@ -148,6 +152,7 @@ def execute_operation(work_root, operation_id, client, *, target_fingerprint, co
     actual family and return its 32-hex Take ID. It may be called again after a
     collection/checkpoint failure; it must recover an already-published Take.
     """
+    from comfy_sdk.exceptions import InvalidWorkflow
     from comfy_sdk.workflows import WorkflowFactory
     with _RUN_LOCK:
         path = _path(work_root, operation_id)
@@ -170,6 +175,13 @@ def execute_operation(work_root, operation_id, client, *, target_fingerprint, co
             checkpoint(status='submitting', error_code=None)
             try:
                 remote = client.submit(workflow, idempotency_key=record['idempotency_key'])
+            except InvalidWorkflow:
+                # A structural rejection is a definite answer, not an unknown
+                # outcome: no job exists, so retrying is safe and the reason must
+                # reach the operator instead of a generic collection failure.
+                checkpoint(status='error', error_code='target_rejected_inputs',
+                           error_detail=None)
+                return public_operation(record)
             except Exception as exc:
                 checkpoint(status='uncertain', error_code='submit_outcome_unknown')
                 raise OperationUncertain(operation_id) from exc

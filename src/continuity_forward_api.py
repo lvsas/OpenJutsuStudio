@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 import continuity_context
 from continuable_take import get_take
 from continuable_take_api import TakeId
-from continuity_pipeline import submit_forward
+from continuity_pipeline import preflight_continuation, submit_forward
 from continuity_requests import ForwardRequest
 from h3_prompt_generator import build_prompt_graph, read_prompt_text
 from continuity_context import MAX_BYTES, context_references
@@ -100,10 +100,14 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def make_forward_runner(*, client_factory, models_factory, fingerprint, work_root):
+def make_forward_runner(*, client_factory, models_factory, fingerprint, work_root, preflight=None):
     """Build the production runner once, so the route stays free of wiring."""
     def run(work, take_id, request):
         paths = parent_references(work, take_id)
+        models = models_factory()
+        (preflight or preflight_continuation)(
+            work, take_id, models=models, direction=request.prompt,
+            reference_count=len(paths), raw_frames=request.raw_frames)
         client = client_factory()
         references = [client.assets.from_file(path).as_reference() for path in paths]
         # The operator writes natural language; the refiner turns it into the
@@ -111,7 +115,7 @@ def make_forward_runner(*, client_factory, models_factory, fingerprint, work_roo
         refined = refine_prompt(client, request.prompt, references)
         request = request.model_copy(update={'prompt': refined})
         return submit_forward(work, take_id, request, client=client,
-                              models=models_factory(), references=references,
+                              models=models, references=references,
                               target_fingerprint=fingerprint, work_root=work_root,
                               reference_paths=paths)
     return run

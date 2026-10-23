@@ -375,42 +375,6 @@
       "engines": [
         "ltx-ripple"
       ]
-    },
-    {
-      "file": "H3/FlatAnime_MiniMax_H3.safetensors",
-      "folder": "loras",
-      "engines": [
-        "h3-continuity"
-      ],
-      "optional": true,
-      "role": "optional adapter named by the adopted continuity template"
-    },
-    {
-      "file": "H3/MysticXXX_MMH3-V4.safetensors",
-      "folder": "loras",
-      "engines": [
-        "h3-continuity"
-      ],
-      "optional": true,
-      "role": "optional adapter named by the adopted continuity template"
-    },
-    {
-      "file": "H3/Snorricam_H3.safetensors",
-      "folder": "loras",
-      "engines": [
-        "h3-continuity"
-      ],
-      "optional": true,
-      "role": "optional adapter named by the adopted continuity template"
-    },
-    {
-      "file": "H3/h3_photoreal_ph0t0r34l_1024-step00003780.safetensors",
-      "folder": "loras",
-      "engines": [
-        "h3-continuity"
-      ],
-      "optional": true,
-      "role": "optional adapter named by the adopted continuity template"
     }
   ],
   "character_generator": {

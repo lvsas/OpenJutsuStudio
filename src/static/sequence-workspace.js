@@ -6,7 +6,7 @@ const rememberKey='opengenjutsu.sequence.project';
 const stored=key=>{try{return localStorage.getItem(key);}catch{return null;}};
 const remember=(key,value)=>{try{localStorage.setItem(key,value);}catch{/* Server remains authoritative. */}};
 export function mountSequence({onSelect,onPreview,onCompose,onError}) {
-  let state=emptyWorkspace(),entries=[],version=0,savedVersion=0,saving=null,timer=null,conflicted=false;
+  let state=emptyWorkspace(),entries=[],version=0,savedVersion=0,saving=null,timer=null,conflicted=false,previewedId=null;
   const entryFor=id=>entries.find(e=>e.take.take_id===id);
   const status=text=>{el('native-save-state').textContent=text;};
   const selected=()=>state.placements.find(p=>p.placement_id===state.selected_placement_id);
@@ -59,20 +59,30 @@ export function mountSequence({onSelect,onPreview,onCompose,onError}) {
   }
   function notifySelection() {
     const placement=selected();
+    previewedId=placement?.take_id||null;markLibrarySelection();
     onSelect(placement?entryFor(placement.take_id):null,placement,
       placement?state.drafts[placement.placement_id]:null);
   }
   function select(id) {
     change({...state,selected_placement_id:id},{select:true});
   }
-  function closeLibrary() {
-    el('native-library').hidden=true;el('native-library-toggle').setAttribute('aria-expanded','false');
+  function showLibrary(open,{focus=false}={}) {
+    el('native-library').hidden=!open;
+    el('native-library-toggle').setAttribute('aria-expanded',String(open));
+    if(focus)(open?el('native-search'):el('native-library-toggle')).focus();
+  }
+  function markLibrarySelection() {
+    for(const row of el('native-takes').children)
+      row.children[0]?.setAttribute('aria-pressed',String(row.dataset.takeId===previewedId));
+  }
+  function focusLibraryAdd(id) {
+    [...el('native-takes').children].find(row=>row.dataset.takeId===id)?.children[1]?.focus({preventScroll:true});
   }
   function add(id,afterId=null,draft=null) {
     if(!entryFor(id))return;
     let next=addPlacement(state,id,uuid(),afterId);
     if(draft)next=saveDraft(next,next.selected_placement_id,draft);
-    closeLibrary();change(next,{select:true});
+    change(next,{select:true});
   }
   function poster(entry) {
     const image=document.createElement('img');image.alt='';image.loading='lazy';
@@ -96,13 +106,14 @@ export function mountSequence({onSelect,onPreview,onCompose,onError}) {
     el('pool-count').textContent=`${filtered.length} of ${entries.length} takes`;
     for(const entry of filtered.slice(0,100)) {
       const id=entry.take.take_id,row=document.createElement('li');row.className='library-take';
-      const preview=action('',()=>onPreview(entry),'library-preview');
+      const preview=action('',()=>{previewedId=id;markLibrarySelection();onPreview(entry);},'library-preview');
+      preview.setAttribute('aria-pressed',String(id===previewedId));
       preview.setAttribute('aria-label',`Preview ${label(entry)}`);preview.append(poster(entry));
       const text=document.createElement('span');text.className='library-take-info';
       const name=document.createElement('strong');name.textContent=label(entry);
       const info=document.createElement('small');info.textContent=`H3 · ${duration(entry)}${state.placements.some(p=>p.take_id===id)?' · In this sequence':''}`;
       text.append(name,info);preview.append(text);
-      const append=action('+',()=>add(id),'btn btn-secondary library-add');append.setAttribute('aria-label',`Add ${label(entry)} to sequence`);
+      const append=action('+',()=>{add(id);focusLibraryAdd(id);},'btn btn-secondary library-add');append.setAttribute('aria-label',`Add ${label(entry)} to sequence`);
       row.draggable=true;row.dataset.takeId=id;
       row.addEventListener('dragstart',event=>{event.dataTransfer.setData('text/plain',id);event.dataTransfer.effectAllowed='copy';});
       row.append(preview,append);container.append(row);
@@ -152,12 +163,12 @@ export function mountSequence({onSelect,onPreview,onCompose,onError}) {
     remember(rememberKey,id);status('Saved');el('native-reload').hidden=true;render();notifySelection();
   }
   el('native-library-toggle').addEventListener('click',()=>{
-    const pane=el('native-library');pane.hidden=!pane.hidden;
-    el('native-library-toggle').setAttribute('aria-expanded',String(!pane.hidden));
-    if(!pane.hidden)el('native-search').focus();
+    showLibrary(el('native-library').hidden,{focus:true});
   });
-  el('native-rail-add').addEventListener('click',()=>{
-    el('native-library').hidden=false;el('native-library-toggle').setAttribute('aria-expanded','true');el('native-search').focus();
+  el('native-rail-add').addEventListener('click',()=>showLibrary(true,{focus:true}));
+  el('native-library-close').addEventListener('click',()=>showLibrary(false,{focus:true}));
+  el('native-library').addEventListener('keydown',event=>{
+    if(event.key==='Escape'){event.preventDefault();showLibrary(false,{focus:true});}
   });
   el('native-search').addEventListener('input',drawLibrary);
   el('native-project-title').addEventListener('input',()=>{
@@ -166,7 +177,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onError}) {
   el('native-new-sequence').addEventListener('click',async()=>{
     try {await flush();state=emptyWorkspace();version=0;savedVersion=0;conflicted=false;
       remember(rememberKey,'');render();notifySelection();status('Not started');
-      el('native-library').hidden=false;el('native-library-toggle').setAttribute('aria-expanded','true');}
+      showLibrary(true);}
     catch(error){onError(error.message);}
   });
   el('native-project-picker').addEventListener('change',async event=>{
@@ -196,13 +207,14 @@ export function mountSequence({onSelect,onPreview,onCompose,onError}) {
     async init(items) {
       entries=items;await projectList();const id=stored(rememberKey);
       if(id && /^[a-f0-9]{32}$/.test(id)) {try{await load(id);}catch(error){onError(error.message);render();}}
-      else {render();notifySelection();status('Not started');el('native-library').hidden=false;el('native-library-toggle').setAttribute('aria-expanded','true');}
+      else {render();notifySelection();status('Not started');}
+      showLibrary(true);
     },
     refresh(items){entries=items;render();},
     state:()=>structuredClone(state), selected,
     draft(){const p=selected();return p?state.drafts[p.placement_id]:null;},
     setDraft(changes){const p=selected();if(p)change(saveDraft(state,p.placement_id,changes));},
-    flush,closeLibrary,
+    flush,
     place(takeId,draft){add(takeId,null,draft);},
     async insertResult(takeId,projectId,afterId) {
       if(!entryFor(takeId)||state.project_id!==projectId||!state.placements.some(p=>p.placement_id===afterId))return false;

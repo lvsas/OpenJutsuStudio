@@ -39,7 +39,9 @@ class Element {
 }
 async function environment(fetcher,search='',initialStorage={}) {
   const markup=readFileSync(resolve(root,'src/templates/timeline.html'),'utf8');
-  const elements=new Map([...markup.matchAll(/id="([^"]+)"/g)].map(([,id])=>[id,new Element()]));
+  const elements=new Map([...markup.matchAll(/<[^>]*\bid="([^"]+)"[^>]*>/g)].map(([tag,id])=>{
+    const element=new Element();element.hidden=/\bhidden(?:\s|>|=)/.test(tag);return [id,element];
+  }));
   const notices=[],events={},storage=new Map(Object.entries(initialStorage));const location={search,href:'http://test.invalid/timeline'};
   const document={getElementById:id=>elements.get(id),createElement:()=>new Element()};
   const context=vm.createContext({document,location,console,URLSearchParams,URL,Response,File,
@@ -161,6 +163,7 @@ test('library preview exposes direction and references; placement is explicit an
   await app.entry('continuity-studio.js');await flush();
   const e=app.elements;
   await e.get('native-takes').children[0].children[0].click();await flush();
+  assert.equal(e.get('native-library').hidden,false,'preview must not dismiss the take library');
   assert.equal(e.get('forward-form').hidden,false,'setup may not disappear behind placement requirement');
   assert.equal(e.get('forward-references').hidden,false);
   assert.equal(e.get('forward-reference-list').children.length,1);
@@ -176,6 +179,45 @@ test('library preview exposes direction and references; placement is explicit an
   assert.equal(saved.drafts[saved.selected_placement_id].seed,'18446744073709551615');
   assert.equal(backend.calls.some(c=>c.url.endsWith('/attempts')),false);
 });
+test('library remains usable for multiple placements, returning to drafts and reopening a saved sequence',async()=>{
+  const backend=nativeBackend(),app=await environment(backend.fetcher);
+  await app.entry('continuity-studio.js');await flush();const e=app.elements;
+  await e.get('native-takes').children[0].children[1].click();await flush();
+  assert.equal(e.get('native-library').hidden,false,'adding one must leave other takes available');
+  e.get('forward-prompt').value='Keep draft A';await e.get('forward-prompt').fire('input');
+  e.get('forward-seed').value='18446744073709551615';await e.get('forward-seed').fire('input');
+  await e.get('native-takes').children[1].children[1].click();await flush();
+  assert.equal(e.get('native-library').hidden,false);
+  assert.equal(e.get('board-track').children.length,3,'two placements and one order gap');
+  await e.get('board-track').children[0].children[0].click();await flush();
+  assert.equal(e.get('forward-prompt').value,'Keep draft A');
+  assert.equal(e.get('forward-seed').value,'18446744073709551615');
+  await e.get('native-library-close').click();
+  assert.equal(e.get('native-library').hidden,true);
+  assert.equal(e.get('native-library-toggle').getAttribute('aria-expanded'),'false');
+  await e.get('native-rail-add').click();
+  assert.equal(e.get('native-library').hidden,false,'rail add works with a selected take too');
+  assert.equal(e.get('native-library-toggle').getAttribute('aria-expanded'),'true');
+  await e.get('native-library').fire('keydown',{key:'Escape'});
+  assert.equal(e.get('native-library').hidden,true);
+  await e.get('board-track').children[2].children[1].children[2].click();await flush();
+  assert.equal(e.get('board-track').children.length,1,'removal only unplaces the take');
+  assert.equal(e.get('native-takes').children.length,2,'neither original was removed');
+  await e.get('native-rail-add').click();
+  await e.get('native-takes').children[1].children[1].click();await flush();
+  await e.get('board-track').children[0].children[0].click();await flush();
+  assert.equal(e.get('forward-prompt').value,'Keep draft A');
+  // Force and wait for the real module's debounced workspace PATCH, not a fixture save.
+  await new Promise(r=>setTimeout(r,400));await flush();
+  const saved=backend.saved();assert.equal(saved.placements.length,2);
+  const reopened=await environment(backend.fetcher,'',{'opengenjutsu.sequence.project':C});
+  await reopened.entry('continuity-studio.js');await flush();
+  assert.equal(reopened.elements.get('native-library').hidden,false,'saved selection must not hide the library on entry');
+  assert.equal(reopened.elements.get('forward-prompt').value,'Keep draft A');
+  assert.equal(reopened.elements.get('board-track').children.length,3);
+  assert.equal(backend.calls.some(c=>c.url.endsWith('/attempts')),false);
+});
+
 test('reloaded lost-response receipt reconnects by request without hiding setup or issuing POST',async()=>{
   const placement='1'.repeat(32),request='2'.repeat(32),attempt='3'.repeat(32);
   const saved={project_id:C,title:'Saved',revision:1,placements:[{placement_id:placement,take_id:A}],

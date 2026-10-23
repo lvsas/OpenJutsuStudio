@@ -71,6 +71,40 @@ class TimelineStudioUITests(unittest.TestCase):
             self.assertTrue(f'href="{target}"' in markup, f'Missing workspace navigation: {target}')
         self.assertNotRegex(markup.lower(), r'\b(world.first|never.been.done|guaranteed.viral)\b')
 
+    def test_library_exit_and_add_are_not_empty_state_only_controls(self):
+        from html.parser import HTMLParser
+
+        class Controls(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.stack = []
+                self.ancestors = {}
+                self.attrs = {}
+
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if attrs.get('id'):
+                    self.ancestors[attrs['id']] = [a.get('id') for _, a in self.stack]
+                    self.attrs[attrs['id']] = attrs
+                if tag not in {'input', 'img', 'meta', 'link', 'br', 'hr'}:
+                    self.stack.append((tag, attrs))
+
+            def handle_endtag(self, tag):
+                for i in range(len(self.stack)-1, -1, -1):
+                    if self.stack[i][0] == tag:
+                        del self.stack[i:]
+                        break
+
+        page = Controls()
+        page.feed((ROOT / 'src/templates/timeline.html').read_text())
+        self.assertIn('take-board', page.ancestors['native-rail-add'])
+        self.assertNotIn('native-empty', page.ancestors['native-rail-add'])
+        self.assertNotIn('hidden', page.attrs['native-rail-add'])
+        self.assertIn('native-library', page.ancestors['native-library-close'])
+        self.assertNotIn('hidden', page.attrs['forward-reference-input'],
+                         'reference picker must remain keyboard focusable')
+        self.assertIn('aria-label', page.attrs['forward-reference-input'])
+
     def test_timeline_has_its_own_legible_accent(self):
         css = (ROOT / 'src/static/timeline.css').read_text()
         accent_match = re.search(r'--accent:\s*(#[0-9a-f]{6})', css)

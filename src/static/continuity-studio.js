@@ -32,7 +32,7 @@ function updateComposer() {
   for(const button of byId('forward-reference-list').querySelectorAll('button'))button.disabled=locked;
 }
 const sequence = mountSequence({onSelect: showSelection,
-  onPreview: entry => {sequence.closeLibrary();showSelection(entry,null,null);}, onCompose: openForward, onError: notice});
+  onPreview: entry => showSelection(entry,null,null), onCompose: openForward, onError: notice});
 function showSelection(entry, placement, draft) {
   activePlacement = placement;
   canExtend = false; referencesReady = false;
@@ -54,7 +54,7 @@ function showSelection(entry, placement, draft) {
   }
   choose(entry);
   byId('composer-anchor').textContent = placement
-    ? `Extend from the end of ${entry.take.take_id.slice(0,8)} · the original stays unchanged`
+    ? `Extend after ${entry.take.take_id.slice(0,8)} · original unchanged`
     : 'Set up your extension below. Add this take to the sequence before generating; no calculation starts when adding it.';
   updateComposer();
 }
@@ -95,7 +95,7 @@ function choose(entry) {
     canExtend = !!result.extend;
     byId('native-state').textContent = result.verified ? 'Saved state verified · original files preserved' : 'Saved state could not be verified';
     byId('native-readiness').textContent = result.reason || (activePlacement
-      ? 'Saved state ready for extension. References are checked in your draft.' : 'Add to your sequence to extend.');
+      ? 'Ready · saved state verified.' : 'Add to your sequence to extend.');
     updateComposer();
   }).catch(error => {if(epoch===token){byId('native-readiness').textContent=error.message;}});
   loadReferences(record.take_id);

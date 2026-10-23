@@ -5,6 +5,7 @@ import {attemptBody} from './sequence-state.js';
 import {createAttemptClient} from './continuity-attempt-client.js';
 import {mountCandidateComparison, candidateSeed} from './candidate-comparison.js';
 import {createDurationPicker} from './continuity-duration.js';
+import {positionLabel} from './sequence-positions.js';
 const byId = id => document.getElementById(id);
 const validId = id => typeof id === 'string' && /^[a-f0-9]{32}$/.test(id);
 const duration = createDurationPicker(byId('forward-length'), byId('forward-duration-hint'));
@@ -23,20 +24,46 @@ async function getJSON(url) {
   return response.json();
 }
 let activePlacement = null, canExtend = false, inFlight = false, initialized = false;
-let unconfirmed = false, referencesReady = false;
+let unconfirmed = false, referencesReady = false, selectedPosition = null;
 function updateComposer() {
   const locked=inFlight||unconfirmed;
   const open=byId('forward-open');
-  open.hidden=!active|| (!!activePlacement&&!byId('forward-form').hidden);
+  open.hidden=!!selectedPosition||!active|| (!!activePlacement&&!byId('forward-form').hidden);
+  byId('position-setup').disabled=locked;
   open.textContent=activePlacement?'Edit extension setup':'Add to sequence to extend';
   open.disabled=!active||locked;
-  byId('forward-submit').disabled=!activePlacement||!canExtend||!referencesReady||!duration.valid()||locked;
+  byId('forward-submit').disabled=!!selectedPosition||!activePlacement||!canExtend||!referencesReady||!duration.valid()||locked;
   for(const control of byId('forward-form').querySelectorAll('textarea,input,select'))control.disabled=locked;
   duration.setLocked(locked);
   for(const button of byId('forward-reference-list').querySelectorAll('button'))button.disabled=locked;
 }
 const sequence = mountSequence({onSelect: showSelection,
-  onPreview: entry => showSelection(entry,null,null), onCompose: openForward, onError: notice});
+  onPreview: entry => showSelection(entry,null,null), onCompose: openForward, onPosition:showPosition, onError: notice});
+function showPosition(position) {
+  selectedPosition=position;
+  byId('position-context').hidden=!position;
+  if(position) {
+    byId('forward-form').hidden=true;
+    const placements=sequence.state().placements;
+    const take=id=>placements.find(p=>p.placement_id===id)?.take_id.slice(0,8);
+    byId('position-title').textContent=positionLabel(position);
+    const anchors=position.mode==='root'?'Start from references, with no existing video parent.'
+      : position.mode==='prepend'?`Create footage leading into ${take(position.right)}.`
+      : position.mode==='bridge'?`Create a connection from ${take(position.left)} to ${take(position.right)}.`
+      : `Continue from the saved state of ${take(position.left)}.`;
+    byId('position-description').textContent=anchors+(position.mode==='forward'
+      ? ' Set up the next take, then generate explicitly.'
+      : ' Native generation at this position is being integrated. You can already place a saved take here; no Extend is substituted.');
+    byId('position-setup').hidden=position.mode!=='forward';
+    (position.mode==='forward'?byId('position-setup'):byId('position-add')).focus();
+  }
+  updateComposer();
+}
+byId('position-setup').addEventListener('click',()=>{
+  try{sequence.composePosition();}catch(error){notice(error.message);}
+});
+byId('position-add').addEventListener('click',()=>sequence.addAtPosition());
+byId('position-close').addEventListener('click',()=>sequence.clearPosition());
 function showSelection(entry, placement, draft) {
   activePlacement = placement;
   canExtend = false; referencesReady = false;
@@ -45,7 +72,7 @@ function showSelection(entry, placement, draft) {
   duration.reset(draft?.raw_frames ?? null);
   // Selecting a library preview must expose setup too. Placement and generation
   // stay separate explicit actions, rather than a hidden prerequisite.
-  byId('forward-form').hidden = !entry;
+  byId('forward-form').hidden = !!selectedPosition || !entry;
   if (!entry) {
     ++epoch; active = null; video.pause(); video.removeAttribute('src'); video.load(); video.hidden = true;
     byId('native-empty').hidden = false;
@@ -351,7 +378,7 @@ byId('attempt-dismiss').addEventListener('click',()=>{
 });
 byId('forward-form').addEventListener('submit', async event => {
   event.preventDefault();
-  if(!active||!activePlacement||!canExtend||!referencesReady||!duration.valid()||inFlight||unconfirmed)return;
+  if(selectedPosition||!active||!activePlacement||!canExtend||!referencesReady||!duration.valid()||inFlight||unconfirmed)return;
   const fields=draftFields(),count=Number(byId('forward-variants').value)||1;
   const request_id=crypto.randomUUID().replace(/-/g,'');
   const frozen={take_id:active.take.take_id,after:activePlacement.placement_id,

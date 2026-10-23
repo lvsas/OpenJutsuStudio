@@ -64,6 +64,43 @@ async function environment(fetcher,search='',initialStorage={}) {
   return {elements,notices,entry,storage,events};
 }
 
+test('positions use ordered placement identities and refuse a changed gap',async()=>{
+  const app=await environment(()=>{throw Error('Position arithmetic must not fetch');});
+  const {positionsOf,resolvePosition,insertAtPosition}=await app.entry('sequence-positions.js');
+  const state={placements:[{placement_id:A,take_id:A},{placement_id:B,take_id:B}],
+    selected_placement_id:A,drafts:{[A]:{prompt:'Keep my draft',seed:'18446744073709551615',raw_frames:158}}};
+  const original=JSON.stringify(state),gaps=positionsOf(state);
+  assert.deepEqual(Array.from(gaps,p=>p.mode),['prepend','bridge','forward']);
+  for(const [index,gap] of Array.from(gaps).entries()) {
+    const next=insertAtPosition(state,A,C,gap);
+    assert.equal(next.placements[index].placement_id,C);
+    assert.equal(JSON.stringify(next.drafts[A]),JSON.stringify(state.drafts[A]));
+  }
+  assert.equal(JSON.stringify(state),original);
+  assert.throws(()=>resolvePosition({...state,placements:[...state.placements].reverse()},gaps[1]),/position changed/i);
+  assert.throws(()=>resolvePosition(state,{left:'../bad',right:null}),/current empty slot/i);
+  assert.equal(positionsOf({placements:[]})[0].mode,'root');
+});
+
+test('empty creation slot and exact drops never generate or overwrite drafts',async()=>{
+  const saved={project_id:C,title:'Positions',revision:1,placements:[{placement_id:A,take_id:A},{placement_id:B,take_id:B}],
+    selected_placement_id:A,drafts:{[A]:{prompt:'Original',seed:'18446744073709551615',raw_frames:158}}};
+  const backend=nativeBackend({saved}),app=await environment(backend.fetcher,'',{'opengenjutsu.sequence.project':C}),picked=[];
+  const {mountSequence}=await app.entry('sequence-workspace.js');
+  const seq=mountSequence({onSelect(){},onPreview(){},onCompose(){},onPosition:p=>picked.push(p),onError:assert.fail});
+  await seq.init([nativeEntry(A),nativeEntry(B)]);
+  const rail=app.elements.get('board-track');
+  assert.equal(rail.children.length,5,'three actionable positions around two retained takes');
+  await rail.children[2].children[0].click();
+  assert.equal(picked.at(-1).mode,'bridge');
+  await rail.children[0].fire('drop',{dataTransfer:{getData:()=>B}});
+  await seq.flush();
+  assert.deepEqual(Array.from(seq.state().placements,p=>p.take_id),[B,A,B]);
+  assert.equal(seq.state().drafts[A].prompt,'Original');
+  assert.equal(seq.state().drafts[A].seed,'18446744073709551615');
+  assert.equal(backend.calls.some(c=>c.url.endsWith('/attempts')),false);
+});
+
 test('native seeking/play cannot replay trimmed-away prefix; sequence still advances',async()=>{
   const app=await environment(()=>{throw Error('No network in player');});
   const {SequencePlayer}=await app.entry('timeline-player.js');
@@ -180,7 +217,7 @@ test('duration readiness locks generation, ignores stale parents and preserves a
   assert.equal(backend.saved().drafts[placement].raw_frames,158,'draft debounce not yet flushed');
   await e.get('native-takes').children[0].children[0].click();await flush();
   assert.equal(e.get('forward-length').disabled,true,'no static choices while checking');
-  await e.get('board-track').children[0].children[0].click();await flush();
+  await e.get('board-track').children[1].children[0].click();await flush();
   assert.equal(e.get('forward-length').value,'175');
   late.resolve(response({verified:true,extend:true,duration_options:[{raw_frames:158,seconds:5.125}]}));await flush();
   assert.equal(e.get('forward-length').value,'175','late response from A cannot rewrite B');
@@ -245,8 +282,8 @@ test('library remains usable for multiple placements, returning to drafts and re
   e.get('forward-seed').value='18446744073709551615';await e.get('forward-seed').fire('input');
   await e.get('native-takes').children[1].children[1].click();await flush();
   assert.equal(e.get('native-library').hidden,false);
-  assert.equal(e.get('board-track').children.length,3,'two placements and one order gap');
-  await e.get('board-track').children[0].children[0].click();await flush();
+  assert.equal(e.get('board-track').children.length,5,'two placements and three creation positions');
+  await e.get('board-track').children[1].children[0].click();await flush();
   assert.equal(e.get('forward-prompt').value,'Keep draft A');
   assert.equal(e.get('forward-seed').value,'18446744073709551615');
   await e.get('native-library-close').click();
@@ -257,12 +294,12 @@ test('library remains usable for multiple placements, returning to drafts and re
   assert.equal(e.get('native-library-toggle').getAttribute('aria-expanded'),'true');
   await e.get('native-library').fire('keydown',{key:'Escape'});
   assert.equal(e.get('native-library').hidden,true);
-  await e.get('board-track').children[2].children[1].children[2].click();await flush();
-  assert.equal(e.get('board-track').children.length,1,'removal only unplaces the take');
+  await e.get('board-track').children[3].children[1].children[2].click();await flush();
+  assert.equal(e.get('board-track').children.length,3,'removal only unplaces the take');
   assert.equal(e.get('native-takes').children.length,2,'neither original was removed');
   await e.get('native-rail-add').click();
   await e.get('native-takes').children[1].children[1].click();await flush();
-  await e.get('board-track').children[0].children[0].click();await flush();
+  await e.get('board-track').children[1].children[0].click();await flush();
   assert.equal(e.get('forward-prompt').value,'Keep draft A');
   // Force and wait for the real module's debounced workspace PATCH, not a fixture save.
   await new Promise(r=>setTimeout(r,400));await flush();
@@ -271,7 +308,7 @@ test('library remains usable for multiple placements, returning to drafts and re
   await reopened.entry('continuity-studio.js');await flush();
   assert.equal(reopened.elements.get('native-library').hidden,false,'saved selection must not hide the library on entry');
   assert.equal(reopened.elements.get('forward-prompt').value,'Keep draft A');
-  assert.equal(reopened.elements.get('board-track').children.length,3);
+  assert.equal(reopened.elements.get('board-track').children.length,5);
   assert.equal(backend.calls.some(c=>c.url.endsWith('/attempts')),false);
 });
 

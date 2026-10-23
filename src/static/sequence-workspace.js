@@ -1,11 +1,13 @@
 /* Production sequence UI over the existing revisioned Timeline project store. */
 import {emptyWorkspace,addPlacement,removePlacement,movePlacement,saveDraft} from './sequence-state.js';
+import {positionsOf,resolvePosition,insertAtPosition,positionLabel} from './sequence-positions.js';
 const el=id=>document.getElementById(id);
 const uuid=()=>crypto.randomUUID().replace(/-/g,'');
 const rememberKey='opengenjutsu.sequence.project';
 const stored=key=>{try{return localStorage.getItem(key);}catch{return null;}};
 const remember=(key,value)=>{try{localStorage.setItem(key,value);}catch{/* Server remains authoritative. */}};
-export function mountSequence({onSelect,onPreview,onCompose,onError}) {
+export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},onError}) {
+  let insertionPosition=null;
   let state=emptyWorkspace(),entries=[],version=0,savedVersion=0,saving=null,timer=null,conflicted=false,previewedId=null;
   const entryFor=id=>entries.find(e=>e.take.take_id===id);
   const status=text=>{el('native-save-state').textContent=text;};
@@ -24,6 +26,10 @@ export function mountSequence({onSelect,onPreview,onCompose,onError}) {
   }
   function change(next,{select=false}={}) {
     state=next;version++;shadow();render();status('Saving…');
+    if(insertionPosition) {
+      try {resolvePosition(state,insertionPosition);}
+      catch {insertionPosition=null;onPosition(null);}
+    }
     if(select) notifySelection();
     clearTimeout(timer);timer=setTimeout(()=>flush().catch(()=>{}),350);
   }
@@ -64,6 +70,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onError}) {
       placement?state.drafts[placement.placement_id]:null);
   }
   function select(id) {
+    insertionPosition=null;onPosition(null);
     change({...state,selected_placement_id:id},{select:true});
   }
   function showLibrary(open,{focus=false}={}) {
@@ -80,7 +87,9 @@ export function mountSequence({onSelect,onPreview,onCompose,onError}) {
   }
   function add(id,afterId=null,draft=null) {
     if(!entryFor(id))return;
-    let next=addPlacement(state,id,uuid(),afterId);
+    let next=insertionPosition&&!afterId
+      ? insertAtPosition(state,id,uuid(),insertionPosition) : addPlacement(state,id,uuid(),afterId);
+    insertionPosition=null;onPosition(null);
     if(draft)next=saveDraft(next,next.selected_placement_id,draft);
     change(next,{select:true});
   }
@@ -120,10 +129,39 @@ export function mountSequence({onSelect,onPreview,onCompose,onError}) {
     }
     if(!filtered.length) {const text=document.createElement('li');text.className='microcopy';text.textContent=entries.length?'No matching takes.':'No saved native takes yet. Create a Swap in H3 Studio to get started.';container.append(text);}
   }
+  function positionSlot(position) {
+    const slot=document.createElement('li');slot.className='sequence-gap position-slot';
+    slot.dataset.mode=position.mode;
+    const open=action('',()=>{
+      insertionPosition=resolvePosition(state,position);
+      drawRail();onPosition(structuredClone(insertionPosition));
+    },'position-create');
+    open.setAttribute('aria-label',positionLabel(position));
+    open.setAttribute('aria-controls','position-context');
+    open.setAttribute('aria-pressed',String(insertionPosition?.left===position.left&&insertionPosition?.right===position.right));
+    const mark=document.createElement('span');mark.className='position-mark';mark.textContent='+';mark.setAttribute('aria-hidden','true');
+    const name=document.createElement('strong');name.textContent=positionLabel(position);
+    const hint=document.createElement('small');hint.textContent='or drop a saved take';
+    open.append(mark,name,hint);slot.append(open);
+    slot.addEventListener('dragover',event=>{event.preventDefault();slot.classList.add('is-target');});
+    slot.addEventListener('dragleave',()=>slot.classList.remove('is-target'));
+    slot.addEventListener('drop',event=>{
+      event.preventDefault();event.stopPropagation?.();slot.classList.remove('is-target');el('take-board').classList.remove('is-target');
+      try {
+        const id=event.dataTransfer.getData('text/plain');
+        if(!entryFor(id))throw new Error('Drop a saved take from Your takes.');
+        insertionPosition=resolvePosition(state,position);add(id);
+      }
+      catch(error){onError(error.message);}
+    });
+    return slot;
+  }
   function drawRail() {
     const rail=el('board-track');rail.replaceChildren();
     el('native-rail-empty').hidden=state.placements.length>0;
     el('board-hint').textContent=state.placements.length?`${state.placements.length} chosen takes · order is yours`:'Nothing is added automatically';
+    const positions=positionsOf(state);
+    rail.append(positionSlot(positions[0]));
     state.placements.forEach((placement,index)=>{
       const entry=entryFor(placement.take_id),slot=document.createElement('li');slot.className='sequence-slot';
       slot.dataset.placementId=placement.placement_id;
@@ -141,10 +179,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onError}) {
       const remove=action('Remove',()=>change(removePlacement(state,placement.placement_id),{select:true}));
       remove.setAttribute('aria-label',`Remove ${entry?label(entry):'take'} from sequence only`);
       tools.append(previous,next,remove);slot.append(card,tools);rail.append(slot);
-      if(index<state.placements.length-1) {
-        const gap=document.createElement('li');gap.className='sequence-gap';gap.setAttribute('aria-label','Sequence order only, not a generated bridge');
-        gap.textContent='···';gap.title='Placed in sequence. This does not establish a generated connection.';rail.append(gap);
-      }
+      rail.append(positionSlot(positions[index+1]));
     });
   }
   function render() {
@@ -159,7 +194,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onError}) {
     picker.value=state.project_id||'';
   }
   async function load(id) {
-    state=await api(`/projects/${id}/native-workspace`);version=0;savedVersion=0;conflicted=false;
+    state=await api(`/projects/${id}/native-workspace`);version=0;savedVersion=0;conflicted=false;insertionPosition=null;onPosition(null);
     remember(rememberKey,id);status('Saved');el('native-reload').hidden=true;render();notifySelection();
   }
   el('native-library-toggle').addEventListener('click',()=>{
@@ -176,6 +211,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onError}) {
   });
   el('native-new-sequence').addEventListener('click',async()=>{
     try {await flush();state=emptyWorkspace();version=0;savedVersion=0;conflicted=false;
+      insertionPosition=null;onPosition(null);
       remember(rememberKey,'');render();notifySelection();status('Not started');
       showLibrary(true);}
     catch(error){onError(error.message);}
@@ -212,6 +248,13 @@ export function mountSequence({onSelect,onPreview,onCompose,onError}) {
     },
     refresh(items){entries=items;render();},
     state:()=>structuredClone(state), selected,
+    clearPosition(){insertionPosition=null;onPosition(null);render();notifySelection();},
+    addAtPosition(){showLibrary(true,{focus:true});},
+    composePosition(){
+      const gap=resolvePosition(state,insertionPosition);
+      if(gap.mode!=='forward')throw new Error('This native operation is not available in the composer yet.');
+      select(gap.left);onCompose(entryFor(selected().take_id),selected());
+    },
     draft(){const p=selected();return p?state.drafts[p.placement_id]:null;},
     setDraft(changes){const p=selected();if(p)change(saveDraft(state,p.placement_id,changes));},
     flush,

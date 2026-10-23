@@ -82,19 +82,29 @@ def create_router(get_work_dir: Callable[[], Path]) -> APIRouter:
             family = get_validated_family(work, take_id)
         except (FileNotFoundError, ValueError, OSError):
             return JSONResponse({'verified': False, 'extend': False,
+                'duration_options': [],
                 'reason': 'The saved state could not be verified. No generation will start.'}, headers=_PRIVATE)
         context = family.record.to_manifest()['family']['context']
-        from h3_av_state import AVStateError, UNCONTINUABLE_TAKE, state_from_family, tail_fits
+        from h3_av_state import (AVStateError, UNCONTINUABLE_TAKE, state_from_family,
+                                 tail_fits, requested_lengths, FORWARD_HEAD, FPS)
         try:
             state = state_from_family(family)
         except (AVStateError, OSError, ValueError):
             state = None
-        if state is not None and not tail_fits(state):
-            return JSONResponse({'verified': True, 'extend': False,
+        if state is None:
+            return JSONResponse({'verified': True, 'extend': False, 'duration_options': [],
+                'reason': 'The saved audio timing could not be checked. Choose another take; '
+                          'the original is unchanged.'}, headers=_PRIVATE)
+        if not tail_fits(state):
+            return JSONResponse({'verified': True, 'extend': False, 'duration_options': [],
                 'reason': UNCONTINUABLE_TAKE}, headers=_PRIVATE)
-        available = context['delivered_frames'] >= 39 and context['fps'] == 24
-        return JSONResponse({'verified': True, 'extend': available,
-            'reason': None if available else 'Extend needs at least 39 delivered frames at 24 fps.'}, headers=_PRIVATE)
+        available = context['delivered_frames'] >= 39 and context['fps'] == FPS
+        options = [{'raw_frames': raw, 'seconds': (raw - FORWARD_HEAD) / FPS}
+                   for raw in requested_lengths(state)] if available else []
+        return JSONResponse({'verified': True, 'extend': bool(options),
+            'duration_options': options,
+            'reason': None if options else 'Extend needs at least 1.7 s of delivered footage '
+                                          'at 24 fps.'}, headers=_PRIVATE)
 
     @router.get('/{take_id}/media')
     def media(take_id: TakeId, download: bool = False):

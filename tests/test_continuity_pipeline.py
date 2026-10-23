@@ -39,7 +39,7 @@ class NativeParentTests(unittest.TestCase):
     def test_refuses_a_take_too_short_to_carry_the_pin_window(self):
         # 21 delivered frames is exactly what a 39-frame tail pin produces; it
         # cannot be used as the next parent without inventing context.
-        with self.assertRaisesRegex(ValueError, f'at least {PIN_WINDOW}'):
+        with self.assertRaisesRegex(ValueError, 'at least 1.625 s'):
             native_parent(TAKE, family(delivered=PIN_WINDOW - 1), models=MODELS, clip='x/take.mp4')
 
     def test_refuses_a_non_24fps_take(self):
@@ -70,7 +70,7 @@ class SubmitForwardOrderingTests(unittest.TestCase):
 
     def test_a_take_below_the_pin_window_costs_no_upload_and_no_submission(self):
         client = MagicMock()
-        with self.assertRaisesRegex(ValueError, f'at least {PIN_WINDOW}'):
+        with self.assertRaisesRegex(ValueError, 'at least 1.625 s'):
             self.submit(client, delivered=PIN_WINDOW - 1)
         client.assets.from_file.assert_not_called()
         client.run.assert_not_called()
@@ -190,7 +190,7 @@ class ParentContextShapeTests(unittest.TestCase):
 
         measured = types.SimpleNamespace(to_manifest=lambda: {'context': {
             'width': 960, 'height': 544, 'delivered_frames': 20, 'fps': 24}})
-        with self.assertRaisesRegex(ValueError, 'tail pin'):
+        with self.assertRaisesRegex(ValueError, 'extending needs'):
             pipeline.parent_context(types.SimpleNamespace(artifacts=measured))
 
 

@@ -61,6 +61,8 @@
 .forward-field{display:flex;flex-direction:column;gap:.35rem;font-size:.8rem;letter-spacing:.02em}
 .forward-field>span{color:var(--muted,#9aa0b4);text-transform:uppercase;font-size:.68rem;letter-spacing:.08em}
 .forward-direction{grid-column:1/-1}
+.forward-duration-hint{grid-column:1/-1;margin:0;line-height:1.4}
+#forward-length{min-height:44px;min-width:0;max-width:100%}
 .forward-form textarea,.forward-form select,.forward-form input{
   width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);
   border-radius:.6rem;padding:.6rem .7rem;color:inherit;font:inherit;font-size:.92rem}

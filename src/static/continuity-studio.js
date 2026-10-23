@@ -4,8 +4,10 @@ import {mountSequence} from './sequence-workspace.js';
 import {attemptBody} from './sequence-state.js';
 import {createAttemptClient} from './continuity-attempt-client.js';
 import {mountCandidateComparison, candidateSeed} from './candidate-comparison.js';
+import {createDurationPicker} from './continuity-duration.js';
 const byId = id => document.getElementById(id);
 const validId = id => typeof id === 'string' && /^[a-f0-9]{32}$/.test(id);
+const duration = createDurationPicker(byId('forward-length'), byId('forward-duration-hint'));
 let entries = [], active = null, epoch = 0, loading = false;
 const video = byId('native-video');
 const capsule = byId('native-capsule');
@@ -28,8 +30,9 @@ function updateComposer() {
   open.hidden=!active|| (!!activePlacement&&!byId('forward-form').hidden);
   open.textContent=activePlacement?'Edit extension setup':'Add to sequence to extend';
   open.disabled=!active||locked;
-  byId('forward-submit').disabled=!activePlacement||!canExtend||!referencesReady||locked;
+  byId('forward-submit').disabled=!activePlacement||!canExtend||!referencesReady||!duration.valid()||locked;
   for(const control of byId('forward-form').querySelectorAll('textarea,input,select'))control.disabled=locked;
+  duration.setLocked(locked);
   for(const button of byId('forward-reference-list').querySelectorAll('button'))button.disabled=locked;
 }
 const sequence = mountSequence({onSelect: showSelection,
@@ -39,7 +42,7 @@ function showSelection(entry, placement, draft) {
   canExtend = false; referencesReady = false;
   byId('forward-prompt').value = draft?.prompt || '';
   byId('forward-seed').value = draft?.seed || '';
-  byId('forward-length').value = String(draft?.raw_frames || 277);
+  duration.reset(draft?.raw_frames ?? null);
   // Selecting a library preview must expose setup too. Placement and generation
   // stay separate explicit actions, rather than a hidden prerequisite.
   byId('forward-form').hidden = !entry;
@@ -75,7 +78,7 @@ function choose(entry) {
   ++epoch; active = entry; notice();
   const token = epoch, record = entry.take, context = record.family.context;
   byId('native-title').textContent = `Take ${record.take_id.slice(0,8)}`;
-  byId('native-geometry').textContent = `${context.width} × ${context.height} · ${context.delivered_frames} frames · ${context.fps} fps`;
+  byId('native-geometry').textContent = `${context.width} × ${context.height} · ${(context.delivered_frames/context.fps).toFixed(1)} s · ${context.fps} fps`;
   byId('native-state').textContent = 'Checking saved state…';
   byId('native-lineage').textContent = record.lineage.parent_id
     ? `${record.lineage.relation || 'Derived'} · native source ${record.lineage.parent_id.slice(0,12)}…`
@@ -94,11 +97,12 @@ function choose(entry) {
   getJSON(`/api/continuity/takes/${record.take_id}/readiness`).then(result => {
     if (epoch !== token) return;
     canExtend = !!result.extend;
+    duration.ready(result);
     byId('native-state').textContent = result.verified ? 'Saved state verified · original files preserved' : 'Saved state could not be verified';
     byId('native-readiness').textContent = result.reason || (activePlacement
       ? 'Ready · saved state verified.' : 'Add to your sequence to extend.');
     updateComposer();
-  }).catch(error => {if(epoch===token){byId('native-readiness').textContent=error.message;}});
+  }).catch(error => {if(epoch===token){duration.unavailable();byId('native-readiness').textContent=error.message;updateComposer();}});
   loadReferences(record.take_id);
 }
 async function refresh() {
@@ -238,6 +242,7 @@ const draftFields = () => ({
 });
 for (const id of ['forward-prompt', 'forward-seed', 'forward-length']) {
   byId(id).addEventListener('input', () => {
+    updateComposer();
     if (!activePlacement || inFlight) return;
     try { sequence.setDraft(draftFields()); } catch { /* placement changed under the draft */ }
   });
@@ -337,7 +342,7 @@ byId('attempt-dismiss').addEventListener('click',()=>{
 });
 byId('forward-form').addEventListener('submit', async event => {
   event.preventDefault();
-  if(!active||!activePlacement||!canExtend||!referencesReady||inFlight||unconfirmed)return;
+  if(!active||!activePlacement||!canExtend||!referencesReady||!duration.valid()||inFlight||unconfirmed)return;
   const fields=draftFields(),count=Number(byId('forward-variants').value)||1;
   const request_id=crypto.randomUUID().replace(/-/g,'');
   const frozen={take_id:active.take.take_id,after:activePlacement.placement_id,

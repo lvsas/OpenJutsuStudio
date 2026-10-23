@@ -61,7 +61,8 @@ class ChildProjectionTests(unittest.TestCase):
             require_continuable_child(root, 362)
         message = str(caught.exception)
         self.assertIn('not submitted', message)
-        self.assertIn('frames', message)
+        self.assertNotIn('frames', message)
+        self.assertIn(' s', message)
 
     def test_refusal_names_reachable_lengths_for_that_parent(self):
         root = AVState(362, 0, 362, audio_ticks(362), Fraction(0))
@@ -70,6 +71,14 @@ class ChildProjectionTests(unittest.TestCase):
         self.assertNotIn(362, safe)
         for raw in safe[:5]:
             self.assertTrue(tail_fits(child_state(root, raw)))
+
+    def test_an_audio_fitting_child_still_needs_enough_delivered_footage(self):
+        short = child_state(PARENT_OK, 56)
+        self.assertEqual(short.delivered_frames, 21)
+        self.assertFalse(tail_fits(short))
+        with self.assertRaises(UncontinuableLength):
+            require_continuable_child(PARENT_OK, 56)
+        self.assertTrue(all(raw - 35 >= 39 for raw in requested_lengths(PARENT_OK)))
 
     def test_an_unusable_parent_is_reported_as_such(self):
         with self.assertRaises(AVStateError):

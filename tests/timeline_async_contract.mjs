@@ -142,8 +142,8 @@ function nativeBackend({saved=null,extra=null}={}) {
   const fetcher=async(url,options={})=>{
     calls.push({url,method:options.method||'GET',body:options.body});
     if(url==='/api/continuity/takes')return response({takes:[nativeEntry(A),nativeEntry(B)]});
-    if(url.endsWith('/readiness'))return response({verified:true,extend:true,reason:null});
     if(extra){const value=await extra(url,options);if(value)return value;}
+    if(url.endsWith('/readiness'))return response({verified:true,extend:true,reason:null,duration_options:[{raw_frames:158,seconds:5.125},{raw_frames:226,seconds:191/24},{raw_frames:277,seconds:242/24},{raw_frames:328,seconds:293/24},{raw_frames:396,seconds:361/24}]});
     if(url.endsWith('/references'))return response({references:[{index:1}]});
     if(url==='/api/timeline/projects'&&options.method==='POST') {
       current={project_id:C,title:JSON.parse(options.body).title,revision:0,
@@ -158,6 +158,63 @@ function nativeBackend({saved=null,extra=null}={}) {
   };
   return {fetcher,calls,saved:()=>current};
 }
+test('duration readiness locks generation, ignores stale parents and preserves an incompatible draft',async()=>{
+  const late=deferred();
+  const placement='1'.repeat(32);
+  const saved={project_id:C,title:'Saved',revision:1,placements:[{placement_id:placement,take_id:B}],
+    selected_placement_id:placement,drafts:{[placement]:{prompt:'Saved direction',seed:'7',raw_frames:158}}};
+  const backend=nativeBackend({saved,extra:async url=>{
+    if(url===`/api/continuity/takes/${A}/readiness`)return late.promise;
+    if(url===`/api/continuity/takes/${B}/readiness`)return response({verified:true,extend:true,
+      duration_options:[{raw_frames:175,seconds:140/24},{raw_frames:277,seconds:242/24}]});
+  }});
+  const app=await environment(backend.fetcher,'',{'opengenjutsu.sequence.project':C});
+  await app.entry('continuity-studio.js');await flush();const e=app.elements;
+  assert.equal(e.get('forward-length').value,'158','never silently change a saved incompatible length');
+  assert.equal(e.get('forward-submit').disabled,true);
+  assert.match(e.get('forward-duration-hint').textContent,/choose/i);
+  await e.get('forward-form').fire('submit');await flush();
+  assert.equal(backend.calls.some(c=>c.url.endsWith('/attempts')),false);
+  e.get('forward-length').value='175';await e.get('forward-length').fire('input');
+  assert.equal(e.get('forward-submit').disabled,false);
+  assert.equal(backend.saved().drafts[placement].raw_frames,158,'draft debounce not yet flushed');
+  await e.get('native-takes').children[0].children[0].click();await flush();
+  assert.equal(e.get('forward-length').disabled,true,'no static choices while checking');
+  await e.get('board-track').children[0].children[0].click();await flush();
+  assert.equal(e.get('forward-length').value,'175');
+  late.resolve(response({verified:true,extend:true,duration_options:[{raw_frames:158,seconds:5.125}]}));await flush();
+  assert.equal(e.get('forward-length').value,'175','late response from A cannot rewrite B');
+  assert.equal(e.get('forward-prompt').value,'Saved direction');
+  assert.equal(backend.calls.some(c=>c.url.endsWith('/attempts')),false);
+});
+
+test('duration picker preserves non-preset saved choices and fails closed on malformed readiness',async()=>{
+  const app=await environment(()=>{throw Error('Picker must not fetch');});
+  const {createDurationPicker}=await app.entry('continuity-duration.js');
+  const e=app.elements, select=e.get('forward-length');
+  const picker=createDurationPicker(select,e.get('forward-duration-hint'));
+  const options=[{raw_frames:175,seconds:140/24},{raw_frames:243,seconds:208/24},{raw_frames:277,seconds:242/24}];
+  picker.reset(243);picker.ready({extend:true,duration_options:options});
+  assert.equal(select.value,'243');assert.equal(picker.valid(),true);
+  assert.ok(select.children.some(o=>o.value==='243'));
+  picker.setLocked(true);assert.equal(select.disabled,true);
+  picker.setLocked(false);assert.equal(select.disabled,false);
+  picker.reset();picker.ready({extend:true,duration_options:options});
+  assert.equal(select.value,'277','only a new draft gets the nearest default');
+  picker.ready({extend:true,duration_options:[{raw_frames:158,seconds:'5'}]});
+  assert.equal(select.disabled,true);assert.equal(picker.valid(),false);
+});
+
+test('readiness failure never leaves a previous duration enabled',async()=>{
+  const backend=nativeBackend({extra:async url=>url.endsWith('/readiness')?new Response('{}',{status:503}):null});
+  const app=await environment(backend.fetcher);await app.entry('continuity-studio.js');await flush();
+  const e=app.elements;await e.get('native-takes').children[0].children[1].click();await flush();
+  assert.equal(e.get('forward-length').disabled,true);
+  assert.equal(e.get('forward-submit').disabled,true);
+  assert.match(e.get('forward-duration-hint').textContent,/unavailable/i);
+  assert.equal(backend.calls.some(c=>c.url.endsWith('/attempts')),false);
+});
+
 test('library preview exposes direction and references; placement is explicit and never generates',async()=>{
   const backend=nativeBackend(),app=await environment(backend.fetcher);
   await app.entry('continuity-studio.js');await flush();

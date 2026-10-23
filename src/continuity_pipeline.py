@@ -64,7 +64,7 @@ def parent_context(artifacts):
     delivered = context['delivered_frames']
     if delivered < PIN_WINDOW:
         raise ValueError(
-            f'This take delivers {delivered} frames; a tail pin needs at least {PIN_WINDOW}')
+            f'This take delivers {delivered / 24:.1f} s; extending needs at least {PIN_WINDOW / 24:.3f} s')
     if context['fps'] != 24:
         raise ValueError('Native continuation currently requires a 24 fps take')
     state = state_from_family(artifacts)

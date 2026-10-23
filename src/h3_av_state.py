@@ -37,12 +37,11 @@ FORWARD_HEAD = 35                                     # frames the pin removes
 PHASE_SCALE = 1_000_000                               # the saver stores six decimals
 
 UNCONTINUABLE_TAKE = (
-    'This take cannot be continued: its saved audio ends one step short of the '
-    'window the continuation needs. It is unchanged; start from another take.')
+    'This take cannot be continued: its saved footage or audio timing cannot supply '
+    'the handover the next take needs. It is unchanged; start from another take.')
 UNCONTINUABLE_LENGTH = (
-    'A take of {requested} frames could not be continued afterwards: its saved '
-    'audio grid cannot supply the next window. It was not submitted. '
-    'Lengths that stay continuable here: {options}.')
+    'An extension of about {requested} s could not be continued afterwards. '
+    'It was not submitted. Compatible new footage here: {options}.')
 
 
 class AVStateError(ValueError):
@@ -85,6 +84,8 @@ def tail_window(state: AVState, window: int = WINDOW) -> tuple[int, int, int, in
 
 
 def tail_fits(state: AVState, window: int = WINDOW) -> bool:
+    if state.delivered_frames < window:
+        return False
     start, _, wanted, available = tail_window(state, window)
     return start >= 0 and wanted == window * 5 // 3 and available == wanted
 
@@ -129,8 +130,9 @@ def require_continuable_child(parent: AVState, requested_raw: int,
     options = requested_lengths(parent, window)
     nearest = sorted(options, key=lambda raw: (abs(raw - requested_raw), raw))[:3]
     raise UncontinuableLength(UNCONTINUABLE_LENGTH.format(
-        requested=requested_raw, options=', '.join(f'{raw} frames' for raw in nearest)
-        or 'none on this native grid'))
+        requested=f'{max(0, requested_raw - FORWARD_HEAD) / FPS:.1f}',
+        options=', '.join(f'{(raw - FORWARD_HEAD) / FPS:.1f} s' for raw in nearest)
+        or 'none for this take'))
 
 
 def state_from_header(header) -> AVState:

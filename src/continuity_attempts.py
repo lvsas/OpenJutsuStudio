@@ -176,11 +176,25 @@ def create_or_get(root, *, take_id: str, prompt: str, raw_frames: int, seeds,
         return attempt, True
 
 
+def _public_error(error):
+    if error is None:
+        return None
+    messages = {
+        'No candidate completed.',
+        'A candidate outcome is unknown; explicit operation recovery is required.',
+        'The server interrupted preparation or queued work; nothing was automatically restarted.',
+        'Submission outcome unknown; not resubmitted.',
+        'Not started before the server interruption.',
+    }
+    return error if isinstance(error, str) and error in messages else (
+        'This generation step could not finish. Check the saved attempt before starting another.')
+
+
 def public(attempt: dict) -> dict:
     return {'attempt_id': attempt['attempt_id'], 'take_id': attempt['take_id'],
-            'status': attempt['status'], 'error': attempt['error'],
+            'status': attempt['status'], 'error': _public_error(attempt['error']),
             'candidates': [{'seed': c['seed'], 'status': c['status'],
-                            'take_id': c['take_id'], 'error': c['error'],
+                            'take_id': c['take_id'], 'error': _public_error(c['error']),
                             'url': (f"/api/continuity/takes/{c['take_id']}" if c['take_id'] else None)}
                            for c in attempt['candidates']]}
 

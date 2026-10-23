@@ -365,7 +365,10 @@ test('recovered candidates preview without changing draft or sequence; Keep uses
   assert.equal(e.get('forward-prompt').value,'Original draft');assert.equal(e.get('native-library').hidden,false);
   // Selection can change independently; Keep must still insert after the frozen placement.
   await e.get('native-takes').children[1].children[1].click();await flush();
+  e.get('forward-variants').value='2';
   await find(row,'Keep').click();await flush();
+  assert.equal(e.get('forward-form').hidden,false,'Keep must expose the chosen state as the next creative starting point');
+  assert.equal(e.get('forward-variants').value,'1','a new continuation must not silently repeat the previous hunt');
   assert.deepEqual(backend.saved().placements.map(p=>p.take_id),[A,B,B]);
   assert.equal(e.get('candidate-video').src,'');assert.equal(e.get('candidate-tray').hidden,true);
   assert.equal(e.get('native-takes').children.length,2,'alternatives stay in library');

@@ -93,12 +93,12 @@ def _hunt_refine(prompt, take_id):
 
 
 def _hunt_submit(operation_id, refined, seed, raw_frames, take_id):
-    from continuity_requests import ForwardRequest
+    from continuity_requests import PreparedH3Request
     import uuid as _uuid
     client = make_client()
     paths = parent_references(core.WORK, take_id)
     references = [client.assets.from_file(path).as_reference() for path in paths]
-    request = ForwardRequest(request_id=_uuid.uuid4().hex, prompt=refined,
+    request = PreparedH3Request(request_id=_uuid.uuid4().hex, prompt=refined,
                              seed=seed, raw_frames=raw_frames)
     view = submit_forward(core.WORK, take_id, request, client=client,
                           models=_continuity_models(), references=references,

@@ -18,7 +18,7 @@ import continuity_context
 from continuable_take import get_take
 from continuable_take_api import TakeId
 from continuity_pipeline import preflight_continuation, submit_forward
-from continuity_requests import ForwardRequest
+from continuity_requests import ForwardRequest, PreparedH3Request
 from h3_prompt_generator import build_prompt_graph, read_prompt_text
 from continuity_context import MAX_BYTES, context_references
 
@@ -113,7 +113,7 @@ def make_forward_runner(*, client_factory, models_factory, fingerprint, work_roo
         # The operator writes natural language; the refiner turns it into the
         # six-section H3 prompt, reading the references it is handed.
         refined = refine_prompt(client, request.prompt, references)
-        request = request.model_copy(update={'prompt': refined})
+        request = PreparedH3Request.model_validate(request.model_dump() | {'prompt': refined})
         return submit_forward(work, take_id, request, client=client,
                               models=models, references=references,
                               target_fingerprint=fingerprint, work_root=work_root,

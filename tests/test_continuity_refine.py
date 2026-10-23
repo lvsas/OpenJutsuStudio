@@ -15,12 +15,8 @@ DIRECTION = 'She keeps walking, then slows down and looks over her shoulder.'
 REFINED = 'subject_definitions:\n<Subject 1> is the character in <Picture 1>...'
 
 
-class FakeRequest:
-    def __init__(self, **values):
-        self.__dict__.update(values)
-
-    def model_copy(self, update):
-        return FakeRequest(**dict(self.__dict__, **update))
+# Exercise the real strict browser request before its private prepared variant.
+from continuity_requests import ForwardRequest as FakeRequest
 
 
 def fake_client():
@@ -58,7 +54,7 @@ class PumpTests(unittest.TestCase):
              patch.object(api, 'refine_prompt') as refine, \
              patch.object(api, 'submit_forward') as submit:
             with self.assertRaises(TargetMissingDependencies):
-                runner('/work', 'b' * 32, FakeRequest(prompt=DIRECTION, raw_frames=158))
+                runner('/work', 'b' * 32, FakeRequest(request_id='a' * 32, prompt=DIRECTION, seed=7, raw_frames=158))
         client_factory.assert_not_called()
         refine.assert_not_called()
         submit.assert_not_called()
@@ -102,7 +98,7 @@ class PumpTests(unittest.TestCase):
              patch.object(api, 'submit_forward', return_value={'take_id': 'f' * 32}) as submit:
             self.runner(fake_client())(
                 '/work', 'b' * 32,
-                FakeRequest(prompt=DIRECTION, seed=7, raw_frames=158))
+                FakeRequest(request_id='a' * 32, prompt=DIRECTION, seed=7, raw_frames=158))
         self.assertEqual(refine.call_args.args[2], [])
         self.assertEqual(submit.call_args.kwargs['references'], [])
         self.assertEqual(submit.call_args.kwargs['reference_paths'], [])

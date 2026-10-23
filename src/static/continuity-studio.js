@@ -292,7 +292,13 @@ function drawCandidates(view, frozen) {
         try {
           const placed = await sequence.insertResult(candidate.take_id, frozen.project_id, frozen.after);
           forwardState(placed || 'Return to the original saved sequence to keep this candidate.');
-          if (placed) { attemptClient.dismiss();comparison.clear();tray.hidden = true;closeForward(); }
+          if (placed) {
+            attemptClient.dismiss();comparison.clear();tray.hidden = true;
+            byId('forward-variants').value = '1';
+            byId('forward-form').hidden = false;updateComposer();
+            forwardState('Kept in your sequence. What happens next? Your next generation starts with one take.');
+            byId('forward-prompt').focus();
+          }
           else keep.disabled=false;
         } catch (error) { forwardState(error.message); keep.disabled = false; }
       });

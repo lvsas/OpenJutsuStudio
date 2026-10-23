@@ -84,6 +84,12 @@ def create_router(get_work_dir: Callable[[], Path]) -> APIRouter:
             return JSONResponse({'verified': False, 'extend': False,
                 'reason': 'The saved state could not be verified. No generation will start.'}, headers=_PRIVATE)
         context = family.record.to_manifest()['family']['context']
+        from h3_audio_boundary import IncompatibleAudioBoundary, require_family_masked_tail
+        try:
+            require_family_masked_tail(family)
+        except IncompatibleAudioBoundary as exc:
+            return JSONResponse({'verified': True, 'extend': False,
+                'reason': str(exc)}, headers=_PRIVATE)
         available = context['delivered_frames'] >= 39 and context['fps'] == 24
         return JSONResponse({'verified': True, 'extend': available,
             'reason': None if available else 'Extend needs at least 39 delivered frames at 24 fps.'}, headers=_PRIVATE)

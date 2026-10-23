@@ -19,6 +19,7 @@ from continuity_jobs import create_operation, execute_operation
 from h3_artifact_transport import download_h3_artifacts
 from h3_continuity_graphs import H3ContinuityModels, NativeH3Parent, PIN_WINDOW
 from h3_family_graphs import build_restage_graph, read_clip_handle
+from h3_audio_boundary import require_family_masked_tail
 from h3_latent_graphs import PREFLIGHT_CLIP, build_latent_continuity
 from readiness import missing_dependencies
 
@@ -58,6 +59,7 @@ def parent_context(artifacts):
             f'This take delivers {delivered} frames; a tail pin needs at least {PIN_WINDOW}')
     if context['fps'] != 24:
         raise ValueError('Native continuation currently requires a 24 fps take')
+    require_family_masked_tail(artifacts)
     return context
 
 

@@ -22,7 +22,7 @@ _ID = re.compile(r'[0-9a-f]{32}\Z')
 _HASH = re.compile(r'[0-9a-f]{64}\Z')
 _LOCK = threading.RLock()
 _RUN_LOCK = threading.Lock()
-_MODES = {'swap': 0, 'root': 0, 'forward': 1, 'reverse': 1, 'bridge': 2, 'refine': 1}
+_MODES = {'swap': 0, 'root': 0, 'forward': 1, 'reverse': 1, 'prepend': 1, 'bridge': 2, 'refine': 1}
 _STATUSES = {'queued', 'submitting', 'waiting', 'collecting', 'done', 'uncertain', 'error'}
 
 

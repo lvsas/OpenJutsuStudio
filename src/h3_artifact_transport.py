@@ -12,16 +12,51 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import tempfile
 
 from comfy_sdk.outputs import Output
 from comfy_transport import _publish_directory
 from timeline_artifacts import H3ArtifactSet, validate_h3_artifact_set
+from safetensor_header import decode_json_bytes
 
 _SUFFIXES = {'video': '.mp4', 'mctx': '.mctx.safetensors',
              'conditioning': '.cond.safetensors'}
 _DEFAULT_MAX = {role: 512 * 1024 * 1024 for role in _SUFFIXES}
 _NODE = re.compile(r'(?:\d+|\d+:\d+|[A-Za-z_][A-Za-z0-9_]*)\Z')
+
+
+def revalidate_downloaded_h3_artifacts(job, node_id: str, folder: str | Path) -> H3ArtifactSet:
+    """Reuse a complete local download only for its recorded SDK job and node.
+
+    No download, replacement or deletion occurs. Legacy unassociated manifests
+    fail closed. The caller owns the stable destination/ancestors, as in download.
+    """
+    folder = Path(folder)
+    if folder.is_symlink() or job.status != 'succeeded':
+        raise ValueError('The retained SDK family cannot be reused safely')
+    fd = os.open(folder / 'manifest.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise ValueError('The retained SDK manifest must be a regular file')
+        data = stream.read(65537)
+    if len(data) > 65536:
+        raise ValueError('The retained SDK manifest is too large')
+    manifest = decode_json_bytes(data)
+    if (not isinstance(manifest, dict) or manifest.get('sdk_source') !=
+            {'job_id': job.id, 'node_id': node_id}):
+        raise ValueError('The retained SDK family has no matching job/node association')
+    manifest = {key: value for key, value in manifest.items() if key != 'sdk_source'}
+    try:
+        hashes = {role: manifest['assets'][role]['sha256'] for role in _SUFFIXES}
+    except (KeyError, TypeError) as exc:
+        raise ValueError('The retained SDK manifest is incomplete') from exc
+    inspected = validate_h3_artifact_set(
+        **{role: folder / ('take' + suffix) for role, suffix in _SUFFIXES.items()},
+        root=folder, expected_sha256=hashes)
+    if inspected.to_manifest() != manifest:
+        raise ValueError('The retained SDK family differs from its download manifest')
+    return inspected
 
 
 class _LimitedWriter:
@@ -105,8 +140,9 @@ def download_h3_artifacts(job, node_id: str, folder: str | Path, *,
             paths[role] = path
         inspected = validate_h3_artifact_set(**paths, root=staging,
                                               expected_sha256=expected_sha256)
+        manifest = inspected.to_manifest() | {'sdk_source': {'job_id': job.id, 'node_id': node_id}}
         (staging / 'manifest.json').write_text(
-            json.dumps(inspected.to_manifest(), indent=2, sort_keys=True) + '\n')
+            json.dumps(manifest, indent=2, sort_keys=True) + '\n')
         _publish_directory(staging, destination)
         return inspected
     finally:

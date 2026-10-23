@@ -60,6 +60,22 @@ class OperationTests(unittest.TestCase):
                          {'idempotency_key': 'opengenjutsu-native-' + self.op})
         self.collect.assert_called_once()
 
+    def test_prepend_and_bridge_keep_modes_and_ordered_parents_on_durable_resume(self):
+        for op, mode, parents in (('d' * 32, 'prepend', ('1' * 32,)),
+                                  ('e' * 32, 'bridge', ('1' * 32, '2' * 32))):
+            jobs.create_operation(self.root, op, graph=self.graph, mode=mode, seed=41,
+                                  parents=parents, target_fingerprint=self.target)
+            stored = jobs._read(jobs._path(self.root, op))
+            self.assertEqual(stored['intent']['parents'], list(parents))
+            first = jobs.execute_operation(self.root, op, self.client,
+                target_fingerprint=self.target, collect=self.collect)
+            second = jobs.execute_operation(self.root, op, self.client,
+                target_fingerprint=self.target, collect=self.collect)
+            self.assertEqual(first, second)
+            self.assertEqual(first['mode'], mode)
+            self.assertEqual(first['status'], 'done')
+        self.assertEqual(self.client.submit.call_count, 2, 'one submit per operation, not per resume')
+
     def test_ambiguous_submit_stops_second_post_with_same_durable_key(self):
         self.client.submit.side_effect = TimeoutError('PRIVATE URL secret')
         for _ in range(2):

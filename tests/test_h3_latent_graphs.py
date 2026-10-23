@@ -1,6 +1,9 @@
 """Every binding of the adopted template is applied, or the compile fails."""
+import copy
+import hashlib
 import json
 import sys
+from unittest import mock
 from dataclasses import dataclass
 from pathlib import Path
 import unittest
@@ -134,6 +137,227 @@ class LatentGraphTests(unittest.TestCase):
         g = build()
         self.assertNotIn('native_family', g)
         self.assertNotIn('native_clip_handle', g)
+
+
+class BoundedTopologyTests(unittest.TestCase):
+    def verify(self, graph, mode='forward', second_parent_clip=None):
+        latent._verify(graph, 1280, 704, 158, 42, 'Continue this shot: she walks.',
+                       [REF1], OP, mode=mode, parent_clip='genjutsu/take.mp4',
+                       second_parent_clip=second_parent_clip)
+
+    def test_forward_bytes_match_pre_change_compiler(self):
+        # SHA256(json.dumps(graph, allow_nan=False)) captured by executing
+        # git show 578109c:src/h3_latent_graphs.py, not the modified compiler.
+        fixtures = [
+            (1, False, 158, 42, 1280, 704,
+             'bad3a3a53cb47b700f4388308b8a2bc6aab6027ac8ae82711ef99489b1864c0c'),
+            (2, True, 362, 2**64 - 1, 1312, 736,
+             '35ceffe2fb92b39907125d919312c005c3481503aa2a63130db6d8bbe68aa67c'),
+            (3, False, 56, 0, 704, 1280,
+             '318dab743e0c7efd2c97a0e44b38c68b8f294ba9478cb96727f260c578b480da'),
+        ]
+        for count, publish, frames, seed, width, height, digest in fixtures:
+            refs = [{'__type': 'core/ASSET', 'info': {'id': f'ref-{i}'}}
+                    for i in range(count)]
+            args = dict(references=refs, publish_family=publish, raw_frames=frames,
+                        seed=seed, width=width, height=height)
+            implicit = json.dumps(build(**args), allow_nan=False).encode()
+            explicit = json.dumps(build(mode='forward', **args), allow_nan=False).encode()
+            with self.subTest(count=count):
+                self.assertEqual(implicit, explicit)
+                self.assertEqual(hashlib.sha256(implicit).hexdigest(), digest)
+
+    def test_prepend_only_changes_the_existing_pin_anchor(self):
+        expected = build()
+        expected['2020']['inputs'].update(take_from='head', place='after')
+        actual = build(mode='prepend')
+        self.assertEqual(actual, expected)
+        self.assertNotIn('2011', actual)
+        self.assertNotIn('2021', actual)
+
+    def test_bridge_only_clones_and_chains_the_second_parent_pair(self):
+        expected = build(references=[REF1, REF2], publish_family=True)
+        expected['2011'] = copy.deepcopy(expected['2010'])
+        expected['2011']['inputs']['clip'] = 'genjutsu/second (1).mp4'
+        expected['2021'] = copy.deepcopy(expected['2020'])
+        expected['2021']['inputs'].update(mctx=['2011', 3], take_from='head',
+                                          place='after', pin_specs=['2020', 0])
+        expected['1228']['inputs']['pin_specs'] = ['2021', 0]
+        actual = build(mode='bridge', second_parent_clip='genjutsu/second (1).mp4',
+                       references=[REF1, REF2], publish_family=True)
+        self.assertEqual(actual, expected)
+
+    def test_modes_and_second_handles_fail_closed(self):
+        self.assertEqual(latent.MODES, ('forward', 'prepend', 'bridge'))
+        for mode in ('reverse', 'backward', 'root', 'Forward', '', None, [], {}):
+            with self.subTest(mode=mode), self.assertRaises(ValueError):
+                build(mode=mode)
+        for mode in ('forward', 'prepend'):
+            for second in ('genjutsu/b.mp4', '', False, 0):
+                with self.subTest(mode=mode, second=second), self.assertRaises(ValueError):
+                    build(mode=mode, second_parent_clip=second)
+        for second in (None, '', ' ', False, [], 'genjutsu/take.mp4'):
+            with self.subTest(second=second), self.assertRaises(ValueError):
+                build(mode='bridge', second_parent_clip=second)
+
+    def test_invalid_restaged_handle_literals_are_not_repaired(self):
+        for handle in (' ', '../take.mp4', '/take.mp4', 'genjutsu/../take.mp4',
+                       'genjutsu//take.mp4', 'bad\n.mp4', 'take.mp4 ', 42):
+            for mode in ('forward', 'prepend', 'bridge'):
+                with self.subTest(handle=handle, mode=mode), self.assertRaises(ValueError):
+                    build(mode=mode, parent_clip=handle,
+                          second_parent_clip='genjutsu/b.mp4' if mode == 'bridge' else None)
+            with self.subTest(second=handle), self.assertRaises(ValueError):
+                build(mode='bridge', second_parent_clip=handle)
+
+    def test_native_grid_and_range_are_checked_without_temporal_claims(self):
+        for frames in (True, 4, 6, 157, 159, 3601, 3609):
+            with self.subTest(frames=frames), self.assertRaises(ValueError):
+                build(raw_frames=frames)
+        for frames in (5, 22, 56, 158, 362, 3592):
+            self.assertAlmostEqual(build(raw_frames=frames)['2001']['inputs']['value'] * 24,
+                                   frames)
+
+    def test_effective_pin_and_loader_drift_is_rejected_in_each_mode(self):
+        pin_mutations = dict(mode='guide', mask_hold=1.0, mask_ramp_frames=1,
+                             mask_ramp_edge=0.5, window='38', audio_window=1,
+                             take_from='frame', take_from_frame=1,
+                             place='at_frame', place_at_frame=1, mctx=['2010', 0])
+        for mode in latent.MODES:
+            second = 'genjutsu/b.mp4' if mode == 'bridge' else None
+            base = build(mode=mode, second_parent_clip=second)
+            pairs = [('2010', '2020')]
+            if second:
+                pairs.append(('2011', '2021'))
+            for loader, pin in pairs:
+                mutations = [(pin, field, value) for field, value in pin_mutations.items()]
+                mutations += [(loader, 'create_pins', 'both'), (loader, 'pin_window', '38'),
+                              (loader, 'clip', 'genjutsu/wrong.mp4')]
+                for node, field, value in mutations:
+                    graph = copy.deepcopy(base)
+                    graph[node]['inputs'][field] = value
+                    with self.subTest(mode=mode, node=node, field=field), self.assertRaises(ValueError):
+                        self.verify(graph, mode, second)
+            for node in ('2010', '2020', '1228'):
+                graph = copy.deepcopy(base)
+                graph[node]['class_type'] = 'WrongClass'
+                with self.subTest(mode=mode, node=node), self.assertRaises(ValueError):
+                    self.verify(graph, mode, second)
+            graph = copy.deepcopy(base)
+            graph['1228']['inputs']['pin_specs'] = ['2010', 2]
+            with self.assertRaises(ValueError):
+                self.verify(graph, mode, second)
+            if second:
+                graph = copy.deepcopy(base)
+                graph['2021']['inputs']['pin_specs'] = ['2010', 2]
+                with self.assertRaises(ValueError):
+                    self.verify(graph, mode, second)
+
+    def test_sampling_save_decode_and_hr_state_flow_cannot_drift(self):
+        edges = [
+            ('1228', 'conditioning', ['797', 1]), ('1228', 'latent', ['797', 0]),
+            ('1488:1483', 'conditioning', ['797', 0]),
+            ('1488:1486', 'latent_image', ['797', 1]),
+            ('1488:1486', 'guider', ['1359:1311', 0]),
+            ('3001', 'latent', ['797', 1]),
+            ('1216', 'samples', ['1488:1486', 0]),
+            ('1216', 'conditioning', ['797', 0]), ('1216', 'pins', ['2020', 0]),
+            ('1216', 'save_conditioning', False), ('1216', 'images', ['751:633', 0]),
+            ('751:632', 'samples', ['1488:1486', 0]),
+            ('751:633', 'samples', ['1488:1486', 0]),
+            ('1349', 'sequence', ['2003', 0]), ('1350', 'av_latent', ['797', 1]),
+            ('1351', 'latent', ['1350', 1]), ('1352', 'audio_latent', ['1350', 0]),
+            ('1352', 'video_latent', ['1350', 0]), ('1365', 'anything', ['797', 1]),
+            ('1363', 'latent', ['797', 1]), ('1362', 'layout', ['1349', 0]),
+            ('1359:1311', 'conditioning', ['1228', 0]),
+            ('1359:1313', 'latent_image', ['1228', 1]),
+            ('1359:1313', 'guider', ['1488:1483', 0]),
+            ('1366', 'anything', ['1359:1313', 0]),
+            ('1434', 'samples', ['1359:1313', 1]),
+            ('1434', 'conditioning', ['1228', 0]), ('1434', 'layout', ['1349', 0]),
+        ]
+        for mode in latent.MODES:
+            second = 'genjutsu/b.mp4' if mode == 'bridge' else None
+            base = build(mode=mode, second_parent_clip=second)
+            for node, field, value in edges:
+                graph = copy.deepcopy(base)
+                graph[node]['inputs'][field] = value
+                with self.subTest(mode=mode, node=node, field=field), self.assertRaises(ValueError):
+                    self.verify(graph, mode, second)
+
+    def test_corrupt_template_is_refused_not_silently_fallback_compiled(self):
+        for node, field in [('2010', 'clip'), ('2020', 'place'), ('2020', 'mctx')]:
+            template = json.loads(latent.TEMPLATE.read_text())
+            del template[node]['inputs'][field]
+            with mock.patch.object(latent, 'TEMPLATE') as source:
+                source.read_text.return_value = json.dumps(template)
+                with self.subTest(node=node, field=field), self.assertRaises(ValueError):
+                    build(mode='bridge', second_parent_clip='genjutsu/b.mp4')
+
+    def test_finite_json_and_dangling_links_are_checked(self):
+        for mode in latent.MODES:
+            second = 'genjutsu/b.mp4' if mode == 'bridge' else None
+            base = build(mode=mode, second_parent_clip=second)
+            json.dumps(base, allow_nan=False)
+            for value in (float('nan'), float('inf'), -float('inf'), ['missing_node', 0],
+                          ['2010', -1]):
+                graph = copy.deepcopy(base)
+                graph['200']['inputs']['probe'] = value
+                with self.subTest(mode=mode, value=value), self.assertRaises(ValueError):
+                    self.verify(graph, mode, second)
+
+    def test_corrupt_template_state_and_reserved_nodes_fail_before_return(self):
+        original = json.loads(latent.TEMPLATE.read_text())
+        corruptions = []
+        for node in ('2010', '2020', '1228', '1488:1486', '1359:1313'):
+            template = copy.deepcopy(original)
+            del template[node]
+            corruptions.append(template)
+        for node, field, value in (
+                ('2020', 'mode', 'guide'), ('2010', 'create_pins', 'both'),
+                ('1216', 'samples', ['1488:1486', 0]),
+                ('200', 'image', ['missing_node', 0]),
+                ('200', 'probe', float('nan'))):
+            template = copy.deepcopy(original)
+            template[node]['inputs'][field] = value
+            corruptions.append(template)
+        for node, source_node in (('2011', '2010'), ('2021', '2020'),
+                                  ('unexpected_pin', '2020')):
+            template = copy.deepcopy(original)
+            template[node] = copy.deepcopy(template[source_node])
+            corruptions.append(template)
+        for index, template in enumerate(corruptions):
+            for mode in latent.MODES:
+                with mock.patch.object(latent, 'TEMPLATE') as source:
+                    source.read_text.return_value = json.dumps(template)
+                    with self.subTest(index=index, mode=mode), self.assertRaises(ValueError):
+                        build(mode=mode, second_parent_clip='genjutsu/b.mp4' if mode == 'bridge' else None)
+
+    def test_multiple_references_and_publication_keep_the_same_dependencies(self):
+        refs = [{'__type': 'core/ASSET', 'info': {'id': f'ordered-{i}'}}
+                for i in range(5)]
+        baseline = build(references=refs, publish_family=True)
+        classes = {node['class_type'] for node in baseline.values()}
+        for mode in latent.MODES:
+            graph = build(mode=mode, second_parent_clip='genjutsu/b.mp4' if mode == 'bridge' else None,
+                          references=refs, publish_family=True)
+            self.assertEqual({node['class_type'] for node in graph.values()}, classes)
+            for index, reference in enumerate(refs):
+                self.assertEqual(graph['797']['inputs'][f'ref_images.ref_image_{index}'],
+                                 [f'ref_image_{index}', 0])
+                self.assertEqual(graph[f'ref_image_{index}']['inputs']['image'], reference)
+            for node in ('native_family', 'native_clip_handle', '725', '752:747',
+                         '752:748', '752:798', '1351'):
+                self.assertEqual(graph[node], baseline[node])
+
+    def test_bridge_and_prepend_do_not_leak_into_later_forward_compiles(self):
+        baseline = build()
+        before = latent.TEMPLATE.read_bytes()
+        for mode in ('bridge', 'prepend'):
+            graph = build(mode=mode, second_parent_clip='genjutsu/b.mp4' if mode == 'bridge' else None)
+            graph['2020']['inputs']['mask_hold'] = 0.8
+            self.assertEqual(build(), baseline)
+            self.assertEqual(latent.TEMPLATE.read_bytes(), before)
 
 
 if __name__ == '__main__':

@@ -73,7 +73,11 @@ def audio_ticks(raw_frames: int) -> int:
 
 def tail_window(state: AVState, window: int = WINDOW) -> tuple[int, int, int, int]:
     """(start frame, first tick, ticks wanted, ticks available) at the take's end."""
-    start = state.raw_end - window
+    return window_at(state, state.raw_end - window, window)
+
+
+def window_at(state: AVState, start: int, window: int = WINDOW) -> tuple[int, int, int, int]:
+    """A bounded raw-coordinate audio window; operation policy checks its use."""
     if start < 0:
         return -1, 0, 0, 0
     coordinate = Fraction(start) * FRAME_RESCALE - state.audio_phase + Fraction(1, 2)
@@ -90,7 +94,7 @@ def tail_fits(state: AVState, window: int = WINDOW) -> bool:
     return start >= 0 and wanted == window * 5 // 3 and available == wanted
 
 
-def _quantize(phase: Fraction) -> Fraction:
+def quantize_audio_phase(phase: Fraction) -> Fraction:
     return Fraction(round(float(phase) * PHASE_SCALE), PHASE_SCALE)
 
 
@@ -103,7 +107,7 @@ def child_state(parent: AVState, requested_raw: int, window: int = WINDOW) -> AV
     if not tail_fits(parent, window):
         raise AVStateError(UNCONTINUABLE_TAKE)
     start, first, _, _ = tail_window(parent, window)
-    phase = _quantize(parent.audio_phase + Fraction(first) - Fraction(start) * FRAME_RESCALE)
+    phase = quantize_audio_phase(parent.audio_phase + Fraction(first) - Fraction(start) * FRAME_RESCALE)
     return AVState(raw_frames=requested_raw, pinned_head=FORWARD_HEAD,
                    delivered_frames=requested_raw - FORWARD_HEAD,
                    audio_ticks=audio_ticks(requested_raw), audio_phase=phase)
@@ -154,7 +158,7 @@ def state_from_header(header) -> AVState:
                    pinned_head=int(meta.get('pinned_head_frames', '0') or 0),
                    delivered_frames=int(meta['delivered_frames']),
                    audio_ticks=int(header.tensors['audio'].shape[-1]),
-                   audio_phase=_quantize(Fraction(str(numeric))))
+                   audio_phase=quantize_audio_phase(Fraction(str(numeric))))
 
 
 def state_from_family(family):

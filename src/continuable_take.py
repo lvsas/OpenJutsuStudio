@@ -521,6 +521,29 @@ def get_validated_family(work: str | Path, take_id: str) -> ValidatedTakeFamily:
     return ValidatedTakeFamily(record, **paths, artifacts=artifacts)
 
 
+def recover_imported_family(work: str | Path, take_id: str, *, captured_graph,
+                            source_job: str, operator_label: str) -> ValidatedTakeFamily | None:
+    """Recover a visible import after a lost acknowledgement, without overwriting it.
+
+    Existence alone is not success: rehash the family and carried references and
+    match its sealed origin/recipe to this collector's frozen execution evidence.
+    A corrupt/conflicting published directory is an error, never an absent Take.
+    """
+    folder = _absolute(work) / 'timeline' / 'continuable-takes' / _take_id(take_id)
+    if not os.path.lexists(folder):
+        return None
+    family = get_validated_family(work, take_id)
+    capsule = family.record.to_manifest()
+    if (capsule['origin'] != {'source_job': source_job, 'operator_label': operator_label}
+            or capsule['recipe'] != _recipe(captured_graph, 'complete', 'operator_capture')):
+        raise ValueError('The published Take does not match this native collection')
+    for item in capsule.get('identity', {}).get('references', []):
+        source = _source(folder / item['filename'], folder)
+        if _file_sha256(source) != item['sha256']:
+            raise ValueError('A published Take reference differs from its frozen identity')
+    return family
+
+
 def import_family(video: str | Path, mctx: str | Path, conditioning: str | Path, *,
                   root: str | Path, work: str | Path, captured_graph: dict | str | None,
                   take_id: str | None = None, graph_completeness: str = 'unknown',

@@ -19,7 +19,8 @@ from continuity_jobs import create_operation, execute_operation
 from h3_artifact_transport import download_h3_artifacts
 from h3_continuity_graphs import H3ContinuityModels, NativeH3Parent, PIN_WINDOW
 from h3_family_graphs import build_restage_graph, read_clip_handle
-from h3_audio_boundary import require_family_masked_tail
+from h3_av_state import (AVStateError, UNCONTINUABLE_TAKE, require_continuable_child,
+                         state_from_family, tail_fits)
 from h3_latent_graphs import PREFLIGHT_CLIP, build_latent_continuity
 from readiness import missing_dependencies
 
@@ -46,6 +47,13 @@ class TargetMissingDependencies(ValueError):
 
 
 
+def precheck_request(work, take_id, raw_frames):
+    """Refuse a length whose take could not be continued, before any job exists."""
+    state = state_from_family(get_validated_family(work, take_id))
+    if state is not None:
+        require_continuable_child(state, raw_frames)
+
+
 def parent_context(artifacts):
     """The measured facts a parent must provide, checked before any upload."""
     # ``get_validated_family`` returns ValidatedTakeFamily, whose measured set is
@@ -59,7 +67,9 @@ def parent_context(artifacts):
             f'This take delivers {delivered} frames; a tail pin needs at least {PIN_WINDOW}')
     if context['fps'] != 24:
         raise ValueError('Native continuation currently requires a 24 fps take')
-    require_family_masked_tail(artifacts)
+    state = state_from_family(artifacts)
+    if state is not None and not tail_fits(state):
+        raise AVStateError(UNCONTINUABLE_TAKE)
     return context
 
 
@@ -157,7 +167,11 @@ def preflight_continuation(work, take_id, *, models, direction, reference_count,
     from h3_prompt_generator import build_prompt_graph
     if type(reference_count) is not int or reference_count < 1:
         raise ValueError('At least one reference image is required for continuation.')
-    context = parent_context(get_validated_family(work, take_id))
+    artifacts = get_validated_family(work, take_id)
+    context = parent_context(artifacts)
+    state = state_from_family(artifacts)
+    if state is not None:
+        require_continuable_child(state, raw_frames)
     refs = [{'__type': 'core/ASSET', 'info': {'id': f'preflight-reference-{i}'}}
             for i in range(reference_count)]
     graph = build_latent_continuity(
@@ -193,6 +207,7 @@ def submit_forward(work: str | Path, take_id: str, request, *, client, models,
     operation_id = operation_id or uuid.uuid4().hex
     artifacts = get_validated_family(work, take_id)
     context = parent_context(artifacts)  # refuse before any upload
+    precheck_request(work, take_id, request.raw_frames)  # the child must be continuable too
 
     def compile_graph(clip):
         return build_latent_continuity(

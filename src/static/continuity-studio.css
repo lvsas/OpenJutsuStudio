@@ -166,9 +166,16 @@
 /* Candidate comparison: the choice stays explicit and the others survive. */
 .candidate-tray{margin-top:.8rem;border-top:1px solid var(--line);padding-top:.6rem}
 .candidate-list{list-style:none;margin:.5rem 0;padding:0;display:grid;gap:.4rem}
-.candidate{display:flex;align-items:center;gap:.55rem;min-width:0;border:1px solid var(--line);
+.candidate{display:flex;align-items:center;flex-wrap:wrap;gap:.55rem;min-width:0;border:1px solid var(--line);
   border-radius:.6rem;padding:.4rem;background:var(--surface-soft)}
 .candidate strong{font-size:.74rem;flex:1;min-width:0;overflow-wrap:anywhere}
 .candidate small{font-size:.66rem;color:var(--muted)}
 .candidate-poster{width:64px;height:44px;object-fit:contain;border-radius:.35rem;background:var(--bg,#101014)}
-.candidate .btn{font-size:.7rem;padding:.4rem .7rem;min-height:36px}
+.candidate .btn{font-size:.7rem;padding:.4rem .7rem;min-height:44px;min-width:44px;white-space:normal}
+.candidate-seed{flex-basis:100%;overflow-wrap:anywhere}
+.candidate small{min-width:0;overflow-wrap:anywhere}
+.candidate-preview{min-width:0;margin-top:.6rem;padding:.5rem;border:1px solid var(--accent-line);border-radius:.6rem}
+.candidate-preview video{display:block;width:100%;max-width:100%;max-height:320px;aspect-ratio:16/9;object-fit:contain;background:var(--bg,#101014)}
+.candidate-preview p{overflow-wrap:anywhere}
+.candidate-preview .btn{min-height:44px;min-width:44px;white-space:normal}
+.candidate-preview video:focus-visible{outline:2px solid var(--accent);outline-offset:3px}

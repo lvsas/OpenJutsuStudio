@@ -59,6 +59,30 @@ class TimelineStudioUITests(unittest.TestCase):
                                 capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_candidate_comparison_has_one_lazy_nonblocking_player(self):
+        markup = (ROOT / 'src/templates/timeline.html').read_text()
+        script = (ROOT / 'src/static/candidate-comparison.js').read_text()
+        css = (ROOT / 'src/static/continuity-studio.css').read_text()
+        player_match = re.search(r'<video id="candidate-video"[^>]*>', markup)
+        assert player_match is not None, 'Comparison player missing'
+        player = player_match.group()
+        for attr in ('controls', 'playsinline', 'preload="none"', 'tabindex="0"'):
+            self.assertIn(attr, player)
+        self.assertNotIn('src=', player)
+        self.assertNotIn('autoplay', player)
+        self.assertEqual(markup.count('id="candidate-video"'), 1)
+        self.assertNotIn('fetch(', script)
+        self.assertNotIn('localStorage', script)
+        self.assertRegex(css, r'\.candidate\{[^}]*flex-wrap:wrap')
+        for selector in ('.candidate .btn', '.candidate-preview .btn'):
+            rule_match = re.search(re.escape(selector) + r'\{([^}]+)\}', css)
+            assert rule_match is not None, f'Missing rule: {selector}'
+            rule = rule_match.group(1)
+            self.assertIn('min-height:44px', rule)
+            self.assertIn('min-width:44px', rule)
+        self.assertRegex(css, r'\.candidate-preview video\{[^}]*width:100%')
+        self.assertNotRegex(css, r'\.candidate-preview[^}]*position:\s*(fixed|absolute)')
+
     def test_editor_shell_keeps_real_controls_and_token_order(self):
         markup = (ROOT / 'src/templates/timeline.html').read_text()
         self.assertLess(markup.index('/static/design-system.css'), markup.index('/static/app.css'))

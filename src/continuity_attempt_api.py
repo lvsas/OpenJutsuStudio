@@ -48,7 +48,7 @@ class AttemptRequest(BaseModel):
         return value
 
 
-def create_router(get_root, *, worker=None, create=None) -> APIRouter:
+def create_router(get_root, *, worker=None, create=None, precheck=None) -> APIRouter:
     """Only a newly persisted request queues work; recovery routes are read-only.
 
     The optional creation hook follows create_or_get's (record, created) contract.
@@ -67,6 +67,13 @@ def create_router(get_root, *, worker=None, create=None) -> APIRouter:
         if worker is None:
             raise HTTPException(503, 'Variants are not configured on this instance.')
         try:
+            # Refuse a request that would freeze an uncontinuable take, before a
+            # job exists: the check reads saved state and costs no GPU work.
+            if precheck is not None:
+                try:
+                    precheck(take_id, request.raw_frames)
+                except ValueError as error:
+                    raise HTTPException(422, str(error)) from None
             attempt, created = (create or attempts.create_or_get)(
                 get_root(), take_id=take_id, request_id=request.request_id, prompt=request.prompt,
                 raw_frames=request.raw_frames, seeds=request.seeds)

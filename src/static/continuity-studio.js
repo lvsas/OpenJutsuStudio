@@ -3,6 +3,7 @@ import {validCharacterId} from './character-handoff.js';
 import {mountSequence} from './sequence-workspace.js';
 import {attemptBody} from './sequence-state.js';
 import {createAttemptClient} from './continuity-attempt-client.js';
+import {mountCandidateComparison, candidateSeed} from './candidate-comparison.js';
 const byId = id => document.getElementById(id);
 const validId = id => typeof id === 'string' && /^[a-f0-9]{32}$/.test(id);
 let entries = [], active = null, epoch = 0, loading = false;
@@ -241,11 +242,21 @@ for (const id of ['forward-prompt', 'forward-seed', 'forward-length']) {
     try { sequence.setDraft(draftFields()); } catch { /* placement changed under the draft */ }
   });
 }
+const comparison = mountCandidateComparison({player:byId('candidate-video'),
+  panel:byId('candidate-preview'), label:byId('candidate-preview-label'),
+  message:byId('candidate-preview-message'), close:byId('candidate-preview-close')});
+let candidateSignature = '';
 function drawCandidates(view, frozen) {
+  comparison.update(view, frozen);
   const tray = byId('candidate-tray'), list = byId('candidate-list');
   const done = view.candidates.filter(c => c.status === 'done').length;
   byId('candidate-summary').textContent =
     `${done}/${view.candidates.length} ready · ${view.status}`;
+  // Identical polls must not replace focused controls. The shared player lives
+  // outside this list and survives progress/status changes as well.
+  const signature = JSON.stringify([view, frozen]);
+  if (signature === candidateSignature) { tray.hidden = false; return; }
+  candidateSignature = signature;
   list.replaceChildren();
   view.candidates.forEach((candidate, index) => {
     const item = document.createElement('li'); item.className = 'candidate';
@@ -253,13 +264,21 @@ function drawCandidates(view, frozen) {
     name.textContent = candidate.status === 'done' ? `Take ${index + 1}` : `Candidate ${index + 1}`;
     const meta = document.createElement('small');
     meta.textContent = candidate.status === 'failed'
-      ? (candidate.error || 'Failed')
+      ? `failed · ${candidate.error || 'No result'}`
       : candidate.status === 'running' ? 'Generating…' : candidate.status;
-    item.append(name, meta);
+    const seed = document.createElement('small'); seed.className = 'candidate-seed';
+    seed.textContent = `Seed ${candidateSeed(candidate, index, frozen)}`;
+    item.append(name, meta, seed);
     if (candidate.status === 'done' && validId(candidate.take_id)) {
       const poster = document.createElement('img');
       poster.className = 'candidate-poster'; poster.alt = ''; poster.loading = 'lazy';
       poster.src = `/api/continuity/takes/${candidate.take_id}/poster`;
+      const preview = document.createElement('button');
+      preview.type = 'button'; preview.className = 'btn btn-secondary';
+      preview.textContent = 'Preview video / audio';
+      preview.setAttribute('aria-label', `Preview candidate ${index + 1} video and audio`);
+      preview.setAttribute('aria-controls', 'candidate-preview');
+      preview.addEventListener('click', () => comparison.preview(index));
       const keep = document.createElement('button');
       keep.type = 'button'; keep.className = 'btn btn-primary'; keep.textContent = 'Keep';
       keep.disabled=!['done','failed'].includes(view.status);
@@ -268,11 +287,11 @@ function drawCandidates(view, frozen) {
         try {
           const placed = await sequence.insertResult(candidate.take_id, frozen.project_id, frozen.after);
           forwardState(placed || 'Return to the original saved sequence to keep this candidate.');
-          if (placed) { attemptClient.dismiss();tray.hidden = true;closeForward(); }
+          if (placed) { attemptClient.dismiss();comparison.clear();tray.hidden = true;closeForward(); }
           else keep.disabled=false;
         } catch (error) { forwardState(error.message); keep.disabled = false; }
       });
-      item.append(poster, keep);
+      item.append(poster, preview, keep);
     }
     list.append(item);
   });
@@ -313,7 +332,7 @@ unconfirmed=attemptClient.blocked();
 byId('attempt-reconnect').addEventListener('click',()=>attemptClient.recover());
 byId('attempt-resubmit').addEventListener('click',()=>attemptClient.retrySubmission().catch(e=>forwardState(e.message)));
 byId('attempt-dismiss').addEventListener('click',()=>{
-  try{attemptClient.dismiss();byId('candidate-tray').hidden=true;forwardState('The browser note was cleared. All takes remain saved.');}
+  try{attemptClient.dismiss();comparison.clear();byId('candidate-tray').hidden=true;forwardState('The browser note was cleared. All takes remain saved.');}
   catch(error){forwardState(error.message);}
 });
 byId('forward-form').addEventListener('submit', async event => {
@@ -332,12 +351,12 @@ byId('forward-form').addEventListener('submit', async event => {
     if(active?.take.take_id!==frozen.take_id||activePlacement?.placement_id!==frozen.after
         ||(frozen.project_id&&saved.project_id!==frozen.project_id))
       throw new Error('The selected take changed. Review this draft before generating.');
-    byId('candidate-tray').hidden=true;
+    comparison.clear();byId('candidate-tray').hidden=true;
     await attemptClient.submit({...frozen,project_id:saved.project_id,request_id,body});
   } catch(error){forwardState(error.message);}
   finally {inFlight=false;unconfirmed=attemptClient.blocked();updateComposer();}
 });
-window.addEventListener('pagehide',()=>attemptClient.dispose());
+window.addEventListener('pagehide',()=>{comparison.clear();attemptClient.dispose();});
 let editorLoaded = false;
 byId('supporting-tools').addEventListener('toggle', async event => {
   if (!event.currentTarget.open || editorLoaded) return;

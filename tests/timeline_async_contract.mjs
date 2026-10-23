@@ -32,7 +32,7 @@ class Element {
   removeAttribute(key){delete this.attributes[key];if(key==='src')this.src='';}
   pause(){this.paused=true;void this.fire('pause');}
   play(){this.paused=false;return this.fire('play');}
-  load(){if(this.src)queueMicrotask(()=>this.onloadedmetadata?.());}
+  load(){this.loadCount=(this.loadCount||0)+1;if(this.src)queueMicrotask(()=>this.onloadedmetadata?.());}
   close(){this.open=false;void this.fire('close');} showModal(){this.open=true;}
   querySelectorAll(){return [];}
   focus(){} select(){} click(){return this.fire('click');}
@@ -247,4 +247,97 @@ test('late references from a previous preview never overwrite the selected take 
   first.resolve(response({references:[{index:9}]}));await flush();
   const image=e.get('forward-reference-list').children[0].children[0];
   assert.equal(image.src,`/api/continuity/takes/${B}/references/1`);
+});
+
+test('candidate comparison is explicit, read-only, stable through polls and cleaned on transition',async()=>{
+  const app=await environment(()=>{throw Error('Comparison must not fetch or write');});
+  const {mountCandidateComparison,candidateSeed}=await app.entry('candidate-comparison.js');
+  const player=new Element(),panel=new Element(),label=new Element(),message=new Element(),close=new Element();
+  const comparison=mountCandidateComparison({player,panel,label,message,close});
+  const view={attempt_id:A,status:'running',candidates:[{status:'done',take_id:B,seed:7},{status:'pending',seed:8}]};
+  const frozen={project_id:C,after:A,take_id:A,body:'{"seeds":[18446744073709551615,0]}'};
+  const original=JSON.stringify({view,frozen});
+  comparison.update(view,frozen);
+  assert.ok(!player.src,'no media source until explicit Preview');
+  assert.equal(candidateSeed(view.candidates[0],0,frozen),'18446744073709551615');
+  assert.equal(candidateSeed({seed:18446744073709551615},0,{}),'unavailable (exact value not provided)');
+  assert.equal(candidateSeed({seed:'18446744073709551615'},0,{}),'18446744073709551615');
+  assert.equal(candidateSeed({seed:7},0,{}),'7');
+  comparison.preview(1);assert.ok(!player.src,'unfinished candidates have no preview');
+  comparison.preview(0);
+  assert.equal(player.src,`/api/continuity/takes/${B}/media`);
+  assert.equal(player.preload,'none');assert.equal(player.controls,true);assert.equal(player.playsInline,true);
+  assert.equal(player.paused,true);assert.equal(panel.hidden,false);
+  player.currentTime=3;await player.play();const loads=player.loadCount;
+  comparison.update(structuredClone(view),structuredClone(frozen));
+  assert.equal(player.currentTime,3);assert.equal(player.paused,false,'poll must not reset playback');
+  assert.equal(player.loadCount,loads,'poll must not reload the media element');
+  comparison.update({...view,candidates:[...view.candidates,{status:'done',take_id:C,seed:9}]},frozen);
+  comparison.preview(2);assert.equal(player.src,`/api/continuity/takes/${C}/media`);
+  assert.equal(player.paused,true,'switching candidate never autoplays');
+  comparison.preview(0);
+  assert.equal(JSON.stringify({view,frozen}),original,'preview cannot mutate attempt or anchor');
+  await player.fire('error');assert.match(message.textContent,/unavailable/);
+  comparison.update({...view,status:'done'},frozen);assert.match(message.textContent,/unavailable/);
+  await close.click();assert.equal(player.src,'');assert.equal(panel.hidden,true);assert.equal(player.paused,true);
+  comparison.preview(0);comparison.update({...view,attempt_id:C},frozen);
+  assert.equal(player.src,'');assert.equal(panel.hidden,true,'different attempt releases old media');
+  comparison.update({...view,candidates:[{status:'done',take_id:'../../etc',seed:1}]},frozen);
+  comparison.preview(0);assert.equal(player.src,'');
+});
+
+test('recovered candidates preview without changing draft or sequence; Keep uses frozen anchor only',async()=>{
+  const placement='1'.repeat(32),attempt='3'.repeat(32);
+  const saved={project_id:C,title:'Saved',revision:1,placements:[{placement_id:placement,take_id:A}],
+    selected_placement_id:placement,drafts:{[placement]:{prompt:'Original draft',seed:'7',raw_frames:158}}};
+  const view={attempt_id:attempt,take_id:A,status:'failed',error:'One candidate failed',
+    candidates:[{status:'done',take_id:B,seed:7},{status:'failed',take_id:null,seed:8,error:'Test failure'}]};
+  const receipt={version:2,project_id:C,after:placement,take_id:A,request_id:'2'.repeat(32),
+    attempt_id:attempt,status:'unknown',body:'{"seeds":[18446744073709551615,0]}'};
+  const backend=nativeBackend({saved,extra:async url=>url===`/api/continuity/attempts/${attempt}`?response(view):null});
+  const app=await environment(backend.fetcher,'',{'opengenjutsu.sequence.project':C,
+    'opengenjutsu.sequence.pending-generation':JSON.stringify(receipt)});
+  await app.entry('continuity-studio.js');await flush();const e=app.elements;
+  const find=(row,text)=>row.children.find(child=>child.textContent===text);
+  const row=e.get('candidate-list').children[0];
+  assert.ok(row.children.some(child=>child.textContent.includes('18446744073709551615')));
+  const before=JSON.stringify(backend.saved()),calls=backend.calls.length;
+  await find(row,'Preview video / audio').click();await flush();
+  assert.equal(e.get('candidate-video').src,`/api/continuity/takes/${B}/media`);
+  assert.equal(JSON.stringify(backend.saved()),before);assert.equal(backend.calls.length,calls);
+  assert.equal(e.get('forward-prompt').value,'Original draft');assert.equal(e.get('native-library').hidden,false);
+  // Selection can change independently; Keep must still insert after the frozen placement.
+  await e.get('native-takes').children[1].children[1].click();await flush();
+  await find(row,'Keep').click();await flush();
+  assert.deepEqual(backend.saved().placements.map(p=>p.take_id),[A,B,B]);
+  assert.equal(e.get('candidate-video').src,'');assert.equal(e.get('candidate-tray').hidden,true);
+  assert.equal(e.get('native-takes').children.length,2,'alternatives stay in library');
+  assert.equal(backend.calls.some(c=>c.url.endsWith('/attempts')&&c.method==='POST'),false);
+});
+
+test('Keep is gated until terminal and refuses a different frozen project without writes',async()=>{
+  for(const status of ['running','failed']) {
+    const placement='1'.repeat(32),attempt='3'.repeat(32);
+    const saved={project_id:C,title:'Saved',revision:1,placements:[{placement_id:placement,take_id:A}],
+      selected_placement_id:placement,drafts:{[placement]:{prompt:'Keep draft',seed:'7',raw_frames:158}}};
+    const receipt={version:2,project_id:B,after:placement,take_id:A,request_id:'2'.repeat(32),
+      attempt_id:attempt,status:'unknown',body:'{"seeds":[7]}'};
+    const view={attempt_id:attempt,take_id:A,status,error:null,candidates:[{status:'done',take_id:B,seed:7}]};
+    const backend=nativeBackend({saved,extra:async url=>url===`/api/continuity/attempts/${attempt}`?response(view):null});
+    const app=await environment(backend.fetcher,'',{'opengenjutsu.sequence.project':C,
+      'opengenjutsu.sequence.pending-generation':JSON.stringify(receipt)});
+    await app.entry('continuity-studio.js');await flush();const e=app.elements;
+    const row=e.get('candidate-list').children[0],keep=row.children.find(c=>c.textContent==='Keep');
+    assert.equal(keep.disabled,status==='running');
+    const before=JSON.stringify(backend.saved()),calls=backend.calls.length;
+    await row.children.find(c=>c.textContent==='Preview video / audio').click();
+    if(status==='failed') {
+      await keep.click();
+      assert.match(e.get('forward-state').textContent,/original saved sequence/);
+      assert.equal(e.get('candidate-tray').hidden,false);
+    }
+    assert.equal(JSON.stringify(backend.saved()),before);assert.equal(backend.calls.length,calls);
+    for(const dispose of app.events.pagehide||[])dispose();
+    assert.equal(e.get('candidate-video').src,'','pagehide releases comparison media');
+  }
 });

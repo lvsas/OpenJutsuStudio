@@ -84,6 +84,12 @@
             <section id="candidate-tray" class="candidate-tray" aria-label="Candidates" hidden>
               <div class="rail-head"><p class="eyebrow">Candidates</p><span id="candidate-summary" class="microcopy"></span></div>
               <ul id="candidate-list" class="candidate-list"></ul>
+              <section id="candidate-preview" class="candidate-preview" aria-label="Candidate video and audio preview" hidden>
+                <p id="candidate-preview-label" class="microcopy"></p>
+                <video id="candidate-video" controls playsinline preload="none" tabindex="0" aria-label="Candidate video and audio" aria-describedby="candidate-preview-label candidate-preview-message"></video>
+                <p id="candidate-preview-message" class="microcopy" role="status" aria-live="polite"></p>
+                <button id="candidate-preview-close" class="btn btn-ghost" type="button">Close preview</button>
+              </section>
               <p class="microcopy">Keep one to place it in your sequence. The others stay in your library.</p>
             </section>
             <details class="sequence-capabilities"><summary>Other ways to create</summary><dl><dt>Generate before</dt><dd>New footage leading into a take — not reversed playback.</dd><dt>Bridge A → B</dt><dd>New footage joining two explicitly selected takes.</dd><dt>New take</dt><dd>Start directly from references, without a Swap.</dd><dt>Variants &amp; quality</dt><dd>Compare seeds, choose a future, or improve a chosen result.</dd></dl><p class="microcopy">These modes remain in the MVP plan. They are not available in this workspace yet; no button here silently substitutes Extend.</p></details>

@@ -30,7 +30,7 @@ from continuity_forward_api import (create_forward_router, make_forward_runner,
                                     parent_references, refine_prompt, target_fingerprint)
 from continuity_attempt_api import create_router as create_attempt_router
 from continuity_attempts import Worker
-from continuity_pipeline import preflight_continuation, submit_forward
+from continuity_pipeline import precheck_request, preflight_continuation, submit_forward
 from h3_recipe import H3Models
 from h3_continuity_graphs import H3ContinuityModels, Weight
 
@@ -112,7 +112,10 @@ def _hunt_submit(operation_id, refined, seed, raw_frames, take_id):
 
 app.include_router(create_attempt_router(
     lambda: _HUNT_ROOT,
-    worker=Worker(_HUNT_ROOT, refine=_hunt_refine, submit=_hunt_submit)))
+    worker=Worker(_HUNT_ROOT, refine=_hunt_refine, submit=_hunt_submit),
+    # A request is refused at the door when the take it would freeze could never
+    # be continued: no attempt record, no refiner, no GPU.
+    precheck=lambda take_id, raw: precheck_request(core.WORK, take_id, raw)))
 app.include_router(create_forward_router(
     lambda: core.WORK,
     runner=make_forward_runner(

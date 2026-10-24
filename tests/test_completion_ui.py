@@ -37,6 +37,12 @@ class CompletionUITests(unittest.TestCase):
         self.assertIn('grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr)', common)
 
     @unittest.skipUnless(shutil.which('node'), 'Node required')
+    def test_shared_result_first_layout(self):
+        result = subprocess.run(['node', '--test', 'tests/studio_result_layout_contract.mjs'],
+                                cwd=ROOT, capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    @unittest.skipUnless(shutil.which('node'), 'Node required')
     def test_h3_explicit_inspection_and_two_reference_selection(self):
         result = subprocess.run(['node', '--experimental-vm-modules', '--test',
                                  'tests/h3_inspection_contract.mjs'], cwd=ROOT,

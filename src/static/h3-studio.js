@@ -2,6 +2,7 @@ import {byId, validId, request, setStage, loadStageMedia, inspectTakeStage} from
 import {H3Take} from './h3-take.js';
 
 const form = byId('form');
+window.OpenGenjutsuStudio?.mountResultLayout?.();
 let pending = false, ready = false, readinessEpoch = 0;
 const blobs = new Map();
 const H3_STAGES = ['source', 'reference', 'result'];

@@ -1,4 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
+window.OpenGenjutsuStudio?.mountResultLayout?.();
 const { bindFileDropTargets, formatDuration, replaceObjectUrl, showToast: appendToast } = window.OpenGenjutsuStudio;
 
 const videoInput = $('#video');

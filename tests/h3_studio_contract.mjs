@@ -22,6 +22,8 @@ class Element {
   get childElementCount() { return this.children.length; }
   pause() {}
   load() {}
+  scrollIntoView() { this.scrolled=true; }
+  focus() { this.focused=true; }
   click() { return this.events.click?.(); }
   setCustomValidity(value) { this.validity = value; }
   closest() { return elements.get('h3-advanced'); }

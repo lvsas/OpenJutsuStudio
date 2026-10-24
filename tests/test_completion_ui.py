@@ -30,6 +30,19 @@ class CompletionUITests(unittest.TestCase):
         css = (ROOT / 'src/static/completion.css').read_text()
         self.assertIn('prefers-reduced-motion', css)
 
+    def test_h3_two_reference_grid_has_four_bounded_card_tracks(self):
+        css = (ROOT / 'src/static/h3-studio.css').read_text()
+        self.assertRegex(css, r'\[data-engine="h3"\] \.take-story-path:has\(#h3-take-reference-2-card:not\(\[hidden\]\)\)\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\) auto minmax\(0,\s*1fr\) auto minmax\(0,\s*1fr\) auto minmax\(0,\s*1fr\)')
+        common = (ROOT / 'src/static/app.css').read_text()
+        self.assertIn('grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr)', common)
+
+    @unittest.skipUnless(shutil.which('node'), 'Node required')
+    def test_h3_explicit_inspection_and_two_reference_selection(self):
+        result = subprocess.run(['node', '--experimental-vm-modules', '--test',
+                                 'tests/h3_inspection_contract.mjs'], cwd=ROOT,
+                                capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     @unittest.skipUnless(shutil.which('node'), 'Node required')
     def test_ltx_completion_persistence_modal_and_stale_responses(self):
         script = r'''

@@ -39,9 +39,38 @@ const STAGE_LABELS = {empty: 'Awaiting media', source: 'Source preview', referen
 export function setStage(mode) {
   const current = Object.hasOwn(STAGE_LABELS, mode) ? mode : 'empty';
   byId('stage-empty').hidden = current !== 'empty';
-  for (const kind of ['source', 'reference', 'result']) byId(`${kind}-preview`).hidden = kind !== current;
+  for (const kind of ['source', 'reference', 'result']) {
+    const media=byId(`${kind}-preview`);
+    media.hidden=kind!==current;
+    if(kind!==current&&kind!=='reference')media.pause?.();
+  }
+  const inspection=byId('inspection-status');
+  if(inspection)inspection.hidden=true;
   byId('state').textContent = STAGE_LABELS[current];
   return current;
+}
+
+// Only explicit inspection changes scroll/focus; restoring a take never does.
+export function inspectTakeStage(kind, secondReference=false) {
+  if(!['source','reference','result'].includes(kind))return false;
+  const media=byId(kind==='reference'?`take-reference${secondReference?'-2':''}-preview`:`${kind}-preview`);
+  const status=byId('inspection-status');
+  if(!media?.getAttribute('src')) {
+    status.textContent='This saved preview is unavailable. Retry status; the take is unchanged.';
+    status.hidden=false;return false;
+  }
+  if(kind==='reference')byId('reference-preview').src=media.src;
+  setStage(kind);
+  for(const card of document.querySelectorAll('[data-h3-stage]')) {
+    const matches=card.dataset.h3Stage===kind&&(kind!=='reference'||(card.id==='h3-take-reference-2-card')===secondReference);
+    card.setAttribute('aria-pressed',String(matches));
+  }
+  status.textContent=kind==='reference'?`Saved reference ${secondReference?'2':'1'}`:kind==='source'?'Saved source video':'Saved H3 result';
+  status.hidden=false;
+  const frame=byId('inspection-preview');
+  frame.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});
+  frame.focus({preventScroll:true});
+  return true;
 }
 
 // The frame and the capsule card both show the same stage, as LTX does: the card

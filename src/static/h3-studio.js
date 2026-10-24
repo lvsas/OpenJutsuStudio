@@ -1,4 +1,4 @@
-import {byId, validId, request, setStage, loadStageMedia} from './h3-http.js';
+import {byId, validId, request, setStage, loadStageMedia, inspectTakeStage} from './h3-http.js';
 import {H3Take} from './h3-take.js';
 
 const form = byId('form');
@@ -176,11 +176,7 @@ byId('add-second-reference').addEventListener('click', () => {
 // The capsule marks each take stage and selects it in the preview frame.
 for (const card of document.querySelectorAll?.('[data-h3-stage]') || []) {
   card.addEventListener('click', () => {
-    if (card.dataset.h3Stage === 'reference') {
-      const second = card.id === 'h3-take-reference-2-card';
-      byId('reference-preview').src = byId(second ? 'take-reference-2-preview' : 'take-reference-preview').src;
-    }
-    setStage(card.dataset.h3Stage);
+    inspectTakeStage(card.dataset.h3Stage,card.id==='h3-take-reference-2-card');
   });
 }
 byId('remove-reference').addEventListener('click', () => {

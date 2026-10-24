@@ -15,6 +15,7 @@ html[data-engine="h3"] {
 [data-engine="h3"] .studio-stage { min-height: 0; }
 [data-engine="h3"] .studio-grid { grid-template-columns: minmax(19rem, .8fr) minmax(26rem, 1.2fr); }
 [data-engine="h3"] .stage-frame > img { background: #000; height: 100%; object-fit: contain; width: 100%; }
+[data-engine="h3"] .take-story-path:has(#h3-take-reference-2-card:not([hidden])) { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr); }
 [data-engine="h3"] .advanced-settings .field-label { margin-top: var(--space-3); }
 [data-engine="h3"] .h3-license { border-top: 1px solid var(--line); margin-top: var(--space-6); padding-top: var(--space-4); }
 [data-engine="h3"] .h3-license a { color: var(--text); }

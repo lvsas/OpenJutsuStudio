@@ -13,7 +13,8 @@ class AssemblyPageTests(TestCase):
         self.assertEqual(native.status_code,200);self.assertEqual(legacy.status_code,200)
         for value in ('supporting-tools','Assemble selected results','Optional · after choosing your results','id="clip-editor"'):
             self.assertNotIn(value,native.text)
-        self.assertIn('href="/assembly"',native.text)
+        self.assertNotIn('Saved cuts &amp; MP4 tools',native.text)
+        self.assertIn('Open archived cut',native.text)
         self.assertIn('id="native-video"',native.text)
         for value in ('id="timeline-video"','id="clip-editor"','id="import-file"','src="/static/timeline.js"'):
             self.assertIn(value,legacy.text)

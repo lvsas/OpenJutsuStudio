@@ -73,12 +73,14 @@ class ContinuableTakeApiTests(unittest.TestCase):
         response = self.client.get(self.url + '/readiness')
         self.assertEqual(response.status_code, 200, response.text)
         self.assertTrue(response.json()['verified'])
-        # Synthetic fixture has too few delivered frames for the 39-frame pin.
+        # Synthetic fixture has no saved audio phase; do not guess timing.
         self.assertFalse(response.json()['extend'])
+        self.assertEqual(response.json()['reason_code'], 'timing_unavailable')
         self.fixture.rewrite('take.cond.safetensors', b'corrupt')
         response = self.client.get(self.url + '/readiness')
         self.assertFalse(response.json()['verified'])
         self.assertFalse(response.json()['extend'])
+        self.assertEqual(response.json()['reason_code'], 'state_unverified')
         self.assertNotIn(str(self.fixture.work), response.text)
 
     def test_media_uses_complete_fresh_validation_and_supports_ranges(self):

@@ -43,7 +43,8 @@ async function environment(fetcher,search='',initialStorage={}) {
     const element=new Element();element.hidden=/\bhidden(?:\s|>|=)/.test(tag);return [id,element];
   }));
   const notices=[],events={},storage=new Map(Object.entries(initialStorage));const location={search,href:'http://test.invalid/timeline'};
-  const document={getElementById:id=>elements.get(id),createElement:()=>new Element()};
+  const document={getElementById:id=>elements.get(id),createElement:()=>new Element(),
+    querySelectorAll:selector=>selector==='video'?['native-video','candidate-video','timeline-video','export-video'].map(id=>elements.get(id)):[]};
   const context=vm.createContext({document,location,console,URLSearchParams,URL,Response,File,
     Blob,FormData,AbortSignal,queueMicrotask,fetch:fetcher,setTimeout,clearTimeout,structuredClone,
     crypto:{randomUUID,getRandomValues:a=>webcrypto.getRandomValues(a)},
@@ -571,6 +572,57 @@ test('legacy project is identified without conversion and compatibility opening 
 
 
 const sourceEntry=(id,job)=>{const entry=nativeEntry(id);entry.take.origin={source_job:job,operator_label:'native-swap'};return entry;};
+test('position reference failure preserves ready durations and draft without generation',async()=>{
+  const app=await environment(()=>{throw Error('No write allowed');});
+  const {mountPositionGeneration}=await app.entry('position-generation.js');
+  const {createDurationPicker}=await app.entry('continuity-duration.js');
+  const e=app.elements,draft={prompt:'Keep draft',seed:'7',raw_frames:158,count:1,reference_ids:[]};
+  e.get('native-library').hidden=false;
+  const picker=createDurationPicker(e.get('forward-length'),e.get('forward-duration-hint'));
+  const controller=mountPositionGeneration({sequence:{state:()=>({placements:[{placement_id:A,take_id:B}]}),
+    setPositionDraft(){assert.fail('Read must not save');}},byId:id=>e.get(id),duration:picker,
+    onUpdate(){},onMessage(){},getJSON:async url=>{
+      if(url.includes('composer-readiness'))return {available:true,reason_code:null,duration_options:[{raw_frames:158,seconds:5.125}]};
+      throw Error('/private/SECRET reference failed');
+    }});
+  await controller.open({mode:'forward',left:A,right:null},draft);
+  assert.equal(picker.valid(),true);assert.equal(e.get('forward-length').disabled,false);
+  assert.equal(controller.valid(),false);
+  assert.match(e.get('native-readiness').textContent,/references.*could not be loaded/i);
+  assert.equal(e.get('forward-prompt').value,'Keep draft');
+  assert.equal(e.get('native-library').hidden,false);
+  assert.doesNotMatch(e.get('native-readiness').textContent,/SECRET/);
+});
+
+test('explicit custom reference recovers from inherited reference failure without changing durations',async()=>{
+  const app=await environment(async url=>{assert.equal(url,'/api/continuity/root-references');return response({reference_id:C});});
+  const {mountPositionGeneration}=await app.entry('position-generation.js');
+  const {createDurationPicker}=await app.entry('continuity-duration.js');
+  const e=app.elements;let draft={prompt:'Preserve direction',seed:'7',raw_frames:158,count:1,reference_ids:[],reference_mode:'inherit'};
+  const picker=createDurationPicker(e.get('forward-length'),e.get('forward-duration-hint'));
+  const controller=mountPositionGeneration({sequence:{state:()=>({placements:[{placement_id:A,take_id:B}]}),
+    setPositionDraft:changes=>{draft={...draft,...changes};},positionDraft:()=>structuredClone(draft)},
+    byId:id=>e.get(id),duration:picker,onUpdate(){},onMessage(){},getJSON:async url=>{
+      if(url.includes('composer-readiness'))return {available:true,reason_code:null,duration_options:[{raw_frames:158,seconds:5.125}]};
+      throw Error('Synthetic reference failure');
+    }});
+  await controller.open({mode:'forward',left:A,right:null},draft);
+  assert.equal(controller.valid(),false);assert.equal(picker.valid(),true);
+  await controller.add(new File(['synthetic image upload'],'test.png',{type:'image/png'}));
+  assert.equal(controller.valid(),true);assert.equal(picker.valid(),true);
+  assert.equal(draft.prompt,'Preserve direction');assert.equal(draft.seed,'7');
+  assert.equal(e.get('native-readiness').textContent,'Saved timing checked.');
+});
+
+test('duration refusal explains operation instead of requesting the same incompatible take again',async()=>{
+  const app=await environment(()=>assert.fail('Picker does not fetch'));
+  const {createDurationPicker}=await app.entry('continuity-duration.js');
+  const e=app.elements,picker=createDurationPicker(e.get('forward-length'),e.get('forward-duration-hint'));
+  picker.ready({available:false,mode:'prepend',reason_code:'unaligned_start',duration_options:[]});
+  assert.match(e.get('forward-duration-hint').textContent,/prepend/i);
+  assert.doesNotMatch(e.get('forward-duration-hint').textContent,/refresh/i);
+  picker.unavailable();assert.match(e.get('forward-duration-hint').textContent,/request|check/i);
+});
 test('Swap native handoff previews its real family without adding or editing the sequence',async()=>{
   const placement='1'.repeat(32),saved={project_id:C,title:'Existing',revision:7,
     placements:[{placement_id:placement,take_id:B}],selected_placement_id:placement,

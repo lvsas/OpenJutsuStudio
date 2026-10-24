@@ -16,10 +16,26 @@ export function createDurationPicker(select, hint) {
   }
   function unavailable() {
     choices = [];placeholder('Duration unavailable', saved ?? 277);
-    hint.textContent = 'Compatible durations unavailable. Refresh the take or choose another.';sync();
+    hint.textContent = 'Duration check request failed. Compatible durations unavailable; try checking again. Your draft is kept.';sync();
   }
   function ready(result) {
     const options = result.duration_options;
+    if (!(result.available ?? result.extend)) {
+      choices=[];placeholder('No compatible duration', saved ?? 277);
+      const operation={root:'New take',forward:'Extend',prepend:'Prepend',bridge:'Bridge'}[result.mode]||'Extend';
+      const reasons={
+        unaligned_start:'This exact beginning cannot accept new footage before it. Choose another anchor or start an independent take.',
+        audio_window:'The saved audio cannot supply the complete handover. Choose another take or start an independent take.',
+        short_source:'This take needs at least 1.7 s of delivered footage for a handover. Choose a longer take.',
+        geometry_mismatch:'Use anchors with matching picture sizes and 24 fps timing.',
+        target_unavailable:'The compute target could not be checked. Reconnect the target and retry; nothing was submitted.',
+        state_unverified:'The saved state could not be verified. Choose another take; nothing was submitted.',
+        timing_unavailable:'Saved audio timing is unavailable. Choose another take or start an independent take.',
+        audio_phase_conflict:'These anchors have incompatible sound timing. Choose a different pair or start an independent take.',
+      };
+      hint.textContent=`${operation} unavailable. ${reasons[result.reason_code]||'No compatible duration is available here. Choose another anchor or start an independent take.'}`;
+      sync();return;
+    }
     if (!(result.available ?? result.extend) || !Array.isArray(options) || !options.length || options.some(item =>
       !Number.isSafeInteger(item.raw_frames) || item.raw_frames < 5 || item.raw_frames > 3600 ||
       !Number.isFinite(item.seconds) || item.seconds <= 0)) { unavailable();return; }

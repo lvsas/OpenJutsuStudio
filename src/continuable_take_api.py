@@ -82,27 +82,31 @@ def create_router(get_work_dir: Callable[[], Path]) -> APIRouter:
             family = get_validated_family(work, take_id)
         except (FileNotFoundError, ValueError, OSError):
             return JSONResponse({'verified': False, 'extend': False,
-                'duration_options': [],
+                'duration_options': [], 'reason_code': 'state_unverified',
                 'reason': 'The saved state could not be verified. No generation will start.'}, headers=_PRIVATE)
         context = family.record.to_manifest()['family']['context']
-        from h3_av_state import (AVStateError, UNCONTINUABLE_TAKE, state_from_family,
-                                 tail_fits, requested_lengths, FORWARD_HEAD, FPS)
+        from h3_av_state import (AVStateError, state_from_family,
+                                 requested_lengths, FORWARD_HEAD, FPS)
         try:
             state = state_from_family(family)
         except (AVStateError, OSError, ValueError):
             state = None
         if state is None:
             return JSONResponse({'verified': True, 'extend': False, 'duration_options': [],
+                'reason_code': 'timing_unavailable',
                 'reason': 'The saved audio timing could not be checked. Choose another take; '
                           'the original is unchanged.'}, headers=_PRIVATE)
-        if not tail_fits(state):
+        from h3_native_boundaries import source_pin, NativeBoundaryError
+        try:
+            source_pin(state, 'tail', 'before')
+        except NativeBoundaryError as exc:
             return JSONResponse({'verified': True, 'extend': False, 'duration_options': [],
-                'reason': UNCONTINUABLE_TAKE}, headers=_PRIVATE)
+                'reason_code': exc.code, 'reason': str(exc)}, headers=_PRIVATE)
         available = context['delivered_frames'] >= 39 and context['fps'] == FPS
         options = [{'raw_frames': raw, 'seconds': (raw - FORWARD_HEAD) / FPS}
                    for raw in requested_lengths(state)] if available else []
         return JSONResponse({'verified': True, 'extend': bool(options),
-            'duration_options': options,
+            'duration_options': options, 'reason_code': None if options else ('geometry_mismatch' if context['fps'] != FPS else 'no_compatible_duration'),
             'reason': None if options else 'Extend needs at least 1.7 s of delivered footage '
                                           'at 24 fps.'}, headers=_PRIVATE)
 

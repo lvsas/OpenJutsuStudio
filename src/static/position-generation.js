@@ -3,7 +3,7 @@ import {attemptBody} from './sequence-state.js';
 import {positionLabel,resolvePosition} from './sequence-positions.js';
 const uuid=()=>crypto.randomUUID().replace(/-/g,'');
 export function mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate,onMessage}) {
-  let position=null,draft=null,available=false,inherited=[],token=0,busy=false,referenceLimit=null;
+  let position=null,draft=null,available=false,inherited=[],token=0,busy=false,referenceLimit=null,referenceError=false;
   const custom=()=>position?.mode==='root'||draft?.reference_mode==='custom';
   const referenceCount=()=>custom()?(draft?.reference_ids?.length||0):inherited.length;
   const save=changes=>{sequence.setPositionDraft(changes);draft=sequence.positionDraft();};
@@ -33,7 +33,7 @@ export function mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate
     try {
       const ids=await transform();
       if(current!==token)return;
-      save({reference_ids:ids,reference_mode:'custom'});renderReferences();
+      save({reference_ids:ids,reference_mode:'custom'});referenceError=false;renderReferences();
       onMessage('References saved for this position only. Original takes are unchanged.');
     } catch(error){if(current===token)onMessage(error.message);}
     finally{if(current===token){busy=false;onUpdate();}}
@@ -43,7 +43,8 @@ export function mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate
     byId('forward-references').hidden=false;
     const urls=custom()?(draft.reference_ids||[]).map(id=>`/api/continuity/root-references/${id}`):inherited;
     byId('forward-reference-count').textContent=` · ${urls.length}${custom()?'':' inherited'}`;
-    if(available)byId('native-readiness').textContent=referenceLimit!==null&&urls.length>referenceLimit
+    if(referenceError)byId('native-readiness').textContent='References could not be loaded. Reopen this position to retry; timing and your draft are kept. No generation will start.';
+    else if(available)byId('native-readiness').textContent=referenceLimit!==null&&urls.length>referenceLimit
       ?`This target accepts up to ${referenceLimit} references. Remove a reference to continue.`
       :urls.length?'Saved timing checked.':'Add a reference to start.';
     if(!urls.length) {
@@ -63,7 +64,7 @@ export function mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate
   }
   function close(){++token;position=null;draft=null;available=false;busy=false;inherited=[];byId('root-settings').hidden=true;}
   async function open(next,saved) {
-    const current=++token;position=next;draft=structuredClone(saved);available=false;busy=false;inherited=[];referenceLimit=null;
+    const current=++token;position=next;draft=structuredClone(saved);available=false;busy=false;inherited=[];referenceLimit=null;referenceError=false;
     byId('forward-form').hidden=false;
     byId('forward-prompt').value=draft.prompt;byId('forward-seed').value=draft.seed;
     byId('forward-variants').value=String(draft.count??1);duration.reset(draft.raw_frames);
@@ -85,16 +86,18 @@ export function mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate
       if(current!==token)return;
       available=ready.available===true;
       referenceLimit=Number.isInteger(ready.reference_limit)?ready.reference_limit:null;
-      duration.ready({available:ready.available,duration_options:ready.duration_options});
+      duration.ready(ready);
       byId('native-readiness').textContent=ready.reason||'Saved timing checked.';
       if(position.mode!=='root'&&!custom()) {
         const id=position.mode==='prepend'?right.take_id:left.take_id;
-        const refs=await getJSON(`/api/continuity/takes/${id}/references`);
-        if(current!==token)return;
-        inherited=refs.references.map(r=>`/api/continuity/takes/${id}/references/${r.index}`);
-        renderReferences();
+        try {
+          const refs=await getJSON(`/api/continuity/takes/${id}/references`);
+          if(current!==token)return;
+          inherited=refs.references.map(r=>`/api/continuity/takes/${id}/references/${r.index}`);
+          renderReferences();
+        } catch(error){if(current===token)referenceError=true;}
       }
-    } catch(error){if(current===token){available=false;duration.unavailable();onMessage(error.message);}}
+    } catch(error){if(current===token){available=false;duration.unavailable();byId('native-readiness').textContent='Timing check request failed. Reopen this position to retry; your draft is kept.';}}
     finally{if(current===token){renderReferences();onUpdate();}}
   }
   byId('root-size').addEventListener('change',()=>{
@@ -102,7 +105,7 @@ export function mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate
     const [width,height]=byId('root-size').value.split('x').map(Number);save({width,height});
   });
   return {open,close,active:()=>!!position,
-    valid:()=>!!position&&available&&!busy&&referenceCount()>0
+    valid:()=>!!position&&available&&!referenceError&&!busy&&referenceCount()>0
       &&(referenceLimit===null||referenceCount()<=referenceLimit)&&duration.valid(),
     saveFields(){if(position)save(fields());},
     add:file=>editReferences(async()=>[...(custom()?draft.reference_ids:await inheritedIds()),await upload(file)]),

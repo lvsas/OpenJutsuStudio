@@ -152,7 +152,8 @@ class PipelineWiringTests(unittest.TestCase):
                 '/api/continuity/takes/' + TAKE.take_id + '/readiness').json()
         self.assertEqual(body['verified'], True)
         self.assertEqual(body['extend'], False)
-        self.assertIn('cannot be continued', body['reason'])
+        self.assertEqual(body['reason_code'], 'audio_window')
+        self.assertIn('complete handover', body['reason'])
 
     def test_attempts_endpoint_refuses_before_a_worker_starts(self):
         from fastapi import FastAPI

@@ -77,7 +77,7 @@ byId('position-setup').addEventListener('click',()=>{
 });
 byId('position-add').addEventListener('click',()=>sequence.addAtPosition());
 byId('position-new').addEventListener('click',()=>sequence.openPosition(selectedPosition,{mode:'root'}));
-byId('position-character').addEventListener('click',()=>positionComposer.useCharacter());
+byId('position-character').addEventListener('click',()=>positionComposer.useCharacter().catch(error=>notice(error.message)));
 byId('position-close').addEventListener('click',()=>sequence.clearPosition());
 function showSelection(entry, placement, draft) {
   activePlacement = placement;
@@ -434,7 +434,10 @@ byId('supporting-tools').addEventListener('toggle', async event => {
 const params = new URLSearchParams(location.search), character = params.get('character_id');
 if (params.getAll('character_id').length === 1 && validCharacterId(character)) {
   const image = byId('native-character-image');
-  image.addEventListener('load', () => { byId('native-character').hidden = false; });
+  image.addEventListener('load', () => {
+    byId('native-character').hidden = false;
+    if(selectedPosition?.mode==='root')byId('position-character').hidden=false;
+  });
   image.addEventListener('error', () => notice('The linked character reference is unavailable. Your native take was not changed.'));
   image.src = `/api/characters/jobs/${character}/image`;
 }

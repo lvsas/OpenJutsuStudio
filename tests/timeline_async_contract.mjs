@@ -133,12 +133,15 @@ test('New take uses the shared composer, exact seeds, root recovery and frozen e
   }});
   const app=await environment((url,options={})=>url==='/api/continuity/takes'&&generated
     ?Promise.resolve(response({takes:[nativeEntry(D),nativeEntry(E),nativeEntry(A),nativeEntry(B)]}))
-    :backend.fetcher(url,options),'',{'opengenjutsu.sequence.project':C});
+    :backend.fetcher(url,options),`?character_id=${A}`,{'opengenjutsu.sequence.project':C});
   await app.entry('continuity-studio.js');await flush();const e=app.elements;
   await e.get('board-track').children[0].children[0].click();await flush();
   assert.equal(e.get('forward-form').hidden,false);
   assert.equal(e.get('forward-submit').disabled,true,'root needs explicit reference');
   assert.equal(generated,false,'opening a slot never submits');
+  assert.equal(e.get('position-character').hidden,true);
+  await e.get('native-character-image').fire('load');
+  assert.equal(e.get('position-character').hidden,false,'late character handoff must remain usable in an open root draft');
   e.get('forward-prompt').value='A new shot';await e.get('forward-prompt').fire('input');
   e.get('forward-seed').value='18446744073709551615';await e.get('forward-seed').fire('input');
   e.get('forward-variants').value='2';await e.get('forward-variants').fire('input');

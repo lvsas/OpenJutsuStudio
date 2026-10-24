@@ -79,6 +79,29 @@ test('project membership remains visible immediately after removing a saved plac
   assert.equal(app.elements.get('native-takes').children[0].dataset.takeId,A,'removing a placement must not hide the retained project asset');
 });
 
+test('shared rename updates the same native revision without losing exact drafts or reverting the name',async()=>{
+  const p='1'.repeat(32),saved={project_id:C,title:'Before',revision:4,
+    placements:[{placement_id:p,take_id:A}],selected_placement_id:p,
+    drafts:{[p]:{prompt:'Keep exact direction',seed:'18446744073709551615',raw_frames:158}}};
+  const backend=nativeBackend({saved,extra:async url=>url.endsWith('/assets')
+    ?response({project_id:C,assets:{takes:[A],jobs:[]}}):null}),app=await environment(backend.fetcher,`?project_id=${C}`);
+  const scope={ready:Promise.resolve()};app.context.window.OpenGenjutsuProject=scope;
+  const {mountSequence,takeLabel}=await app.entry('sequence-workspace.js');
+  const seq=mountSequence({onSelect(){},onPreview(){},onCompose(){},onError:assert.fail});
+  await seq.init([nativeEntry(A)]);
+  seq.setDraft({prompt:'Before rename'});await scope.beforeNavigate();
+  assert.equal(backend.saved().drafts[p].prompt,'Before rename');
+  await scope.onRenamed({project_id:C,title:'Named in shared bar',revision:backend.saved().revision});
+  seq.setDraft({prompt:'After rename'});await seq.flush();
+  assert.equal(backend.saved().title,'Named in shared bar');
+  assert.equal(backend.saved().drafts[p].seed,'18446744073709551615');
+  assert.equal(backend.saved().placements[0].take_id,A);
+  assert.match(takeLabel(nativeEntry(A)),/^Take · /);
+  assert.ok(!takeLabel(nativeEntry(A)).includes(A.slice(0,8)));
+  app.elements.get('native-search').value=A;await app.elements.get('native-search').fire('input');
+  assert.equal(app.elements.get('native-takes').children[0].dataset.takeId,A,'full ID remains searchable');
+});
+
 test('positions use ordered placement identities and refuse a changed gap',async()=>{
   const app=await environment(()=>{throw Error('Position arithmetic must not fetch');});
   const {positionsOf,resolvePosition,insertAtPosition}=await app.entry('sequence-positions.js');
@@ -362,10 +385,10 @@ test('library remains usable for multiple placements, returning to drafts and re
   assert.equal(e.get('forward-seed').value,'18446744073709551615');
   await e.get('native-library-close').click();
   assert.equal(e.get('native-library').hidden,true);
-  assert.equal(e.get('native-library-toggle').getAttribute('aria-expanded'),'false');
+  assert.equal(e.get('native-rail-add').getAttribute('aria-expanded'),'false');
   await e.get('native-rail-add').click();
   assert.equal(e.get('native-library').hidden,false,'rail add works with a selected take too');
-  assert.equal(e.get('native-library-toggle').getAttribute('aria-expanded'),'true');
+  assert.equal(e.get('native-rail-add').getAttribute('aria-expanded'),'true');
   await e.get('native-library').fire('keydown',{key:'Escape'});
   assert.equal(e.get('native-library').hidden,true);
   await e.get('board-track').children[3].children[1].children[2].click();await flush();
@@ -566,7 +589,7 @@ test('missing or malformed explicit project refuses fallback and accidental edit
   }
 });
 
-test('legacy project is identified without conversion and compatibility opening is explicit',async()=>{
+test('a mixed old project opens native placements without an archived editor or conversion',async()=>{
   const saved={project_id:C,title:'Old cut',revision:3,placements:[],selected_placement_id:null,drafts:{}};
   const backend=nativeBackend({saved,extra:async url=>url==='/api/timeline/projects'
     ?response({projects:[{...saved,workspace_kind:'legacy',legacy_clip_count:2,native_placement_count:0}]}):null});
@@ -574,12 +597,11 @@ test('legacy project is identified without conversion and compatibility opening 
   const {mountSequence}=await app.entry('sequence-workspace.js');
   const sequence=mountSequence({onSelect(){},onPreview(){},onCompose(){},onError:assert.fail});
   await sequence.init([nativeEntry(A)]);
-  assert.match(e.get('native-project-picker').children[1].textContent,/saved cut/i);
-  assert.equal(e.get('native-project-kind').hidden,false);
-  assert.equal(e.get('native-legacy-open').hidden,false);
+  assert.equal(e.has('native-project-picker'),false);
+  assert.equal(e.has('native-project-kind'),false);
+  assert.equal(e.has('native-legacy-open'),false);
   assert.equal(e.has('supporting-tools'),false);
-  await e.get('native-legacy-open').click();
-  assert.deepEqual(app.navigation,[`/assembly?project_id=${C}`]);
+  assert.deepEqual(app.navigation,[]);
   assert.equal(backend.saved().revision,3);assert.equal(sequence.state().placements.length,0);
   assert.equal(backend.calls.some(c=>c.method!=='GET'),false);
 });
@@ -600,19 +622,20 @@ test('saved-cut navigation never creates a project or imports URL source assets'
   assert.ok(app.historyURLs.every(url=>url.startsWith('/assembly')));
 });
 
-test('failed native save blocks saved-cut handoff and preserves recovery',async()=>{
+test('failed native save blocks shared project navigation and preserves recovery',async()=>{
   const saved={project_id:C,title:'Saved',revision:3,placements:[],selected_placement_id:null,drafts:{}};
   const backend=nativeBackend({saved,extra:async(url,options)=>{
     if(options.method==='PATCH')return new Response(JSON.stringify({detail:'Reload required'}),{status:409});
-    if(url==='/api/timeline/projects')return response({projects:[{...saved,workspace_kind:'legacy',legacy_clip_count:1,native_placement_count:0}]});
+    if(url.endsWith('/assets'))return response({project_id:C,assets:{takes:[A],jobs:[]}});
   }});
-  const app=await environment(backend.fetcher,`?project_id=${C}`),errors=[],e=app.elements;
+  const app=await environment(backend.fetcher,`?project_id=${C}`),errors=[];
+  const scope={ready:Promise.resolve()};app.context.window.OpenGenjutsuProject=scope;
   const {mountSequence}=await app.entry('sequence-workspace.js');
   const sequence=mountSequence({onSelect(){},onPreview(){},onCompose(){},onError:message=>errors.push(message)});
-  await sequence.init([]);e.get('native-project-title').value='Unsaved name';await e.get('native-project-title').fire('input');
-  await e.get('native-legacy-open').click();
+  await sequence.init([nativeEntry(A)]);sequence.place(A);
+  await assert.rejects(scope.beforeNavigate(),/Reload required/);
   assert.equal(app.navigation.length,0);assert.ok(errors.length>0);
-  assert.equal(sequence.state().title,'Unsaved name');assert.ok(app.storage.get('opengenjutsu.sequence.recovery'));
+  assert.equal(sequence.state().placements[0].take_id,A);assert.ok(app.storage.get('opengenjutsu.sequence.recovery'));
 });
 
 test('position reference failure preserves ready durations and draft without generation',async()=>{
@@ -705,12 +728,12 @@ test('completed video-only Swap opens real video with an honest native-state alt
   assert.equal(backend.calls.some(c=>c.method!=='GET'),false);
 });
 
-test('missing and stale Swap replies cannot replace a newer project preview',async()=>{
+test('missing and stale Swap replies cannot replace a newer explicit take preview',async()=>{
   const late=deferred(),placement='1'.repeat(32),saved={project_id:C,title:'Chosen later',revision:1,
     placements:[{placement_id:placement,take_id:A}],selected_placement_id:placement,drafts:{}};
   const backend=nativeBackend({saved,extra:async url=>url===`/api/jobs/${B}`?late.promise:null});
-  const app=await environment(backend.fetcher,`?job_id=${B}`);await app.entry('continuity-studio.js');await flush();
-  const e=app.elements;e.get('native-project-picker').value=C;await e.get('native-project-picker').fire('change');await flush();
+  const app=await environment(backend.fetcher,`?job_id=${B}`,{'opengenjutsu.sequence.project':C});await app.entry('continuity-studio.js');await flush();
+  const e=app.elements;await e.get('native-takes').children[0].children[0].click();await flush();
   late.resolve(response({id:B,status:'done',engine:'ltx25-ripple',result_url:`/api/jobs/${B}/result`}));await flush();
   assert.equal(e.get('native-video').src,`/api/continuity/takes/${A}/media`);
   assert.equal(e.get('native-handoff').hidden,true);assert.equal(backend.calls.some(c=>c.method!=='GET'),false);
@@ -752,10 +775,10 @@ test('opening a project locks editing until its authoritative read finishes',asy
   const {mountSequence}=await app.entry('sequence-workspace.js'),errors=[];
   const sequence=mountSequence({onSelect(){},onPreview(){},onCompose(){},onError:m=>errors.push(m)});
   const opening=sequence.init([nativeEntry(A)]);await flush();
-  assert.equal(sequence.editable(),false);assert.equal(e.get('native-project-title').disabled,true);
+  assert.equal(sequence.editable(),false);assert.equal(e.get('native-rail-add').disabled,true);
   sequence.place(A);assert.equal(sequence.state().placements.length,0);
   late.resolve(response({project_id:B,title:'Server choice',revision:4,placements:[],selected_placement_id:null,drafts:{}}));await opening;
-  assert.equal(sequence.editable(),true);assert.equal(e.get('native-project-title').disabled,false);
+  assert.equal(sequence.editable(),true);assert.equal(e.get('native-rail-add').disabled,false);
   assert.equal(sequence.state().project_id,B);assert.equal(backend.calls.some(c=>c.method!=='GET'),false);
 });
 

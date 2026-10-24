@@ -6,7 +6,7 @@ const source=fs.readFileSync('src/static/project-session.js','utf8');
 const A='a'.repeat(32),B='b'.repeat(32),J='c'.repeat(32);
 function session({query='',stored={},draft=null,rows=[],fetchOverride}={}) {
   const calls=[],events=new Map(),cache=new Map(Object.entries(stored));
-  const location=new URL('http://localhost/h3'+query);
+  const location=new URL('http://localhost/h3'+query),navigations=[];location.assign=url=>navigations.push(url);
   const window={addEventListener:(key,fn)=>{events.set(key,fn);},dispatchEvent:event=>events.get(event.type)?.(event)};
   const fetch=async(url,options={})=>{
     calls.push([url,options]);
@@ -21,7 +21,7 @@ function session({query='',stored={},draft=null,rows=[],fetchOverride}={}) {
   const history={replaceState:(_a,_b,url)=>{location.href=new URL(url,location).href;}};
   vm.runInNewContext(source,{window,document,location,history,fetch,URL,URLSearchParams,structuredClone,
     CustomEvent:class{constructor(type){this.type=type;}},localStorage:{getItem:key=>cache.get(key)||null,setItem:(key,val)=>cache.set(key,val)}});
-  return {scope:window.OpenGenjutsuProject,calls,events,location};
+  return {scope:window.OpenGenjutsuProject,calls,events,location,navigations};
 }
 test('empty navigation is readonly; concurrent explicit ensure creates one draft',async()=>{
   const {scope,calls}=session();await scope.ready;assert.equal(scope.id(),null);assert.equal(calls.length,1);
@@ -29,6 +29,24 @@ test('empty navigation is readonly; concurrent explicit ensure creates one draft
   assert.equal(calls.filter(([,options])=>options.method==='POST').length,1);
   assert.equal(scope.storageKey('completed'),'completed.project.'+A);
 });
+test('opening Draft flushes before its explicit POST and removes frozen source links',async()=>{
+  const s=session({query:'?project_id='+B+'&job_id='+J});await s.scope.ready;
+  let flushed=false;
+  s.scope.beforeNavigate=async()=>{
+    assert.equal(s.calls.filter(([,o])=>o.method==='POST').length,0);flushed=true;
+  };
+  await s.scope.openDraft();assert.equal(flushed,true);
+  assert.deepEqual(s.navigations,['/h3?project_id='+A]);
+  assert.equal(s.calls.filter(([,o])=>o.method==='POST').length,1);
+});
+test('a save conflict prevents Draft creation and navigation',async()=>{
+  const s=session({query:'?project_id='+B});await s.scope.ready;
+  s.scope.beforeNavigate=async()=>{throw Error('Save conflict — draft kept');};
+  await assert.rejects(s.scope.openDraft(),/Save conflict/);
+  assert.equal(s.calls.filter(([,o])=>o.method==='POST').length,0);
+  assert.deepEqual(s.navigations,[]);
+});
+
 test('explicit URL project beats remembered context; restoration stays scoped',async()=>{
   const {scope}=session({query:'?project_id='+A,stored:{'opengenjutsu.workspace.project':B},rows:[{job_id:J,engine:'minimax-h3',status:'done'}]});
   await scope.ready;assert.equal(scope.id(),A);assert.equal(scope.recovery('minimax-h3').job_id,J);

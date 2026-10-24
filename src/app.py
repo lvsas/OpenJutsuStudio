@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 
@@ -244,7 +245,7 @@ def _page(name: str) -> str:
     path = TEMPLATES / name
     # Only these server-owned pages share this fixed fragment. No user path or
     # general-purpose template language is accepted. Track both modification stamps.
-    fragment = TEMPLATES / 'export-dialog.html' if name in ('timeline.html', 'assembly.html') else None
+    fragment = TEMPLATES / 'export-dialog.html' if name == 'timeline.html' else None
     stamp = (path.stat().st_mtime_ns, fragment.stat().st_mtime_ns if fragment else 0)
     cached = _PAGE_CACHE.get(name)
     if cached is None or cached[0] != stamp:
@@ -269,9 +270,14 @@ def timeline_page() -> str:
     return _page("timeline.html")
 
 
-@app.get('/assembly', response_class=HTMLResponse)
-def assembly_page() -> str:
-    return _page('assembly.html')
+@app.get('/assembly', include_in_schema=False)
+def retired_assembly(request: Request) -> RedirectResponse:
+    """Retired editor bookmarks open Sequence without importing or changing data."""
+    projects = request.query_params.getlist('project_id')
+    if len(projects) > 1 or (projects and not re.fullmatch(r'[0-9a-f]{32}', projects[0])):
+        raise HTTPException(400, 'Invalid project link. Open a project from navigation.')
+    destination = '/timeline' + ('?project_id=' + projects[0] if projects else '')
+    return RedirectResponse(destination, status_code=308)
 
 
 @app.post("/api/upload-character")

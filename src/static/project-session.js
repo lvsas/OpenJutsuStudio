@@ -102,6 +102,8 @@
     bar.querySelector('[data-project-save]').hidden = Boolean(blocked);
     bar.querySelector('[data-project-save] summary').textContent = project && !project.is_draft ? 'Rename project' : 'Save project';
     bar.querySelector('[data-project-state]').textContent = blocked ? 'Project unavailable' : project?.is_draft || !project ? 'Draft' : 'Project';
+    const selected = [...bar.querySelector('.project-actions select').options].find(option => option.value === projectId);
+    if (selected && project) selected.textContent = project.title;
   }
   async function mount() {
     if (!document.querySelector('.site-header') || !document.createElement) return;
@@ -109,7 +111,7 @@
     bar.setAttribute('aria-label', 'Current creation');
     bar.innerHTML = '<span class="project-context-title"><small data-project-state>Draft</small><strong data-project-label>Draft · explore freely</strong></span>' +
       '<details class="project-actions"><summary>Open project</summary><div class="project-menu"><label>Saved projects<select aria-label="Open project"><option value="">Choose a project…</option></select></label><button type="button" data-project-draft>Back to draft</button></div></details>' +
-      '<details data-project-library><summary>Creations</summary><div class="project-library"><label>Show<select data-creation-scope aria-label="Creation library scope"><option value="project">This project</option><option value="common">Common library</option></select></label><p class="microcopy">Open your work or explicitly reuse a creation. Originals stay unchanged.</p><ul data-creation-list></ul></div></details>' +
+      '<details data-project-library><summary>Creations</summary><div class="project-library"><label>Show<select data-creation-scope aria-label="Creation library scope"><option value="project">This project</option><option value="common">Common library</option></select></label><p class="microcopy">Characters and Swap results. Preview or reuse explicitly; originals stay unchanged. Native takes are in Sequence’s take library.</p><ul data-creation-list></ul></div></details>' +
       '<details data-project-save><summary>Save project</summary><form class="project-name-form"><label>Name this creation<input name="title" maxlength="160" required placeholder="My next creation"></label><button type="submit">Save</button></form></details><p class="project-error" role="status" hidden></p>';
     document.querySelector('.site-header').after(bar); render();
     const errorHost = bar.querySelector('.project-error');
@@ -121,6 +123,10 @@
       if (id) url.searchParams.set('project_id', id); else url.searchParams.delete('project_id');
       location.assign(url.pathname + url.search);
     };
+    const nameDetails = bar.querySelector('[data-project-save]');
+    nameDetails.addEventListener('toggle', () => {
+      if (nameDetails.open) nameDetails.querySelector('input').value = project && !project.is_draft ? project.title : '';
+    });
     const creationDetails = bar.querySelector('[data-project-library]');
     const creationScope = bar.querySelector('[data-creation-scope]');
     const creationList = bar.querySelector('[data-creation-list]');
@@ -176,14 +182,12 @@
     }
     creationDetails.addEventListener('toggle', () => { if (creationDetails.open) showCreations(); });
     creationScope.addEventListener('change', () => { libraryLimit = 24; showCreations(); });
-    const nativePicker = document.getElementById('native-project-picker');
-    if (nativePicker) bar.querySelector('.project-actions select').replaceWith(nativePicker);
-    else bar.querySelector('.project-actions select').addEventListener('change', event => {
+    bar.querySelector('.project-actions select').addEventListener('change', event => {
       if (!valid(event.target.value)) return;
       go(event.target.value);
     });
     bar.querySelector('[data-project-draft]').addEventListener('click', async () => {
-      try { const data = await api('/draft', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'}); go(data.project.project_id); }
+      try { await window.OpenGenjutsuProject.openDraft(); }
       catch (error) { fail(error); }
     });
     bar.querySelector('form').addEventListener('submit', async event => {
@@ -200,7 +204,6 @@
     });
     try {
       await ready.catch(fail);
-      if (nativePicker) return;
       const data = await api('/projects');
       const select = bar.querySelector('.project-actions select');
       for (const item of data.projects) {
@@ -213,7 +216,10 @@
   window.OpenGenjutsuProject = {
     ready, ensure, associate, recovery, acceptJob,
     async openDraft() {
+      await ready.catch(() => {}); // This explicit action can recover an unavailable project.
+      await window.OpenGenjutsuProject.beforeNavigate?.();
       const data = await api('/draft', {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      if (!valid(data.project?.project_id)) throw new Error('The draft response was invalid.');
       location.assign(location.pathname+'?project_id='+data.project.project_id);
     },
     id: () => projectId,

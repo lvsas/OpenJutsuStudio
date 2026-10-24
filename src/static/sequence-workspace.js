@@ -2,13 +2,19 @@
 import {emptyWorkspace,addPlacement,removePlacement,movePlacement,saveDraft} from './sequence-state.js';
 import {positionsOf,resolvePosition,insertAtPosition,positionLabel,positionFromKey,positionKey,selectPosition as selectPositionState,savePositionDraft as savePositionDraftState} from './sequence-positions.js';
 import {parseProjectContext,workspaceLink,validContextId} from './project-context.js';
+export function takeLabel(entry) {
+  if(!entry)return 'Unavailable take';
+  const record=entry.take,c=record.family.context;
+  const kind=record.lineage.relation==='extends'?'Extension':record.lineage.parent_id?'Continuation':'Take';
+  return `${kind} · ${(c.delivered_frames/c.fps).toFixed(1)} s`;
+}
 const el=id=>document.getElementById(id);
 const uuid=()=>crypto.randomUUID().replace(/-/g,'');
 const rememberKey='opengenjutsu.sequence.project';
 const stored=key=>{try{return localStorage.getItem(key);}catch{return null;}};
 const remember=(key,value)=>{try{localStorage.setItem(key,value);}catch{/* Server remains authoritative. */}};
 export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},onContextChange=()=>{},onLockChange=()=>{},onError}) {
-  let insertionPosition=null,contextBlocked=false,contextLoading=true,contextEpoch=0,projectKinds=new Map();
+  let insertionPosition=null,contextBlocked=false,contextLoading=true,contextEpoch=0;
   let projectMembers=new Set(),memberJobs=new Set(),commonLibrary=false;
   let state=emptyWorkspace(),entries=[],version=0,savedVersion=0,saving=null,timer=null,conflicted=false,previewedId=null;
   const entryFor=id=>entries.find(e=>e.take.take_id===id);
@@ -28,7 +34,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
   }
   function change(next,{select=false}={}) {
     if(contextLoading){onError('Opening the project. Please wait before editing.');return;}
-    if(contextBlocked){onError('The linked project is unavailable. Choose a project or start a new sequence.');return;}
+    if(contextBlocked){onError('The linked project is unavailable. Open a project or return to Draft from the project bar.');return;}
     state=next;version++;let resetPosition=false;
     if(insertionPosition) {
       try {resolvePosition(state,insertionPosition);}
@@ -41,7 +47,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
   async function flush() {
     clearTimeout(timer);
     if(contextLoading)throw new Error('Opening the project. Please wait before editing.');
-    if(contextBlocked)throw new Error('The linked project is unavailable. Choose a project or start a new sequence.');
+    if(contextBlocked)throw new Error('The linked project is unavailable. Open a project or return to Draft from the project bar.');
     if(saving) {await saving;if(version===savedVersion)return state;}
     if(conflicted)throw new Error('Reload the saved sequence before editing again. Your draft is kept in this browser.');
     if(version===savedVersion)return state;
@@ -53,7 +59,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
             : await api('/projects',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:state.title})});
           state={...state,project_id:project.project_id,revision:project.revision,
             title:state.title===emptyWorkspace().title?project.title:state.title};
-          remember(rememberKey,state.project_id);syncProjectURL();await projectList();
+          remember(rememberKey,state.project_id);syncProjectURL();
         }
         while(savedVersion<version) {
           const snapshot=structuredClone(state),sentVersion=version;
@@ -92,8 +98,8 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
   }
   function showLibrary(open,{focus=false}={}) {
     el('native-library').hidden=!open;
-    el('native-library-toggle').setAttribute('aria-expanded',String(open));
-    if(focus)(open?el('native-search'):el('native-library-toggle')).focus();
+    el('native-rail-add').setAttribute('aria-expanded',String(open));
+    if(focus)(open?el('native-search'):el('native-rail-add')).focus();
   }
   function markLibrarySelection() {
     for(const row of el('native-takes').children)
@@ -118,10 +124,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     return image;
   }
   function label(entry) {
-    return `${entry.take.lineage.parent_id?'Continuation':'Take'} · ${entry.take.take_id.slice(0,8)}`;
-  }
-  function duration(entry) {
-    const c=entry.take.family.context;return `${(c.delivered_frames/c.fps).toFixed(1)} s`;
+    return takeLabel(entry);
   }
   function action(text,fn,className='btn btn-ghost') {
     const button=document.createElement('button');button.type='button';button.className=className;
@@ -131,18 +134,18 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     const container=el('native-takes'),search=el('native-search').value.toLowerCase();container.replaceChildren();
     const scoped=commonLibrary||!window.OpenGenjutsuProject?entries:entries.filter(e=>projectMembers.has(e.take.take_id)
       ||state.placements.some(p=>p.take_id===e.take.take_id)||memberJobs.has(e.take.origin?.source_job));
-    const filtered=scoped.filter(e=>label(e).toLowerCase().includes(search));
+    const filtered=scoped.filter(e=>(label(e)+' '+e.take.take_id).toLowerCase().includes(search));
     el('pool-count').textContent=`${filtered.length} ${commonLibrary?'common-library':'project'} takes`;
     for(const entry of filtered.slice(0,100)) {
       const id=entry.take.take_id,row=document.createElement('li');row.className='library-take';
       const preview=action('',()=>{previewedId=id;markLibrarySelection();onPreview(entry);},'library-preview');
       preview.setAttribute('aria-pressed',String(id===previewedId));
-      preview.setAttribute('aria-label',`Preview ${label(entry)}`);preview.append(poster(entry));
+      preview.setAttribute('aria-label',`Preview ${label(entry)} · ${id.slice(0,8)}`);preview.title=`Native take ${id}`;preview.append(poster(entry));
       const text=document.createElement('span');text.className='library-take-info';
       const name=document.createElement('strong');name.textContent=label(entry);
-      const info=document.createElement('small');info.textContent=`H3 · ${duration(entry)}${state.placements.some(p=>p.take_id===id)?' · In this sequence':''}`;
+      const info=document.createElement('small');info.textContent=`H3 · ${id.slice(0,8)}${state.placements.some(p=>p.take_id===id)?' · In sequence':''}`;
       text.append(name,info);preview.append(text);
-      const append=action('+',()=>{add(id);focusLibraryAdd(id);},'btn btn-secondary library-add');append.setAttribute('aria-label',`Add ${label(entry)} to sequence`);
+      const append=action('+',()=>{add(id);focusLibraryAdd(id);},'btn btn-secondary library-add');append.setAttribute('aria-label',`Add ${label(entry)} · ${id.slice(0,8)} to sequence`);
       row.draggable=true;row.dataset.takeId=id;
       row.addEventListener('dragstart',event=>{event.dataTransfer.setData('text/plain',id);event.dataTransfer.effectAllowed='copy';});
       row.append(preview,append);container.append(row);
@@ -193,9 +196,10 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
       slot.dataset.placementId=placement.placement_id;
       const card=action('',()=>select(placement.placement_id),'sequence-take');
       card.setAttribute('aria-pressed',String(placement.placement_id===state.selected_placement_id));
+      card.title=`Native take ${placement.take_id}`;
       const name=document.createElement('strong');name.textContent=entry?label(entry):`Unavailable · ${placement.take_id.slice(0,8)}`;
       if(entry)card.append(poster(entry));
-      const time=document.createElement('small');time.textContent=entry?duration(entry):'Source not listed';
+      const time=document.createElement('small');time.textContent=entry?`H3 · ${placement.take_id.slice(0,8)}`:'Source not listed';
       card.append(name,time);
       const tools=document.createElement('div');tools.className='sequence-take-tools';
       const previous=action('←',()=>change(movePlacement(state,placement.placement_id,-1)));
@@ -210,32 +214,14 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
   }
   function render() {
     drawLibrary();drawRail();
-    if(document.activeElement!==el('native-project-title'))el('native-project-title').value=state.title;
-    el('native-project-picker').value=state.project_id||'';
-    el('native-project-title').disabled=contextBlocked||contextLoading;
-    for(const id of ['native-project-picker','native-new-sequence','native-reload'])el(id).disabled=contextLoading;
-    const kind=projectKinds.get(state.project_id);
-    const legacy=kind?.workspace_kind==='legacy'||kind?.workspace_kind==='mixed';
-    el('native-project-kind').hidden=!legacy;
-    el('native-project-kind-text').textContent=legacy?'This project also contains a saved cut. Its clips are separate from your native sequence and have not been converted.':'';
-    el('native-legacy-open').hidden=!legacy;
+    el('native-rail-add').disabled=contextBlocked||contextLoading;
+    el('native-reload').disabled=contextLoading;
   }
   function syncProjectURL({preserveSource=false}={}) {
     const values=state.project_id?{project_id:state.project_id}:{};
     if(preserveSource){const ctx=parseProjectContext(location.search);for(const key of ['job_id','character_id'])if(ctx[key])values[key]=ctx[key];}
     history.replaceState(null,'',workspaceLink('/timeline',values));
     window.dispatchEvent?.(new CustomEvent('opengenjutsu:project-context'));
-  }
-  async function projectList() {
-    const {projects}=await api('/projects'),picker=el('native-project-picker');
-    picker.replaceChildren(new Option('New unsaved sequence',''));
-    if(!Array.isArray(projects))throw new Error('The saved project list is invalid.');
-    projectKinds=new Map(projects.filter(p=>validContextId(p.project_id)).map(p=>[p.project_id,p]));
-    for(const p of projectKinds.values()){
-      const suffix=p.workspace_kind==='legacy'?' · Saved cut':p.workspace_kind==='mixed'?' · Sequence + saved cut':'';
-      picker.append(new Option(p.title+suffix,p.project_id));
-    }
-    picker.value=state.project_id||'';
   }
   async function loadMembers(id, token) {
     if(!window.OpenGenjutsuProject)return;
@@ -257,9 +243,6 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
       remember(rememberKey,id);syncProjectURL({preserveSource});status('Saved');el('native-reload').hidden=true;onContextChange();notifySelection();
     } finally {if(token===contextEpoch){contextLoading=false;render();onLockChange();}}
   }
-  el('native-library-toggle').addEventListener('click',()=>{
-    showLibrary(el('native-library').hidden,{focus:true});
-  });
   el('native-rail-add').addEventListener('click',()=>showLibrary(true,{focus:true}));
   el('native-library-close').addEventListener('click',()=>showLibrary(false,{focus:true}));
   el('native-library').addEventListener('keydown',event=>{
@@ -267,32 +250,6 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
   });
   el('native-search').addEventListener('input',drawLibrary);
   el('native-library-scope')?.addEventListener('change',event=>{commonLibrary=event.target.value==='common';drawLibrary();});
-  el('native-project-title').addEventListener('input',()=>{
-    const title=el('native-project-title').value.trim();if(title)change({...state,title});
-  });
-  el('native-new-sequence').addEventListener('click',async()=>{
-    if(contextLoading)return;
-    try {if(!contextBlocked)await flush();if(window.OpenGenjutsuProject){await window.OpenGenjutsuProject.openDraft();return;}++contextEpoch;contextBlocked=false;state=emptyWorkspace();version=0;savedVersion=0;conflicted=false;
-      insertionPosition=null;onPosition(null);
-      remember(rememberKey,'');syncProjectURL();render();onContextChange();notifySelection();status('Not started');
-      showLibrary(true);}
-    catch(error){onError(error.message);}
-  });
-  el('native-project-picker').addEventListener('change',async event=>{
-    if(contextLoading){event.target.value=state.project_id||'';return;}
-    const id=event.target.value;if(!id){event.target.value=state.project_id||'';return;}
-    try{if(!contextBlocked)await flush();await load(id);}catch(error){onError(error.message);event.target.value=state.project_id||'';}
-  });
-  el('native-legacy-open').addEventListener('click',async()=>{
-    try{
-      const project=state.project_id,token=contextEpoch;
-      if(!validContextId(project))throw new Error('Choose a saved cut first.');
-      await flush();
-      if(token!==contextEpoch||state.project_id!==project)throw new Error('The project changed. Open its saved cut again.');
-      location.assign(`/assembly?project_id=${project}`);
-    }
-    catch(error){onError(error.message);}
-  });
   el('native-reload').addEventListener('click',()=>{
     if(state.project_id)load(state.project_id).catch(error=>onError(error.message));
   });
@@ -316,7 +273,8 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     window.OpenGenjutsuProject.beforeNavigate=async()=>{if(!contextBlocked)await flush();};
     window.OpenGenjutsuProject.onRenamed=async project=>{
       if(project.project_id!==state.project_id)return;
-      state={...state,title:project.title,revision:project.revision};await projectList();render();
+      state={...state,title:project.title,revision:project.revision};
+      shadow();render();
     };
   }
   return {
@@ -324,7 +282,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
       entries=items;contextLoading=true;render();onLockChange();
       try {
         await window.OpenGenjutsuProject?.ready;
-        const context=parseProjectContext(location.search);await projectList();
+        const context=parseProjectContext(location.search);
         const id=context.project_id||stored(rememberKey);
         if(validContextId(id))await load(id,{preserveSource:true});
         else {render();notifySelection();status('Not started');}

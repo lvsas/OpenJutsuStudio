@@ -1,6 +1,6 @@
 /* Native sequence workspace; generation only after explicit submission. */
 import {validCharacterId} from './character-handoff.js';
-import {mountSequence} from './sequence-workspace.js';
+import {mountSequence,takeLabel} from './sequence-workspace.js';
 import {attemptBody} from './sequence-state.js';
 import {createAttemptClient} from './continuity-attempt-client.js';
 import {mountCandidateComparison, candidateSeed} from './candidate-comparison.js';
@@ -57,7 +57,7 @@ function showPosition(position,draft=null,{focus=false}={}) {
   if(position) {
     byId('forward-form').hidden=true;
     const placements=sequence.state().placements;
-    const take=id=>placements.find(p=>p.placement_id===id)?.take_id.slice(0,8);
+    const take=id=>takeLabel(entries.find(e=>e.take.take_id===placements.find(p=>p.placement_id===id)?.take_id));
     byId('position-title').textContent=positionLabel(position);
     const anchors=position.mode==='root'?'Start from references. No video parent.'
       : position.mode==='prepend'?`Create footage leading into ${take(position.right)}.`
@@ -108,7 +108,7 @@ function showSelection(entry, placement, draft) {
   }
   choose(entry);
   byId('composer-anchor').textContent = placement
-    ? `Extend after ${entry.take.take_id.slice(0,8)} · original unchanged`
+    ? `Continue ${takeLabel(entry)} · original unchanged`
     : 'Set up your extension below. Add this take to the sequence before generating; no calculation starts when adding it.';
   updateComposer();
 }
@@ -127,7 +127,8 @@ async function inspect() {
 function choose(entry) {
   ++epoch; active = entry; notice();
   const token = epoch, record = entry.take, context = record.family.context;
-  byId('native-title').textContent = `Take ${record.take_id.slice(0,8)}`;
+  byId('native-title').textContent = takeLabel(entry);
+  byId('native-title').title = `Native take ${record.take_id}`;
   byId('native-geometry').textContent = `${context.width} × ${context.height} · ${(context.delivered_frames/context.fps).toFixed(1)} s · ${context.fps} fps`;
   byId('native-state').textContent = 'Checking saved state…';
   byId('native-lineage').textContent = record.lineage.parent_id

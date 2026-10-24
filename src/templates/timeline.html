@@ -33,32 +33,30 @@
   </header>
   <aside class="studio-wip" aria-label="Development status"><strong>Work in progress</strong><span>Build a sequence and extend native H3 takes. Additional generation modes are being integrated.</span></aside>
   <main class="timeline-shell sequence-shell">
-    <section class="native-intro sequence-toolbar" aria-label="Sequence workspace">
-      <div><p class="eyebrow">Generative workspace</p><h1>Sequence</h1></div>
-      <label class="sequence-name"><span class="sr-only">Sequence name</span><input id="native-project-title" disabled maxlength="160" value="Untitled sequence" aria-label="Sequence name"><small id="native-save-state" role="status" aria-live="polite">Loading…</small></label>
-      <div class="sequence-toolbar-actions">
-        <select id="native-project-picker" aria-label="Open a saved sequence"><option value="">New unsaved sequence</option></select>
-        <button id="native-new-sequence" class="btn btn-ghost" type="button">New</button>
-        <button id="native-library-toggle" class="btn btn-secondary" type="button" aria-expanded="false" aria-controls="native-library">Your takes</button>
-        <button id="native-export" class="btn btn-secondary" type="button" disabled>Export sequence</button>
-        <button id="native-refresh" class="btn btn-ghost" type="button" aria-label="Refresh available takes">↻</button>
-      </div>
+    <section class="studio-intro sequence-intro" aria-labelledby="sequence-title">
+      <p class="eyebrow">Native video creation</p>
+      <h1 id="sequence-title">Create a take.<br><em>Keep the story going.</em></h1>
+      <p>Start from references, explore alternatives, and continue from a saved state. Your choices build the sequence.</p>
     </section>
-    <aside id="native-project-kind" class="native-character" hidden><p id="native-project-kind-text" class="microcopy"></p><button id="native-legacy-open" class="btn btn-secondary" type="button" hidden>Open archived cut</button></aside>
     <p id="native-error" class="native-error" role="alert" hidden></p>
     <button id="native-reload" class="btn btn-secondary" type="button" hidden>Reload saved version · local recovery draft is kept</button>
     <section id="native-handoff" class="native-handoff" aria-label="Linked Swap result" hidden><p id="native-handoff-message" class="microcopy" role="status"></p><div id="native-handoff-choices" class="forward-actions"></div><div class="forward-actions"><button id="native-handoff-add" class="btn btn-primary" type="button" hidden>Add this take</button><button id="native-handoff-new" class="btn btn-secondary" type="button" hidden>Start a new take from references</button></div></section>
     <aside id="native-character" class="native-character" hidden><img id="native-character-image" alt="Selected character reference"><div><strong>Character reference received</strong><p>Choose New take in an empty position, then use this character as a reference. No video or Swap is required.</p></div></aside>
     <div class="sequence-workbench">
       <aside id="native-library" class="sequence-library" aria-label="Take library" hidden>
-        <div class="rail-head"><div><h2>Your takes</h2><span id="pool-count" class="microcopy"></span></div><button id="native-library-close" class="btn btn-ghost" type="button" aria-label="Hide your takes">Hide</button></div>
+        <div class="rail-head"><div><h2>Your takes</h2><span id="pool-count" class="microcopy"></span></div><div class="library-tools"><button id="native-refresh" class="btn btn-ghost" type="button" aria-label="Refresh available takes">↻</button><button id="native-library-close" class="btn btn-ghost" type="button" aria-label="Hide your takes">Hide</button></div></div>
         <label class="microcopy">Show <select id="native-library-scope" aria-label="Take library scope"><option value="project">This project</option><option value="common">Common library · reuse a take</option></select></label>
         <label class="sr-only" for="native-search">Find a take</label><input id="native-search" type="search" placeholder="Find a take…" autocomplete="off">
-        <p class="microcopy">Preview a take, then add it. Dragging never starts generation.</p>
+        <p class="microcopy">Preview first; add to this sequence. Originals stay unchanged.</p>
         <ul id="native-takes" class="library-takes"><li class="microcopy">Loading takes…</li></ul>
         <a class="btn btn-secondary" href="/h3">Create a Swap in H3 Studio ↗</a>
       </aside>
       <div class="sequence-main">
+        <section id="take-board" class="take-board sequence-rail" aria-label="Chosen sequence" tabindex="0">
+          <div class="rail-head"><div><h2 class="eyebrow">Your sequence</h2><div class="sequence-rail-meta"><span id="board-hint" class="microcopy">Nothing is added automatically</span><span id="native-save-state" role="status" aria-live="polite">Loading…</span></div></div><div class="sequence-rail-actions"><button id="native-export" class="btn btn-secondary" type="button" disabled>Export sequence</button><button id="native-rail-add" class="btn btn-secondary" type="button" aria-expanded="false" aria-controls="native-library">+ Add a take</button></div></div>
+          <p id="native-rail-empty" class="sequence-empty">Choose an empty position or add a saved take. Dropping only places it; generation always needs your confirmation.</p>
+          <ol id="board-track" class="board-track" aria-label="Takes chosen for this sequence"></ol>
+        </section>
         <section id="native-workspace" class="native-workspace" aria-label="Preview and generation context">
           <div class="native-canvas">
             <div id="native-preview-stage" class="native-stage"><div id="native-empty" class="native-empty"><strong>Choose where the story goes.</strong><p>Add a take from your library to build a sequence. Its saved state stays attached.</p></div><video id="native-video" controls playsinline preload="metadata" hidden></video></div>
@@ -110,11 +108,6 @@
 
             <details class="sequence-capabilities"><summary>Other ways to create</summary><dl><dt>Generate before</dt><dd>New footage leading into a take — not reversed playback.</dd><dt>Bridge A → B</dt><dd>New footage joining two explicitly selected takes.</dd><dt>New take</dt><dd>Start directly from references, without a Swap.</dd><dt>Variants &amp; quality</dt><dd>Compare seeds, choose a future, or improve a chosen result.</dd></dl><p class="microcopy">Choose an empty position to set up the operation. Saved-state compatibility is checked before generation; unsupported anchors are explained, never replaced silently with Extend.</p></details>
           </aside>
-        </section>
-        <section id="take-board" class="take-board sequence-rail" aria-label="Chosen sequence" tabindex="0">
-          <div class="rail-head"><div><p class="eyebrow">Your sequence</p><span id="board-hint" class="microcopy">Nothing is added automatically</span></div><button id="native-rail-add" class="btn btn-secondary" type="button" aria-controls="native-library">+ Add a take</button></div>
-          <p id="native-rail-empty" class="sequence-empty">Choose an empty position or add a saved take. Dropping only places it; generation always needs your confirmation.</p>
-          <ol id="board-track" class="board-track" aria-label="Takes chosen for this sequence"></ol>
         </section>
       </div>
     </div>

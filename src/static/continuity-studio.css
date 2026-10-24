@@ -196,3 +196,6 @@
 .candidate-preview p{overflow-wrap:anywhere}
 .candidate-preview .btn{min-height:44px;min-width:44px;white-space:normal}
 .candidate-preview video:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+
+.native-handoff {padding: .75rem 1rem;border: 1px solid var(--line);border-radius: 12px;}
+.native-handoff .microcopy {margin-top: 0;}

@@ -33,7 +33,7 @@
   <main class="timeline-shell sequence-shell">
     <section class="native-intro sequence-toolbar" aria-label="Sequence workspace">
       <div><p class="eyebrow">Generative workspace</p><h1>Sequence</h1></div>
-      <label class="sequence-name"><span class="sr-only">Sequence name</span><input id="native-project-title" maxlength="160" value="Untitled sequence" aria-label="Sequence name"><small id="native-save-state" role="status" aria-live="polite">Loading…</small></label>
+      <label class="sequence-name"><span class="sr-only">Sequence name</span><input id="native-project-title" disabled maxlength="160" value="Untitled sequence" aria-label="Sequence name"><small id="native-save-state" role="status" aria-live="polite">Loading…</small></label>
       <div class="sequence-toolbar-actions">
         <select id="native-project-picker" aria-label="Open a saved sequence"><option value="">New unsaved sequence</option></select>
         <button id="native-new-sequence" class="btn btn-ghost" type="button">New</button>
@@ -41,8 +41,10 @@
         <button id="native-refresh" class="btn btn-ghost" type="button" aria-label="Refresh available takes">↻</button>
       </div>
     </section>
+    <aside id="native-project-kind" class="native-character" hidden><p id="native-project-kind-text" class="microcopy"></p><button id="native-legacy-open" class="btn btn-secondary" type="button" hidden>Open saved cut</button></aside>
     <p id="native-error" class="native-error" role="alert" hidden></p>
     <button id="native-reload" class="btn btn-secondary" type="button" hidden>Reload saved version · local recovery draft is kept</button>
+    <section id="native-handoff" class="native-handoff" aria-label="Linked Swap result" hidden><p id="native-handoff-message" class="microcopy" role="status"></p><div id="native-handoff-choices" class="forward-actions"></div><div class="forward-actions"><button id="native-handoff-add" class="btn btn-primary" type="button" hidden>Add this take</button><button id="native-handoff-new" class="btn btn-secondary" type="button" hidden>Start a new take from references</button></div></section>
     <aside id="native-character" class="native-character" hidden><img id="native-character-image" alt="Selected character reference"><div><strong>Character reference received</strong><p>Choose New take in an empty position, then use this character as a reference. No video or Swap is required.</p></div></aside>
     <div class="sequence-workbench">
       <aside id="native-library" class="sequence-library" aria-label="Take library" hidden>
@@ -178,5 +180,6 @@
   <script src="/static/studio-utils.js" defer></script>
   <script type="module" src="/static/continuity-studio.js"></script>
   <noscript><p>Enable JavaScript to recover and inspect native takes. Generative operations are work in progress.</p></noscript>
+  <script type="module" src="/static/project-context-ui.js"></script>
 </body>
 </html>

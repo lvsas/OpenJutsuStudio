@@ -517,3 +517,143 @@ test('project context parser is strict, pure and keeps distinct literal IDs',asy
   assert.throws(()=>workspaceLink('/timeline',{job_id:'bad'},''),/workspace link is invalid/i);
   assert.equal(JSON.stringify([...app.storage]),before);
 });
+
+
+test('explicit project wins browser memory without writing or losing saved drafts',async()=>{
+  const saved={project_id:C,title:'Remembered',revision:1,placements:[],selected_placement_id:null,drafts:{}};
+  const explicit={...saved,project_id:B,title:'Linked project',drafts:{[A]:{prompt:'Unchanged',seed:'7'}}};
+  const backend=nativeBackend({saved,extra:async url=>url===`/api/timeline/projects/${B}/native-workspace`?response(explicit):null});
+  const app=await environment(backend.fetcher,`?project_id=${B}`,{'opengenjutsu.sequence.project':C});
+  const {mountSequence}=await app.entry('sequence-workspace.js');
+  const sequence=mountSequence({onSelect(){},onPreview(){},onCompose(){},onError:assert.fail});
+  await sequence.init([nativeEntry(A)]);
+  assert.equal(sequence.state().project_id,B);assert.equal(sequence.state().drafts[A].prompt,'Unchanged');
+  assert.equal(app.storage.get('opengenjutsu.sequence.project'),B);
+  assert.equal(backend.calls.some(c=>c.url.includes(`${C}/native-workspace`)),false);
+  assert.equal(backend.calls.some(c=>c.method!=='GET'),false);
+});
+
+test('missing or malformed explicit project refuses fallback and accidental edits',async()=>{
+  for(const search of [`?project_id=${B}`,`?project_id=${A}&project_id=${B}`,'?project_id=../bad']){
+    const messages=[],backend=nativeBackend({saved:{project_id:C,title:'Remembered',revision:1,
+      placements:[],selected_placement_id:null,drafts:{}},extra:async url=>
+      url===`/api/timeline/projects/${B}/native-workspace`?new Response('{}',{status:404}):null});
+    const app=await environment(backend.fetcher,search,{'opengenjutsu.sequence.project':C});
+    const {mountSequence}=await app.entry('sequence-workspace.js');
+    const sequence=mountSequence({onSelect(){},onPreview(){},onCompose(){},onError:m=>messages.push(m)});
+    try{await sequence.init([nativeEntry(A)]);}catch(error){messages.push(error.message);}
+    assert.equal(sequence.state().project_id,null);assert.equal(sequence.editable(),false);
+    assert.ok(messages.length);assert.equal(backend.calls.some(c=>c.url.includes(`${C}/native-workspace`)),false);
+    sequence.place(A);await assert.rejects(()=>sequence.flush(),/linked project|workspace link|choose a project/i);
+    assert.equal(backend.calls.some(c=>c.method!=='GET'),false);
+    assert.equal(app.storage.get('opengenjutsu.sequence.project'),C);
+  }
+});
+
+test('legacy project is identified without conversion and compatibility opening is explicit',async()=>{
+  const saved={project_id:C,title:'Old cut',revision:3,placements:[],selected_placement_id:null,drafts:{}};
+  const backend=nativeBackend({saved,extra:async url=>url==='/api/timeline/projects'
+    ?response({projects:[{...saved,workspace_kind:'legacy',legacy_clip_count:2,native_placement_count:0}]}):null});
+  const app=await environment(backend.fetcher,`?project_id=${C}`),e=app.elements;
+  const {mountSequence}=await app.entry('sequence-workspace.js');
+  const sequence=mountSequence({onSelect(){},onPreview(){},onCompose(){},onError:assert.fail});
+  await sequence.init([nativeEntry(A)]);
+  assert.match(e.get('native-project-picker').children[1].textContent,/saved cut/i);
+  assert.equal(e.get('native-project-kind').hidden,false);
+  assert.equal(e.get('native-legacy-open').hidden,false);
+  assert.equal(e.get('supporting-tools').open,false);
+  await e.get('native-legacy-open').click();
+  assert.equal(e.get('supporting-tools').open,true);
+  assert.equal(backend.saved().revision,3);assert.equal(sequence.state().placements.length,0);
+  assert.equal(backend.calls.some(c=>c.method!=='GET'),false);
+});
+
+
+const sourceEntry=(id,job)=>{const entry=nativeEntry(id);entry.take.origin={source_job:job,operator_label:'native-swap'};return entry;};
+test('Swap native handoff previews its real family without adding or editing the sequence',async()=>{
+  const placement='1'.repeat(32),saved={project_id:C,title:'Existing',revision:7,
+    placements:[{placement_id:placement,take_id:B}],selected_placement_id:placement,
+    drafts:{[placement]:{prompt:'Keep my direction',seed:'18446744073709551615',raw_frames:158}}};
+  const backend=nativeBackend({saved}),before=JSON.stringify(saved);
+  const app=await environment((url,options)=>url==='/api/continuity/takes'
+    ?Promise.resolve(response({takes:[sourceEntry(A,B),nativeEntry(B)]})):backend.fetcher(url,options),`?job_id=${B}&project_id=${C}`);
+  await app.entry('continuity-studio.js');await flush();const e=app.elements;
+  assert.equal(e.get('native-video').src,`/api/continuity/takes/${A}/media`);
+  assert.equal(e.get('native-handoff').hidden,false);
+  assert.equal(e.get('native-handoff-add').textContent,'Add this take');
+  assert.equal(JSON.stringify(backend.saved()),before);assert.equal(backend.calls.some(c=>c.method!=='GET'),false);
+  await e.get('native-handoff-add').click();await flush();
+  assert.deepEqual(backend.saved().placements.map(p=>p.take_id),[B,A]);
+  assert.equal(backend.saved().drafts[placement].prompt,'Keep my direction');
+  assert.equal(backend.calls.some(c=>c.url.endsWith('/attempts')),false);
+});
+
+test('ambiguous native source requires an explicit version choice and never picks newest',async()=>{
+  const backend=nativeBackend(),app=await environment((url,options)=>url==='/api/continuity/takes'
+    ?Promise.resolve(response({takes:[sourceEntry(A,C),sourceEntry(B,C)]})):backend.fetcher(url,options),`?job_id=${C}`);
+  await app.entry('continuity-studio.js');await flush();const e=app.elements;
+  assert.equal(e.get('native-video').src||'', '');assert.equal(e.get('native-handoff-choices').children.length,2);
+  await e.get('native-handoff-choices').children[1].click();await flush();
+  assert.equal(e.get('native-video').src,`/api/continuity/takes/${B}/media`);
+  assert.equal(backend.calls.some(c=>c.method!=='GET'),false);
+});
+
+test('completed video-only Swap opens real video with an honest native-state alternative',async()=>{
+  const backend=nativeBackend({extra:async url=>url===`/api/jobs/${C}`
+    ?response({id:C,status:'done',engine:'ltx25-ripple',result_url:`/api/jobs/${C}/result`}):null});
+  const app=await environment(backend.fetcher,`?job_id=${C}`);await app.entry('continuity-studio.js');await flush();const e=app.elements;
+  assert.equal(e.get('native-video').src,`/api/jobs/${C}/result`);
+  assert.match(e.get('native-handoff-message').textContent,/video only/i);
+  assert.equal(e.get('native-handoff-add').hidden,true);assert.equal(e.get('native-handoff-new').hidden,false);
+  assert.equal(e.get('forward-submit').disabled,true);assert.equal(e.get('native-capsule-download').hidden,true);
+  assert.equal(backend.calls.some(c=>c.method!=='GET'),false);
+});
+
+test('missing and stale Swap replies cannot replace a newer project preview',async()=>{
+  const late=deferred(),placement='1'.repeat(32),saved={project_id:C,title:'Chosen later',revision:1,
+    placements:[{placement_id:placement,take_id:A}],selected_placement_id:placement,drafts:{}};
+  const backend=nativeBackend({saved,extra:async url=>url===`/api/jobs/${B}`?late.promise:null});
+  const app=await environment(backend.fetcher,`?job_id=${B}`);await app.entry('continuity-studio.js');await flush();
+  const e=app.elements;e.get('native-project-picker').value=C;await e.get('native-project-picker').fire('change');await flush();
+  late.resolve(response({id:B,status:'done',engine:'ltx25-ripple',result_url:`/api/jobs/${B}/result`}));await flush();
+  assert.equal(e.get('native-video').src,`/api/continuity/takes/${A}/media`);
+  assert.equal(e.get('native-handoff').hidden,true);assert.equal(backend.calls.some(c=>c.method!=='GET'),false);
+  const missing=nativeBackend({extra:async url=>url===`/api/jobs/${C}`?new Response('{}',{status:404}):null});
+  const other=await environment(missing.fetcher,`?job_id=${C}`);await other.entry('continuity-studio.js');await flush();
+  assert.match(other.elements.get('native-error').textContent,/unavailable|not.*available/i);
+  assert.equal(other.elements.get('native-video').src||'','');assert.equal(missing.calls.some(c=>c.method!=='GET'),false);
+});
+
+
+test('project navigation carries source IDs, follows deliberate switches and protects explicit links',async()=>{
+  const app=await environment(()=>{throw Error('Navigation context never fetches');});
+  const {bindProjectNavigation}=await app.entry('project-context.js');let search=`?project_id=${A}`;
+  const character=new Element(),result=new Element(),explicit=new Element(),download=new Element();
+  character.setAttribute('href',`/h3?character_id=${B}`);result.setAttribute('href',`/timeline?job_id=${C}`);
+  explicit.setAttribute('href',`/timeline?project_id=${B}&job_id=${C}`);download.setAttribute('href',`/api/jobs/${C}/result`);
+  const binding=bindProjectNavigation({getSearch:()=>search,root:{querySelectorAll:()=>[character,result,explicit,download]},observe:false});
+  const params=el=>new URL(el.getAttribute('href'),'http://test.invalid').searchParams;
+  assert.equal(params(character).get('project_id'),A);assert.equal(params(character).get('character_id'),B);
+  assert.equal(params(result).get('job_id'),C);assert.equal(params(explicit).get('project_id'),B);
+  search=`?project_id=${C}`;binding.refresh();
+  assert.equal(params(character).get('project_id'),C);assert.equal(params(result).get('project_id'),C);
+  assert.equal(params(explicit).get('project_id'),B,'an explicit frozen destination is not rebound');
+  result.setAttribute('href',`/timeline?job_id=${A}`);binding.refresh();
+  assert.equal(params(result).get('job_id'),A);assert.equal(params(result).get('project_id'),C);
+  search='';binding.refresh();assert.equal(params(character).has('project_id'),false);
+  assert.equal(download.getAttribute('href'),`/api/jobs/${C}/result`);binding.dispose();
+});
+
+
+test('opening a project locks editing until its authoritative read finishes',async()=>{
+  const late=deferred(),backend=nativeBackend({extra:async url=>url===`/api/timeline/projects/${B}/native-workspace`?late.promise:null});
+  const app=await environment(backend.fetcher,`?project_id=${B}`),e=app.elements;
+  const {mountSequence}=await app.entry('sequence-workspace.js'),errors=[];
+  const sequence=mountSequence({onSelect(){},onPreview(){},onCompose(){},onError:m=>errors.push(m)});
+  const opening=sequence.init([nativeEntry(A)]);await flush();
+  assert.equal(sequence.editable(),false);assert.equal(e.get('native-project-title').disabled,true);
+  sequence.place(A);assert.equal(sequence.state().placements.length,0);
+  late.resolve(response({project_id:B,title:'Server choice',revision:4,placements:[],selected_placement_id:null,drafts:{}}));await opening;
+  assert.equal(sequence.editable(),true);assert.equal(e.get('native-project-title').disabled,false);
+  assert.equal(sequence.state().project_id,B);assert.equal(backend.calls.some(c=>c.method!=='GET'),false);
+});

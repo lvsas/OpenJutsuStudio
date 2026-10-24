@@ -13,7 +13,7 @@ const fetcher = async (url, options) => { calls.push({url, options}); return res
 const notify = text => messages.push(text);
 assert.equal(validCharacterId(id), true);
 for (const value of ['', '../bad', 'a'.repeat(31), id.toUpperCase(), null, {}]) assert.equal(validCharacterId(value), false);
-for (const search of ['', '?character_id=../../secret', `?character_id=${id}&character_id=${id}`]) {
+for (const search of ['', '?character_id=../../secret', `?character_id=${id}&project_id=../../bad`, `?character_id=${id}&project_id=${id}&project_id=${id}`, `?character_id=${id}&character_id=${id}`]) {
   calls = [];
   assert.equal(await applyCharacterReference({search, input: new Input(), fetcher, notify}), false);
   assert.equal(calls.length, 0);

@@ -1,8 +1,10 @@
 /* ID-only handoff: selecting a kept character never submits a GPU job. */
+import {parseProjectContext} from './project-context.js';
 export const validCharacterId = value => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
 
 export async function applyCharacterReference({search = location.search, input, fetcher = fetch,
                                                 notify = () => {}, isBusy = () => false} = {}) {
+  try{parseProjectContext(search);}catch{notify('This workspace link is invalid. Choose a character from your library.');return false;}
   const params = new URLSearchParams(search);
   const id = params.get('character_id');
   if (id === null) return false;

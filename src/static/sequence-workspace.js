@@ -1,13 +1,14 @@
 /* Production sequence UI over the existing revisioned Timeline project store. */
 import {emptyWorkspace,addPlacement,removePlacement,movePlacement,saveDraft} from './sequence-state.js';
 import {positionsOf,resolvePosition,insertAtPosition,positionLabel,positionFromKey,positionKey,selectPosition as selectPositionState,savePositionDraft as savePositionDraftState} from './sequence-positions.js';
+import {parseProjectContext,workspaceLink,validContextId} from './project-context.js';
 const el=id=>document.getElementById(id);
 const uuid=()=>crypto.randomUUID().replace(/-/g,'');
 const rememberKey='opengenjutsu.sequence.project';
 const stored=key=>{try{return localStorage.getItem(key);}catch{return null;}};
 const remember=(key,value)=>{try{localStorage.setItem(key,value);}catch{/* Server remains authoritative. */}};
-export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},onError}) {
-  let insertionPosition=null;
+export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},onContextChange=()=>{},onLockChange=()=>{},onError}) {
+  let insertionPosition=null,contextBlocked=false,contextLoading=true,contextEpoch=0,projectKinds=new Map();
   let state=emptyWorkspace(),entries=[],version=0,savedVersion=0,saving=null,timer=null,conflicted=false,previewedId=null;
   const entryFor=id=>entries.find(e=>e.take.take_id===id);
   const status=text=>{el('native-save-state').textContent=text;};
@@ -25,6 +26,8 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     remember('opengenjutsu.sequence.recovery',JSON.stringify(state));
   }
   function change(next,{select=false}={}) {
+    if(contextLoading){onError('Opening the project. Please wait before editing.');return;}
+    if(contextBlocked){onError('The linked project is unavailable. Choose a project or start a new sequence.');return;}
     state=next;version++;let resetPosition=false;
     if(insertionPosition) {
       try {resolvePosition(state,insertionPosition);}
@@ -36,6 +39,8 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
   }
   async function flush() {
     clearTimeout(timer);
+    if(contextLoading)throw new Error('Opening the project. Please wait before editing.');
+    if(contextBlocked)throw new Error('The linked project is unavailable. Choose a project or start a new sequence.');
     if(saving) {await saving;if(version===savedVersion)return state;}
     if(conflicted)throw new Error('Reload the saved sequence before editing again. Your draft is kept in this browser.');
     if(version===savedVersion)return state;
@@ -45,7 +50,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
           const project=await api('/projects',{method:'POST',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({title:state.title})});
           state={...state,project_id:project.project_id,revision:project.revision};
-          remember(rememberKey,state.project_id);await projectList();
+          remember(rememberKey,state.project_id);syncProjectURL();await projectList();
         }
         while(savedVersion<version) {
           const snapshot=structuredClone(state),sentVersion=version;
@@ -77,6 +82,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     }
   }
   function select(id) {
+    if(contextBlocked||contextLoading)return;
     insertionPosition=null;onPosition(null);
     change({...state,selected_placement_id:id,selected_position:null},{select:true});
   }
@@ -93,6 +99,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     [...el('native-takes').children].find(row=>row.dataset.takeId===id)?.children[1]?.focus({preventScroll:true});
   }
   function add(id,afterId=null,draft=null) {
+    if(contextBlocked||contextLoading)return;
     if(!entryFor(id))return;
     let next=insertionPosition&&!afterId
       ? insertAtPosition(state,id,uuid(),insertionPosition) : addPlacement(state,id,uuid(),afterId);
@@ -114,7 +121,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
   }
   function action(text,fn,className='btn btn-ghost') {
     const button=document.createElement('button');button.type='button';button.className=className;
-    button.textContent=text;button.addEventListener('click',fn);return button;
+    button.textContent=text;button.disabled=contextBlocked||contextLoading;button.addEventListener('click',fn);return button;
   }
   function drawLibrary() {
     const container=el('native-takes'),search=el('native-search').value.toLowerCase();container.replaceChildren();
@@ -137,6 +144,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     if(!filtered.length) {const text=document.createElement('li');text.className='microcopy';text.textContent=entries.length?'No matching takes.':'No saved native takes yet. Create a Swap in H3 Studio to get started.';container.append(text);}
   }
   function openPosition(position,options={}) {
+    if(contextBlocked||contextLoading)return;
     const next=selectPositionState(state,position,options);
     insertionPosition=positionFromKey(next,next.selected_position);
     change(next);
@@ -198,16 +206,41 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     drawLibrary();drawRail();
     if(document.activeElement!==el('native-project-title'))el('native-project-title').value=state.title;
     el('native-project-picker').value=state.project_id||'';
+    el('native-project-title').disabled=contextBlocked||contextLoading;
+    for(const id of ['native-project-picker','native-new-sequence','native-reload'])el(id).disabled=contextLoading;
+    const kind=projectKinds.get(state.project_id);
+    const legacy=kind?.workspace_kind==='legacy'||kind?.workspace_kind==='mixed';
+    el('native-project-kind').hidden=!legacy;
+    el('native-project-kind-text').textContent=legacy?'This project also contains a saved cut. Its clips are separate from your native sequence and have not been converted.':'';
+    el('native-legacy-open').hidden=!legacy;
+  }
+  function syncProjectURL({preserveSource=false}={}) {
+    const values=state.project_id?{project_id:state.project_id}:{};
+    if(preserveSource){const ctx=parseProjectContext(location.search);for(const key of ['job_id','character_id'])if(ctx[key])values[key]=ctx[key];}
+    history.replaceState(null,'',workspaceLink('/timeline',values));
+    window.dispatchEvent?.(new CustomEvent('opengenjutsu:project-context'));
   }
   async function projectList() {
     const {projects}=await api('/projects'),picker=el('native-project-picker');
     picker.replaceChildren(new Option('New unsaved sequence',''));
-    for(const p of projects)picker.append(new Option(p.title,p.project_id));
+    if(!Array.isArray(projects))throw new Error('The saved project list is invalid.');
+    projectKinds=new Map(projects.filter(p=>validContextId(p.project_id)).map(p=>[p.project_id,p]));
+    for(const p of projectKinds.values()){
+      const suffix=p.workspace_kind==='legacy'?' · Saved cut':p.workspace_kind==='mixed'?' · Sequence + saved cut':'';
+      picker.append(new Option(p.title+suffix,p.project_id));
+    }
     picker.value=state.project_id||'';
   }
-  async function load(id) {
-    state=await api(`/projects/${id}/native-workspace`);version=0;savedVersion=0;conflicted=false;insertionPosition=state.selected_position?positionFromKey(state,state.selected_position):null;onPosition(null);
-    remember(rememberKey,id);status('Saved');el('native-reload').hidden=true;render();notifySelection();
+  async function load(id,{preserveSource=false}={}) {
+    if(!validContextId(id))throw new Error('This workspace link is invalid.');
+    const token=++contextEpoch;contextLoading=true;render();onLockChange();
+    try {
+      const next=await api(`/projects/${id}/native-workspace`);
+      if(token!==contextEpoch)return;
+      if(next?.project_id!==id||!Array.isArray(next.placements)||!next.drafts)throw new Error('The linked project response was invalid.');
+      state=next;contextBlocked=false;version=0;savedVersion=0;conflicted=false;insertionPosition=state.selected_position?positionFromKey(state,state.selected_position):null;onPosition(null);
+      remember(rememberKey,id);syncProjectURL({preserveSource});status('Saved');el('native-reload').hidden=true;onContextChange();notifySelection();
+    } finally {if(token===contextEpoch){contextLoading=false;render();onLockChange();}}
   }
   el('native-library-toggle').addEventListener('click',()=>{
     showLibrary(el('native-library').hidden,{focus:true});
@@ -222,15 +255,21 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     const title=el('native-project-title').value.trim();if(title)change({...state,title});
   });
   el('native-new-sequence').addEventListener('click',async()=>{
-    try {await flush();state=emptyWorkspace();version=0;savedVersion=0;conflicted=false;
+    if(contextLoading)return;
+    try {if(!contextBlocked)await flush();++contextEpoch;contextBlocked=false;state=emptyWorkspace();version=0;savedVersion=0;conflicted=false;
       insertionPosition=null;onPosition(null);
-      remember(rememberKey,'');render();notifySelection();status('Not started');
+      remember(rememberKey,'');syncProjectURL();render();onContextChange();notifySelection();status('Not started');
       showLibrary(true);}
     catch(error){onError(error.message);}
   });
   el('native-project-picker').addEventListener('change',async event=>{
+    if(contextLoading){event.target.value=state.project_id||'';return;}
     const id=event.target.value;if(!id){event.target.value=state.project_id||'';return;}
-    try{await flush();await load(id);}catch(error){onError(error.message);event.target.value=state.project_id||'';}
+    try{if(!contextBlocked)await flush();await load(id);}catch(error){onError(error.message);event.target.value=state.project_id||'';}
+  });
+  el('native-legacy-open').addEventListener('click',async()=>{
+    try{await flush();const panel=el('supporting-tools');panel.open=true;panel.scrollIntoView?.({block:'start'});}
+    catch(error){onError(error.message);}
   });
   el('native-reload').addEventListener('click',()=>{
     if(state.project_id)load(state.project_id).catch(error=>onError(error.message));
@@ -253,13 +292,21 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
   });
   return {
     async init(items) {
-      entries=items;await projectList();const id=stored(rememberKey);
-      if(id && /^[a-f0-9]{32}$/.test(id)) {try{await load(id);}catch(error){onError(error.message);render();}}
-      else {render();notifySelection();status('Not started');}
+      entries=items;contextLoading=true;render();onLockChange();
+      try {
+        const context=parseProjectContext(location.search);await projectList();
+        const id=context.project_id||stored(rememberKey);
+        if(validContextId(id))await load(id,{preserveSource:true});
+        else {render();notifySelection();status('Not started');}
+      } catch(error) {contextBlocked=true;status('Project unavailable');onError(error.message);}
+      finally{contextLoading=false;render();onLockChange();}
       showLibrary(true);
     },
     refresh(items){entries=items;render();},
     state:()=>structuredClone(state), selected,
+    editable:()=>!contextBlocked&&!contextLoading,
+    preview(takeId){const entry=entryFor(takeId);if(entry){previewedId=takeId;markLibrarySelection();onPreview(entry);}},
+    openPlacement(id){if(state.placements.some(p=>p.placement_id===id))select(id);},
     clearPosition(){insertionPosition=null;onPosition(null);change({...state,selected_position:null},{select:true});},
     openPosition,
     positionDraft(){return state.position_drafts?.[state.selected_position]??null;},

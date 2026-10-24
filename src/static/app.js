@@ -29,15 +29,18 @@ let sourceUrl = null;
 let completedJobId = null;
 let epoch = 0, submissionEpoch = 0;
 const validId = id => typeof id === 'string' && /^[a-f0-9]{32}$/.test(id);
-const historyKey = kind => `opengenjutsu.ltx.${kind}-job`;
-function history(kind, value) {
+const historyKey = kind => {
+  const base = `opengenjutsu.ltx.${kind}-job`;
+  return window.OpenGenjutsuProject?.storageKey(base) || base;
+};
+function jobHistory(kind, value) {
   try {
     if (value === undefined) return localStorage.getItem(historyKey(kind));
     if (value) localStorage.setItem(historyKey(kind), value);
     else localStorage.removeItem(historyKey(kind));
   } catch { /* Generation still works without browser storage. */ }
 }
-let lastCompletedId = history('completed');
+let lastCompletedId = jobHistory('completed');
 if (!validId(lastCompletedId)) lastCompletedId = null;
 function returnAffordance() {
   $('#return-last').hidden = !lastCompletedId || !resultActions.hidden;
@@ -47,7 +50,7 @@ function detachTracking() {
   epoch += 1;
   window.clearTimeout(pollTimer);
   activeJob = null;
-  history('current', null);
+  jobHistory('current', null);
   runOverlay.hidden = true;
 }
 function validJob(job, id) {
@@ -119,7 +122,7 @@ const updateProgress = (job) => window.OpenGenjutsuStudio.renderProgress(job);
 
 function showResult(job) {
   completedJobId = lastCompletedId = job.id;
-  history('completed', job.id);
+  if (!window.OpenGenjutsuProject || window.OpenGenjutsuProject.containsJob(job.id)) jobHistory('completed', job.id);
   if (job.source_url) sourcePreview.src = job.source_url;
   resultVideo.src = job.result_url;
   downloadResult.href = `${job.result_url}?download=true`;
@@ -160,14 +163,14 @@ function renderJob(job) {
   if (job.status === 'done' && job.result_url) {
     showResult(job);
     activeJob = null;
-    history('current', null);
+    jobHistory('current', null);
     submission?.refresh();
     return true;
   }
   if (['error', 'failed', 'cancelled'].includes(job.status)) {
     runOverlay.hidden = true;
     activeJob = null;
-    history('current', null);
+    jobHistory('current', null);
     showToast(job.error || 'Generation failed.', 'error');
     resultActions.hidden = true;
     returnAffordance();
@@ -182,7 +185,7 @@ function renderJob(job) {
 async function poll(id, current = epoch) {
   if (current !== epoch) return;
   activeJob = id;
-  history('current', id);
+  jobHistory('current', id);
   returnAffordance();
   try {
     const job = await readJob(id);
@@ -199,7 +202,7 @@ async function poll(id, current = epoch) {
     if (current !== epoch) return;
     runOverlay.hidden = true;
     activeJob = null;
-    history('current', null);
+    jobHistory('current', null);
     returnAffordance();
     submission?.refresh();
     showToast(`Unable to track the edit: ${error.message}`, 'error');
@@ -269,6 +272,7 @@ submission = window.OpenGenjutsuStudio.bindSubmission({
   onQueued: (payload) => {
     if (submissionEpoch !== epoch) return;
     validJob(payload.job, payload.job_id);
+    window.OpenGenjutsuProject?.acceptJob(payload.job_id, payload.job.project_id, payload.job.engine);
     poll(payload.job_id);
   },
   onFailure: () => {
@@ -277,9 +281,28 @@ submission = window.OpenGenjutsuStudio.bindSubmission({
   },
   toast: (message, type) => { if (submissionEpoch === epoch) showToast(message, type); },
 });
-const savedJob = history('current');
-if (validId(savedJob)) poll(savedJob);
-else { history('current', null); restoreCompleted(); }
+async function resumeProject() {
+  const scope = window.OpenGenjutsuProject;
+  const openingEpoch = epoch;
+  if (scope) await scope.ready;
+  if (openingEpoch !== epoch) return;
+  const explicit = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('job_id') : null;
+  const recovered = scope?.recovery('ltx25-ripple');
+  lastCompletedId = jobHistory('completed');
+  if (!validId(lastCompletedId) || (scope && !scope.containsJob(lastCompletedId))) lastCompletedId = null;
+  let savedJob = jobHistory('current');
+  if (scope && !scope.containsJob(savedJob)) savedJob = null;
+  if (validId(explicit)) { poll(explicit); return; }
+  if (validId(savedJob)) poll(savedJob);
+  else if (recovered && recovered.status !== 'done') poll(recovered.job_id);
+  else {
+    jobHistory('current', null);
+    lastCompletedId ||= recovered?.job_id || null;
+    restoreCompleted();
+  }
+  returnAffordance();
+}
+resumeProject().catch(error => showToast(error.message, 'error'));
 returnAffordance();
 if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('character_id')) {
   import('./character-handoff.js').then(({applyCharacterReference}) => applyCharacterReference({

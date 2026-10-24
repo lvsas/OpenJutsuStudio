@@ -129,9 +129,11 @@ def _replay_inputs(parent: core.Job):
     return recipe, source, references, shots
 
 
-def _create_child(parent: core.Job) -> core.Job:
+def _create_child(parent: core.Job, project_id: str | None = None) -> core.Job:
     meta = copy.deepcopy(parent.meta)
     meta["parent_job_id"] = parent.id
+    if project_id is not None:
+        meta["origin_project_id"] = project_id
     child = core.Job(id=uuid.uuid4().hex, engine=parent.engine, prompt=parent.prompt,
                      video=parent.video, meta=meta)
     child.save()
@@ -182,7 +184,9 @@ class TakeCapsuleAPI:
                             headers={"Content-Disposition": f'attachment; filename="opengenjutsu-take-{job.id}.json"'})
         return JSONResponse(manifest)
 
-    async def replay_take(self, job_id: str):
+    async def replay_take(self, job_id: str, payload: dict | None = None):
+        from project_scope import submission_project
+        project_id = submission_project((payload or {}).get("project_id"), core.WORK / "media")
         try:
             parent = core.Job.load(job_id)
         except KeyError as exc:
@@ -193,9 +197,9 @@ class TakeCapsuleAPI:
         readiness = self.readiness_check()
         if not readiness.get("ready"):
             raise HTTPException(503, detail=" ".join(readiness.get("issues", [])))
-        child = _create_child(parent)
+        child = _create_child(parent, project_id)
         self.dispatch_job(child, source, _replay_options(recipe, references, shots))
-        return {"job_id": child.id, "parent_job_id": parent.id, "status": "queued",
+        return {"job_id": child.id, "project_id": project_id, "parent_job_id": parent.id, "status": "queued",
                 "job": {"id": child.id, "status": child.status,
                         "source_url": f"/api/jobs/{child.id}/source", "parent_job_id": parent.id}}
 

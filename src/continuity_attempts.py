@@ -140,6 +140,8 @@ def load(root, attempt_id) -> dict:
         _validate_anchors(value['take_id'], mode=value.get('mode', 'forward'),
                           second_take_id=value.get('second_take_id'))
         _validate_context(value.get('mode', 'forward'), value.get('root_context'))
+        if value.get('project_id') is not None:
+            _identifier(value['project_id'], 'project')
     except AttemptError:
         raise AttemptError('The attempt record cannot be read.') from None
     return value
@@ -214,7 +216,7 @@ def create(root, *, take_id: str | None, prompt: str, raw_frames: int, seeds,
 
 def create_or_get(root, *, take_id: str | None, prompt: str, raw_frames: int, seeds,
                   request_id: str | None = None, mode: str = 'forward',
-                  second_take_id: str | None = None, root_context=None, reference_ids=None, frozen_reference_paths=None) -> tuple[dict, bool]:
+                  second_take_id: str | None = None, root_context=None, reference_ids=None, frozen_reference_paths=None, project_id=None) -> tuple[dict, bool]:
     """Return (record, created); persist identity and intent in one locked write.
 
     Only the caller receiving created=True may queue work. A crash between this
@@ -223,6 +225,8 @@ def create_or_get(root, *, take_id: str | None, prompt: str, raw_frames: int, se
     seeds = _validate(take_id=take_id, prompt=prompt, raw_frames=raw_frames,
                       seeds=seeds, request_id=request_id, mode=mode, second_take_id=second_take_id,
                       root_context=root_context)
+    if project_id is not None:
+        _identifier(project_id, "project")
     root_context = copy.deepcopy(root_context)
     if reference_ids is not None:
         reference_ids = validate_reference_ids(reference_ids)
@@ -238,8 +242,8 @@ def create_or_get(root, *, take_id: str | None, prompt: str, raw_frames: int, se
                 intent = (existing['take_id'], existing['prompt'], existing['raw_frames'],
                           [c['seed'] for c in existing['candidates']],
                           existing.get('mode', 'forward'), existing.get('second_take_id'),
-                          existing.get('root_context'), existing.get('reference_ids'))
-                if intent != (take_id, prompt, raw_frames, seeds, mode, second_take_id, root_context, reference_ids):
+                          existing.get('root_context'), existing.get('reference_ids'), existing.get('project_id'))
+                if intent != (take_id, prompt, raw_frames, seeds, mode, second_take_id, root_context, reference_ids, project_id):
                     raise AttemptConflict('This request identifier already has a different frozen payload.')
                 return existing, False
         attempt = {'version': 1, 'attempt_id': uuid.uuid4().hex, 'take_id': take_id,
@@ -248,6 +252,8 @@ def create_or_get(root, *, take_id: str | None, prompt: str, raw_frames: int, se
                    'candidates': [{'operation_id': uuid.uuid4().hex, 'seed': seed,
                                    'status': _STATUS_PENDING, 'take_id': None, 'error': None}
                                   for seed in seeds]}
+        if project_id is not None:
+            attempt['project_id'] = project_id
         if request_id is not None:
             attempt['request_id'] = request_id
         if mode == 'root':
@@ -303,6 +309,8 @@ def public(attempt: dict) -> dict:
     result = {'attempt_id': attempt['attempt_id'], 'take_id': attempt['take_id'],
             'status': attempt['status'], 'error': _public_error(attempt['error']),
             'candidates': [_public_candidate(c, attempt) for c in attempt['candidates']]}
+    if attempt.get('project_id') is not None:
+        result['project_id'] = attempt['project_id']
     if attempt.get('mode') == 'root':
         result['mode'] = 'root'
     elif attempt.get('mode', 'forward') != 'forward':

@@ -63,8 +63,21 @@ async function environment(fetcher,search='',initialStorage={},page='timeline.ht
     return module;
   }
   async function entry(name){const module=await load(resolve(root,'src/static',name));await module.evaluate();return module.namespace;}
-  return {elements,notices,entry,storage,events,navigation,historyURLs};
+  return {elements,notices,entry,storage,events,navigation,historyURLs,context};
 }
+
+test('project membership remains visible immediately after removing a saved placement',async()=>{
+  const saved={project_id:C,title:'Scoped project',revision:0,placements:[],selected_placement_id:null,drafts:{}};
+  const backend=nativeBackend({saved,extra:async url=>url.endsWith('/assets')?response({project_id:C,assets:{takes:[],jobs:[]}}):null});
+  const app=await environment(backend.fetcher,`?project_id=${C}`);
+  app.context.window.OpenGenjutsuProject={ready:Promise.resolve()};
+  const {mountSequence}=await app.entry('sequence-workspace.js');
+  const seq=mountSequence({onSelect(){},onPreview(){},onCompose(){},onError:assert.fail});
+  await seq.init([nativeEntry(A)]);seq.place(A);await seq.flush();
+  await app.elements.get('board-track').children[1].children[1].children[2].click();await seq.flush();
+  assert.equal(seq.state().placements.length,0);
+  assert.equal(app.elements.get('native-takes').children[0].dataset.takeId,A,'removing a placement must not hide the retained project asset');
+});
 
 test('positions use ordered placement identities and refuse a changed gap',async()=>{
   const app=await environment(()=>{throw Error('Position arithmetic must not fetch');});
@@ -711,10 +724,11 @@ test('missing and stale Swap replies cannot replace a newer project preview',asy
 test('project navigation carries source IDs, follows deliberate switches and protects explicit links',async()=>{
   const app=await environment(()=>{throw Error('Navigation context never fetches');});
   const {bindProjectNavigation}=await app.entry('project-context.js');let search=`?project_id=${A}`;
-  const character=new Element(),result=new Element(),explicit=new Element(),download=new Element();
+  const character=new Element(),result=new Element(),explicit=new Element(),download=new Element(),navigation=new Element();
+  navigation.setAttribute('href','/timeline');
   character.setAttribute('href',`/h3?character_id=${B}`);result.setAttribute('href',`/timeline?job_id=${C}`);
   explicit.setAttribute('href',`/timeline?project_id=${B}&job_id=${C}`);download.setAttribute('href',`/api/jobs/${C}/result`);
-  const binding=bindProjectNavigation({getSearch:()=>search,root:{querySelectorAll:()=>[character,result,explicit,download]},observe:false});
+  const binding=bindProjectNavigation({getSearch:()=>search,root:{querySelectorAll:()=>[character,result,explicit,download,navigation]},observe:false});
   const params=el=>new URL(el.getAttribute('href'),'http://test.invalid').searchParams;
   assert.equal(params(character).get('project_id'),A);assert.equal(params(character).get('character_id'),B);
   assert.equal(params(result).get('job_id'),C);assert.equal(params(explicit).get('project_id'),B);
@@ -723,6 +737,10 @@ test('project navigation carries source IDs, follows deliberate switches and pro
   assert.equal(params(explicit).get('project_id'),B,'an explicit frozen destination is not rebound');
   result.setAttribute('href',`/timeline?job_id=${A}`);binding.refresh();
   assert.equal(params(result).get('job_id'),A);assert.equal(params(result).get('project_id'),C);
+  search=`?project_id=${C}&character_id=${B}`;binding.refresh();
+  assert.equal(params(navigation).get('character_id'),B,'explicit working reference follows workspace navigation');
+  assert.equal(params(result).has('character_id'),false,'a saved result must not consume a new reference');
+  assert.equal(params(explicit).has('character_id'),false,'never leak a reference into a different project');
   search='';binding.refresh();assert.equal(params(character).has('project_id'),false);
   assert.equal(download.getAttribute('href'),`/api/jobs/${C}/result`);binding.dispose();
 });

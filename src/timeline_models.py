@@ -19,6 +19,27 @@ class CreateProject(Payload):
     character_id: Identifier | None = None
 
 
+class ProjectAssets(Payload):
+    characters: Annotated[list[Identifier], Field(max_length=MAX_KNOWN_CLIPS)] = Field(default_factory=list)
+    jobs: Annotated[list[Identifier], Field(max_length=MAX_KNOWN_CLIPS)] = Field(default_factory=list)
+    takes: Annotated[list[Identifier], Field(max_length=MAX_KNOWN_CLIPS)] = Field(default_factory=list)
+
+
+class AssociateAsset(Payload):
+    revision: Revision
+    kind: Literal['character', 'job', 'take']
+    asset_id: Identifier
+
+
+class RenameProject(Payload):
+    revision: Revision
+    title: Title
+
+
+class DraftRequest(Payload):
+    pass
+
+
 class Placement(Payload):
     clip_id: Identifier
     in_frame: Frame

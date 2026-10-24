@@ -268,9 +268,11 @@
     $("#storage-notice").textContent = "Browser storage is unavailable. Recent attempts may not survive a refresh; saved characters stay in the server library.";
   }
   function readStorage(key) {
+    key = globalThis.OpenGenjutsuProject?.storageKey(key) || key;
     try { return localStorage.getItem(key); } catch { storageNotice(); return null; }
   }
   function writeStorage(key, value) {
+    key = globalThis.OpenGenjutsuProject?.storageKey(key) || key;
     try { localStorage.setItem(key, value); return true; } catch { storageNotice(); return false; }
   }
   function stored() {
@@ -289,7 +291,7 @@
   const jobs = new Map();
   const watchers = new Map();
   let recent = stored();
-  const cachedActive = readStorage(ACTIVE_KEY);
+  let cachedActive = readStorage(ACTIVE_KEY);
   let restoringSelection = validId(cachedActive);
   let activeId = null;
   let selectionEpoch = 0;
@@ -561,13 +563,15 @@
     button.disabled = true;
     const seed = randomSeed();
     try {
+      const projectId = await globalThis.OpenGenjutsuProject?.ensure();
       const response = await fetch("/api/characters/jobs", {
         method:"POST", headers:{"content-type":"application/json"},
-        body:JSON.stringify({direction, mode:$("#mode").value, trend_id:"original", selections:selections(),
+        body:JSON.stringify({project_id:projectId, direction, mode:$("#mode").value, trend_id:"original", selections:selections(),
           direction_origin:directionOrigin, sampler_seed:seed, upsampler_seed:randomSeed(), upsampler:$("#upsampler").value === "on"}),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !validId(payload.job_id)) { showError("The local app could not queue this character. Check runtime readiness and try again."); return; }
+      globalThis.OpenGenjutsuProject?.acceptJob(payload.job_id, payload.project_id, 'flux3-klein-character');
       remember(payload.job_id);
       jobs.set(payload.job_id, {status:"queued", direction});
       renderShelves();
@@ -620,7 +624,22 @@
     })
     .catch(() => { $("#readiness").textContent = "Local studio unreachable"; $("#readiness").dataset.state = "blocked"; });
   const initialSelectionEpoch = selectionEpoch;
-  refreshLibrary().then(async () => {
+  (async () => {
+    await globalThis.OpenGenjutsuProject?.ready;
+    if (selectionEpoch !== initialSelectionEpoch) return;
+    recent = [...new Set([...stored(), ...(globalThis.OpenGenjutsuProject?.jobs('flux3-klein-character') || []).map(job => job.job_id)])].slice(0, MAX_STORED);
+    cachedActive = readStorage(ACTIVE_KEY);
+    restoringSelection = validId(cachedActive);
+    renderShelves();
+    for (const id of recent) watch(id);
+    await refreshLibrary();
+    const explicit = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('job_id') : null;
+    if (validId(explicit) && globalThis.OpenGenjutsuProject?.containsJob(explicit)) {
+      if (!recent.includes(explicit)) recent.unshift(explicit);
+      await choose(explicit);
+      restoringSelection = false;
+      return;
+    }
     let attemptedRestore = false;
     if (selectionEpoch === initialSelectionEpoch && validId(cachedActive) && (library.has(cachedActive) || recent.includes(cachedActive))) {
       attemptedRestore = true;
@@ -631,6 +650,5 @@
       const completed = recent.find(id => jobs.get(id)?.status === "done");
       if (completed) choose(completed, {automatic:true});
     }
-  });
-  for (const id of recent) watch(id);
+  })().catch(error => showError(error.message));
 })();

@@ -20,7 +20,7 @@ import uuid
 from fractions import Fraction
 
 from media_probe import probe_mp4
-from timeline_models import CreateProject, EditNativeWorkspace, EditProject, MAX_CLIPS, MAX_KNOWN_CLIPS
+from timeline_models import CreateProject, EditNativeWorkspace, EditProject, MAX_CLIPS, MAX_KNOWN_CLIPS, ProjectAssets, AssociateAsset
 
 _ID = re.compile(r"[0-9a-f]{32}\Z")
 _LOCKS: dict[str, threading.RLock] = {}
@@ -187,7 +187,7 @@ class TimelineStore:
         except Exception as exc:
             raise TimelineError(404, "Source job not found") from exc
 
-    def create(self, title: str, character_id: str | None = None) -> dict:
+    def create(self, title: str, character_id: str | None = None, *, is_draft: bool = False) -> dict:
         data = CreateProject(title=title, character_id=character_id)
         if data.character_id:
             job = self._job(data.character_id)
@@ -196,10 +196,127 @@ class TimelineStore:
         now = time.time()
         project = {"project_id": uuid.uuid4().hex, "title": data.title, "revision": 0,
                    "created_at": now, "updated_at": now, "character_id": data.character_id,
-                   "known_clips": {}, "clips": []}
+                   "known_clips": {}, "clips": [], "is_draft": is_draft}
         with self.lock:
             atomic_json(self._path("projects", project["project_id"]), project)
             return self._public(project)
+
+    def draft(self, *, create: bool = False) -> dict | None:
+        """One reusable draft; a read never creates a project."""
+        with self.lock:
+            rows = [read_json(p) for p in (self.root / 'projects').glob('*.json') if _ID.fullmatch(p.stem)]
+            drafts = [p for p in rows if p.get('is_draft') is True]
+            if len(drafts) > 1:
+                raise TimelineError(409, 'Multiple draft workspaces need reconciliation')
+            if drafts:
+                return self._public(drafts[0])
+            return self.create('Draft', is_draft=True) if create else None
+
+    def rename(self, project_id: str, revision: int, title: str) -> dict:
+        with self.lock:
+            project = self._project(project_id)
+            check_revision(revision, project['revision'])
+            project['title'] = CreateProject(title=title).title
+            project['is_draft'] = False
+            return self._save_edit(project)
+
+    def _memberships(self, project: dict) -> dict:
+        # Legacy ownership is projected without migrating or rewriting on GET.
+        try:
+            assets = ProjectAssets.model_validate(project.get('assets', {})).model_dump()
+            if project.get('character_id'):
+                assets['characters'].append(project['character_id'])
+            assets['takes'].extend(p['take_id'] for p in project.get('native_workspace', {}).get('placements', []))
+            for path in (self.work / 'jobs').glob('*.json'):
+                if not _ID.fullmatch(path.stem) or path.is_symlink():
+                    continue
+                try:
+                    job = read_json(path)
+                except TimelineError:
+                    continue
+                meta = job.get('meta')
+                if job.get('id') != path.stem or not isinstance(meta, dict) or meta.get('origin_project_id') != project['project_id']:
+                    continue
+                group = 'characters' if job.get('engine') == 'flux3-klein-character' else 'jobs'
+                if job.get('engine') in ('flux3-klein-character', 'minimax-h3', 'ltx25-ripple'):
+                    assets[group].append(job['id'])
+            from continuity_attempts import _records, AttemptError
+            try:
+                attempts = _records(self.work / 'native-attempts')
+            except (AttemptError, OSError):
+                attempts = []
+            for attempt in attempts:
+                if attempt.get('project_id') == project['project_id']:
+                    assets['takes'].extend(c['take_id'] for c in attempt['candidates'] if c.get('take_id'))
+            assets = {key: list(dict.fromkeys(values)) for key, values in assets.items()}
+            return ProjectAssets.model_validate(assets).model_dump()
+        except (ValueError, KeyError, TypeError) as exc:
+            raise TimelineError(409, 'Project membership cannot be read') from exc
+
+    def get_assets(self, project_id: str) -> dict:
+        with self.lock:
+            project = self._project(project_id)
+            assets = self._memberships(project)
+            return {'project_id': project['project_id'], 'revision': project['revision'],
+                    'assets': assets, 'jobs': self._project_job_summaries(assets)}
+
+    def library_jobs(self) -> list[dict]:
+        """Safe library projection over existing job files; no separate index."""
+        rows = []
+        for path in (self.work / 'jobs').glob('*.json'):
+            if not _ID.fullmatch(path.stem) or path.is_symlink():
+                continue
+            try:
+                job = self._job(path.stem)
+            except TimelineError:
+                continue
+            if job.engine not in ('flux3-klein-character', 'minimax-h3', 'ltx25-ripple') or job.status != 'done':
+                continue
+            rows.append({'job_id': job.id, 'engine': job.engine, 'status': job.status,
+                         'created': job.created})
+        return sorted(rows, key=lambda row: row['created'], reverse=True)
+
+    def _project_job_summaries(self, assets: dict) -> list[dict]:
+        rows = []
+        for job_id in assets['jobs'] + assets['characters']:
+            try:
+                job = self._job(job_id)
+                rows.append({'job_id': job.id, 'engine': job.engine, 'status': job.status,
+                             'created': job.created})
+            except TimelineError:
+                continue  # Membership survives an unavailable historical resource.
+        return sorted(rows, key=lambda row: row['created'], reverse=True)
+
+    def associate_asset(self, project_id: str, data: AssociateAsset) -> dict:
+        with self.lock:
+            project = self._project(project_id)
+            check_revision(data.revision, project['revision'])
+            assets = self._memberships(project)
+            group = {'character': 'characters', 'job': 'jobs', 'take': 'takes'}[data.kind]
+            if data.asset_id in assets[group]:
+                return self.get_assets(project_id)
+            if data.kind == 'take':
+                import continuable_take
+                try:
+                    continuable_take.get_take(self.work, data.asset_id)
+                except FileNotFoundError as exc:
+                    raise TimelineError(404, 'Native Take not found') from exc
+                except ValueError as exc:
+                    raise TimelineError(422, 'Native Take metadata cannot be read') from exc
+            else:
+                job = self._job(data.asset_id)
+                if data.kind == 'character':
+                    valid = job.engine == 'flux3-klein-character' and job.status == 'done' and bool(job.result)
+                else:
+                    valid = job.engine in ('minimax-h3', 'ltx25-ripple')
+                if not valid:
+                    raise TimelineError(422, 'The resource does not have the requested project role')
+            if len(assets[group]) >= MAX_KNOWN_CLIPS:
+                raise TimelineError(422, 'This project resource list is full')
+            assets[group].append(data.asset_id)
+            project['assets'] = assets
+            self._save_edit(project, native=True)
+            return self.get_assets(project_id)
 
     def list_projects(self) -> list[dict]:
         with self.lock:
@@ -224,6 +341,7 @@ class TimelineStore:
                           **{k: take[k] for k in ("width", "height", "fps", "frames")},
                           "in_frame": placement["in_frame"], "out_frame": placement["out_frame"],
                           "media_url": f"/api/timeline/takes/{known['take_id']}/media"})
+        result["is_draft"] = project.get("is_draft", False)
         result["clips"] = clips
         return result
 
@@ -257,6 +375,11 @@ class TimelineStore:
                     raise TimelineError(404, "Native Take not found") from exc
                 except ValueError as exc:
                     raise TimelineError(422, "Native Take metadata cannot be read") from exc
+            assets = self._memberships(project)
+            assets['takes'] = list(dict.fromkeys(assets['takes'] + [p.take_id for p in edit.placements]))
+            if len(assets['takes']) > MAX_KNOWN_CLIPS:
+                raise TimelineError(422, 'This project resource list is full')
+            project['assets'] = assets
             prior = project.get('native_workspace', {})
             workspace = edit.model_dump(include={"placements", "selected_placement_id", "drafts"})
             for key in ('selected_position', 'position_drafts'):
@@ -272,6 +395,8 @@ class TimelineStore:
                 workspace['selected_position'] = None
             project["native_workspace"] = workspace
             if edit.title is not None:
+                if edit.title != project["title"]:
+                    project["is_draft"] = False
                 project["title"] = edit.title
             return self._save_edit(project, native=True)
 
@@ -294,6 +419,8 @@ class TimelineStore:
                     raise TimelineError(422, "Frame range exceeds take length")
             project["clips"] = [c.model_dump() for c in edit.clips]
             if edit.title is not None:
+                if edit.title != project["title"]:
+                    project["is_draft"] = False
                 project["title"] = edit.title
             return self._save_edit(project)
 

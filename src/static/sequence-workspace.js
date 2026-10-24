@@ -9,6 +9,7 @@ const stored=key=>{try{return localStorage.getItem(key);}catch{return null;}};
 const remember=(key,value)=>{try{localStorage.setItem(key,value);}catch{/* Server remains authoritative. */}};
 export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},onContextChange=()=>{},onLockChange=()=>{},onError}) {
   let insertionPosition=null,contextBlocked=false,contextLoading=true,contextEpoch=0,projectKinds=new Map();
+  let projectMembers=new Set(),memberJobs=new Set(),commonLibrary=false;
   let state=emptyWorkspace(),entries=[],version=0,savedVersion=0,saving=null,timer=null,conflicted=false,previewedId=null;
   const entryFor=id=>entries.find(e=>e.take.take_id===id);
   const status=text=>{el('native-save-state').textContent=text;};
@@ -47,9 +48,11 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     saving=(async()=>{
       try {
         if(!state.project_id) {
-          const project=await api('/projects',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({title:state.title})});
-          state={...state,project_id:project.project_id,revision:project.revision};
+          const project=window.OpenGenjutsuProject
+            ? await api('/projects/'+await window.OpenGenjutsuProject.ensure())
+            : await api('/projects',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:state.title})});
+          state={...state,project_id:project.project_id,revision:project.revision,
+            title:state.title===emptyWorkspace().title?project.title:state.title};
           remember(rememberKey,state.project_id);syncProjectURL();await projectList();
         }
         while(savedVersion<version) {
@@ -60,6 +63,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
               selected_placement_id:snapshot.selected_placement_id,drafts:snapshot.drafts,
               ...(snapshot.position_drafts?{selected_position:snapshot.selected_position??null,
                 position_drafts:snapshot.position_drafts}:{})})});
+          for(const placement of snapshot.placements)projectMembers.add(placement.take_id);
           state={...state,revision:response.revision};savedVersion=sentVersion;
         }
         shadow();status('Saved');el('native-reload').hidden=true;
@@ -125,8 +129,10 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
   }
   function drawLibrary() {
     const container=el('native-takes'),search=el('native-search').value.toLowerCase();container.replaceChildren();
-    const filtered=entries.filter(e=>label(e).toLowerCase().includes(search));
-    el('pool-count').textContent=`${filtered.length} of ${entries.length} takes`;
+    const scoped=commonLibrary||!window.OpenGenjutsuProject?entries:entries.filter(e=>projectMembers.has(e.take.take_id)
+      ||state.placements.some(p=>p.take_id===e.take.take_id)||memberJobs.has(e.take.origin?.source_job));
+    const filtered=scoped.filter(e=>label(e).toLowerCase().includes(search));
+    el('pool-count').textContent=`${filtered.length} ${commonLibrary?'common-library':'project'} takes`;
     for(const entry of filtered.slice(0,100)) {
       const id=entry.take.take_id,row=document.createElement('li');row.className='library-take';
       const preview=action('',()=>{previewedId=id;markLibrarySelection();onPreview(entry);},'library-preview');
@@ -141,7 +147,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
       row.addEventListener('dragstart',event=>{event.dataTransfer.setData('text/plain',id);event.dataTransfer.effectAllowed='copy';});
       row.append(preview,append);container.append(row);
     }
-    if(!filtered.length) {const text=document.createElement('li');text.className='microcopy';text.textContent=entries.length?'No matching takes.':'No saved native takes yet. Create a Swap in H3 Studio to get started.';container.append(text);}
+    if(!filtered.length) {const text=document.createElement('li');text.className='microcopy';text.textContent=scoped.length?'No matching takes.':commonLibrary?'No saved native takes yet.':'No takes in this project yet. Browse the common library or create a new take.';container.append(text);}
   }
   function openPosition(position,options={}) {
     if(contextBlocked||contextLoading)return;
@@ -231,11 +237,20 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     }
     picker.value=state.project_id||'';
   }
+  async function loadMembers(id, token) {
+    if(!window.OpenGenjutsuProject)return;
+    const data=await api(`/projects/${id}/assets`);
+    if(token!==contextEpoch)return;
+    if(data.project_id!==id||!Array.isArray(data.assets?.takes)||!Array.isArray(data.assets?.jobs))
+      throw new Error('The project library could not be read.');
+    projectMembers=new Set(data.assets.takes);memberJobs=new Set(data.assets.jobs);
+  }
   async function load(id,{preserveSource=false}={}) {
     if(!validContextId(id))throw new Error('This workspace link is invalid.');
     const token=++contextEpoch;contextLoading=true;render();onLockChange();
     try {
       const next=await api(`/projects/${id}/native-workspace`);
+      await loadMembers(id,token);
       if(token!==contextEpoch)return;
       if(next?.project_id!==id||!Array.isArray(next.placements)||!next.drafts)throw new Error('The linked project response was invalid.');
       state=next;contextBlocked=false;version=0;savedVersion=0;conflicted=false;insertionPosition=state.selected_position?positionFromKey(state,state.selected_position):null;onPosition(null);
@@ -251,12 +266,13 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     if(event.key==='Escape'){event.preventDefault();showLibrary(false,{focus:true});}
   });
   el('native-search').addEventListener('input',drawLibrary);
+  el('native-library-scope')?.addEventListener('change',event=>{commonLibrary=event.target.value==='common';drawLibrary();});
   el('native-project-title').addEventListener('input',()=>{
     const title=el('native-project-title').value.trim();if(title)change({...state,title});
   });
   el('native-new-sequence').addEventListener('click',async()=>{
     if(contextLoading)return;
-    try {if(!contextBlocked)await flush();++contextEpoch;contextBlocked=false;state=emptyWorkspace();version=0;savedVersion=0;conflicted=false;
+    try {if(!contextBlocked)await flush();if(window.OpenGenjutsuProject){await window.OpenGenjutsuProject.openDraft();return;}++contextEpoch;contextBlocked=false;state=emptyWorkspace();version=0;savedVersion=0;conflicted=false;
       insertionPosition=null;onPosition(null);
       remember(rememberKey,'');syncProjectURL();render();onContextChange();notifySelection();status('Not started');
       showLibrary(true);}
@@ -296,10 +312,18 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
   window.addEventListener('beforeunload',event=>{
     if(version!==savedVersion){event.preventDefault();event.returnValue='';}
   });
+  if(window.OpenGenjutsuProject){
+    window.OpenGenjutsuProject.beforeNavigate=async()=>{if(!contextBlocked)await flush();};
+    window.OpenGenjutsuProject.onRenamed=async project=>{
+      if(project.project_id!==state.project_id)return;
+      state={...state,title:project.title,revision:project.revision};await projectList();render();
+    };
+  }
   return {
     async init(items) {
       entries=items;contextLoading=true;render();onLockChange();
       try {
+        await window.OpenGenjutsuProject?.ready;
         const context=parseProjectContext(location.search);await projectList();
         const id=context.project_id||stored(rememberKey);
         if(validContextId(id))await load(id,{preserveSource:true});
@@ -308,7 +332,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
       finally{contextLoading=false;render();onLockChange();}
       showLibrary(true);
     },
-    refresh(items){entries=items;render();},
+    async refresh(items){entries=items;if(state.project_id)await loadMembers(state.project_id,contextEpoch);render();},
     state:()=>structuredClone(state), selected,
     editable:()=>!contextBlocked&&!contextLoading,
     preview(takeId){const entry=entryFor(takeId);if(entry){previewedId=takeId;markLibrarySelection();onPreview(entry);}},

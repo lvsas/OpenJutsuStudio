@@ -213,6 +213,7 @@ class ReadinessTests(unittest.TestCase):
     def test_unready_api_does_not_store_upload(self):
         with tempfile.TemporaryDirectory() as tmp, \
              patch.object(app, "MEDIA_DIR", Path(tmp)), \
+             patch.object(app.core, "WORK", Path(tmp) / "work"), \
              patch.object(app, "check_readiness", return_value={"ready": False, "issues": ["Start Comfy API Proxy"]}):
             client = TestClient(app.app)
             self.assertEqual(client.get("/health").status_code, 200)

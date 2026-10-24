@@ -34,10 +34,10 @@ class H3StudioUITests(unittest.TestCase):
         scripts = [attrs for tag, attrs in self.parser.tags if tag == 'script']
         # Both shared helpers are the single implementation used by both studios.
         self.assertEqual([s.get('src') for s in scripts],
-                         ['/static/studio-utils.js', '/static/studio-progress.js', '/static/share-reel.js', '/static/h3-studio.js', '/static/project-context-ui.js'])
-        self.assertEqual([s.get('type') for s in scripts], [None, None, None, 'module', 'module'])
+                         ['/static/project-session.js', '/static/studio-utils.js', '/static/studio-progress.js', '/static/share-reel.js', '/static/h3-studio.js', '/static/project-context-ui.js'])
+        self.assertEqual([s.get('type') for s in scripts], [None, None, None, None, 'module', 'module'])
         links = [attrs.get('href') for tag, attrs in self.parser.tags if tag == 'link']
-        self.assertEqual(links, ['/static/design-system.css', '/static/app.css', '/static/h3-studio.css', '/static/completion.css', '/static/share-reel.css'])
+        self.assertEqual(links, ['/static/design-system.css', '/static/app.css', '/static/h3-studio.css', '/static/completion.css', '/static/share-reel.css', '/static/project-session.css'])
         for src in self.scripts.values():
             self.assertNotRegex(src, r'innerHTML|outerHTML|insertAdjacentHTML|eval\(|https?://')
         # H3 must not borrow the LTX pipeline's vocabulary. The progress bar is now a

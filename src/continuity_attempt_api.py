@@ -25,6 +25,7 @@ class AttemptRequest(BaseModel):
     seeds: list[StrictInt] = Field(min_length=1, max_length=attempts.MAX_CANDIDATES)
     mode: Literal['forward', 'prepend', 'bridge'] = 'forward'
     reference_ids: list[str] | None = None
+    project_id: str | None = Field(default=None, pattern=r'^[0-9a-f]{32}$', min_length=32, max_length=32)
     second_take_id: str | None = Field(default=None, pattern=r'^[0-9a-f]{32}$',
                                        min_length=32, max_length=32)
 
@@ -61,7 +62,7 @@ class AttemptRequest(BaseModel):
 
 
 def create_router(get_root, *, worker=None, create=None, precheck=None,
-                  anchored_precheck=None) -> APIRouter:
+                  anchored_precheck=None, get_work=None) -> APIRouter:
     """Only a newly persisted request queues work; recovery routes are read-only.
 
     The optional creation hook follows create_or_get's (record, created) contract.
@@ -86,6 +87,11 @@ def create_router(get_root, *, worker=None, create=None, precheck=None,
             raise HTTPException(422, str(error)) from None
         if worker is None:
             raise HTTPException(503, 'Variants are not configured on this instance.')
+        if request.project_id is not None:
+            if get_work is None:
+                raise HTTPException(503, 'Project-scoped attempts are not configured.')
+            from project_scope import validate_project
+            validate_project(get_work(), request.project_id)
         anchors = ({} if request.mode == 'forward' else
                    {'mode': request.mode, 'second_take_id': request.second_take_id})
         if request.reference_ids is not None:
@@ -101,7 +107,8 @@ def create_router(get_root, *, worker=None, create=None, precheck=None,
                     raise HTTPException(422, str(error)) from None
             attempt, created = (create or attempts.create_or_get)(
                 get_root(), take_id=take_id, request_id=request.request_id, prompt=request.prompt,
-                raw_frames=request.raw_frames, seeds=request.seeds, **anchors)
+                raw_frames=request.raw_frames, seeds=request.seeds, **anchors,
+                **({'project_id': request.project_id} if request.project_id is not None else {}))
         except attempts.AttemptConflict as error:
             raise HTTPException(409, str(error)) from None
         except attempts.AttemptError as error:

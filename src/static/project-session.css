@@ -1,0 +1,11 @@
+/* Compact context, common to every creative space. */
+.project-bar{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;max-width:1400px;margin:0 auto;padding:.55rem clamp(1rem,3vw,2.5rem);border-bottom:1px solid var(--line,#292932);font-size:.8rem;position:relative;z-index:4}
+.project-context-title{display:flex;align-items:center;gap:.6rem;min-width:0;flex:1}
+.project-context-title small{color:var(--muted,#aaa)}
+.project-context-title strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45vw}
+.project-bar details{position:static}.project-bar summary{cursor:pointer;list-style:none;padding:.45rem .6rem;border:1px solid var(--line,#292932);border-radius:.5rem}
+.project-menu,.project-name-form,.project-library{position:absolute;right:1rem;top:100%;width:min(320px,calc(100vw - 2rem));background:var(--panel,#19191f);border:1px solid var(--line,#292932);border-radius:.6rem;padding:1rem;display:grid;gap:.65rem;box-shadow:0 .5rem 2rem #0007;z-index:8}
+.creation-thumb{width:100%;height:110px;object-fit:contain;background:#0b0b10;border-radius:.4rem}.project-bar button,.project-bar select,.project-bar input{font:inherit;color:var(--text,#ece9f2);background:var(--panel,#19191f);border:1px solid var(--line,#393940);border-radius:.5rem;padding:.5rem .6rem;min-height:2.75rem}.project-bar button{cursor:pointer}
+.project-library ul{list-style:none;padding:0;margin:0;display:grid;gap:.6rem;max-height:50vh;overflow:auto}.project-library li{display:grid;gap:.4rem;border-bottom:1px solid var(--line,#292932);padding-bottom:.6rem}.project-library li span{overflow-wrap:anywhere}
+.project-bar label{display:grid;gap:.5rem}.project-bar input,.project-bar select{width:100%;min-width:0}.project-error{flex-basis:100%;margin:0;color:var(--error,#f88)}
+@media(max-width:500px){.project-bar{gap:.4rem;font-size:.72rem}.project-context-title{flex-basis:100%}.project-context-title strong{max-width:75vw}}

@@ -34,6 +34,7 @@ export class H3Take {
     byId('copy-caption').addEventListener('click', () => this.copyCaption());
   }
   storage(id, key = STORAGE_KEY) {
+    key = window.OpenGenjutsuProject?.storageKey(key) || key;
     try {
       if (id === undefined) return localStorage.getItem(key);
       if (id) localStorage.setItem(key, id);
@@ -44,8 +45,18 @@ export class H3Take {
     byId('return-last').hidden = !this.lastCompletedId || !byId('result-actions').hidden;
     byId('return-last').disabled = this.active;
   }
-  resume() {
-    const id = this.id || this.storage();
+  async resume() {
+    const scope = window.OpenGenjutsuProject;
+    const openingEpoch = this.epoch;
+    try { if (scope) await scope.ready; } catch (error) { toast(error.message); return; }
+    if (openingEpoch !== this.epoch) return;
+    const explicit = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('job_id') : null;
+    const recovered = scope?.recovery('minimax-h3');
+    this.lastCompletedId = this.storage(undefined, COMPLETED_KEY);
+    if (!validId(this.lastCompletedId) || (scope && !scope.containsJob(this.lastCompletedId))) this.lastCompletedId = recovered?.status === 'done' ? recovered.job_id : null;
+    let cached = this.storage();
+    if (scope && !scope.containsJob(cached)) cached = null;
+    const id = validId(explicit) ? explicit : this.id || cached || (recovered?.status !== 'done' ? recovered?.job_id : null);
     if (validId(id)) this.watch(id);
     else { this.storage(null); this.restoreCompleted(); }
     this.returnAffordance();
@@ -158,7 +169,7 @@ export class H3Take {
     loadStageMedia('reference', h3URL(job.id, '/reference'));
     if (job.status === 'done') {
       this.lastCompletedId = job.id;
-      this.storage(job.id, COMPLETED_KEY);
+      if (!window.OpenGenjutsuProject || window.OpenGenjutsuProject.containsJob(job.id)) this.storage(job.id, COMPLETED_KEY);
       loadStageMedia('result', jobURL(job.id, '/result'));
       byId('download').href = `${job.result_url}?download=true`;
       const timelineLink = byId('open-timeline');
@@ -215,7 +226,10 @@ export class H3Take {
       const ready = await this.checkReady();
       if (epoch !== this.epoch) return;
       if (!ready) throw new Error('H3 is not ready. Resolve the availability notes above.');
-      const response = await request(h3URL(this.id, '/replay'), {method: 'POST'});
+      const projectId = await window.OpenGenjutsuProject?.ensure();
+      const options = projectId ? {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:projectId})} : {method:'POST'};
+      const response = await request(h3URL(this.id, '/replay'), options);
+      window.OpenGenjutsuProject?.acceptJob(response.job_id, response.project_id, 'minimax-h3');
       if (epoch !== this.epoch) return;
       this.watch(response.job_id);
     } catch (error) {

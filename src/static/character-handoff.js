@@ -51,6 +51,7 @@ export async function applyCharacterReference({search = location.search, input, 
     const transfer = new DataTransfer();
     transfer.items.add(file);
     input.files = transfer.files;
+    input.__recoverableReference = input.files[0]; // Exact File identity; a later manual replacement is not recoverable.
     input.dispatchEvent(new Event('change', {bubbles: true}));
     notify('Character reference added. Choose a source video when you are ready.');
     return true;

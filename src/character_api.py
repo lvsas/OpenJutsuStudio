@@ -8,6 +8,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, Response
 import core
+from api_schema import _public_project_id
+from project_scope import submission_project
 from character_capsule import contained, get_capsule, replay_recipe
 from character_recipe import ENGINE, make_recipe
 from character_library import CharacterLibrary, LibraryError, validate_id
@@ -33,7 +35,8 @@ def _load(job_id):
 def _public(job):
     return {"job_id": job.id, "status": job.status, "step": job.step, "progress": job.progress,
             "error": "Character generation failed; check the local worker logs" if job.error else None,
-            "parent_job_id": job.meta.get("parent_job_id"), "engine": ENGINE}
+            "parent_job_id": job.meta.get("parent_job_id"), "engine": ENGINE,
+            "project_id": _public_project_id(job)}
 
 
 class CharacterAPI:
@@ -65,6 +68,8 @@ class CharacterAPI:
     async def create_job(self, payload: dict):
         if not isinstance(payload, dict):
             raise HTTPException(422, "Character request must be an object")
+        owner = payload.get("project_id")
+        origin_project_id = submission_project(owner, self.get_media_dir()) if owner is not None else None
         job_id = uuid.uuid4().hex
         try:
             recipe = make_recipe(job_id=job_id, direction=payload.get("direction", ""),
@@ -79,8 +84,11 @@ class CharacterAPI:
         report = await asyncio.to_thread(self.readiness_check)
         if not report.get("ready"):
             raise HTTPException(503, " ".join(report.get("issues", [])) or "Character runtime is not ready")
+        if origin_project_id is None:
+            origin_project_id = submission_project(None, self.get_media_dir())
         job = core.Job(id=job_id, engine=ENGINE, prompt=recipe["resolved_request"],
-                       meta={"character_recipe": copy.deepcopy(recipe)})
+                       meta={"character_recipe": copy.deepcopy(recipe),
+                             "origin_project_id": origin_project_id})
         await asyncio.to_thread(job.save)
         try:
             self.dispatch_job(job, {"recipe": recipe, "media_dir": Path(self.get_media_dir())})
@@ -119,7 +127,8 @@ class CharacterAPI:
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
 
-    async def replay(self, job_id):
+    async def replay(self, job_id: str, payload: dict | None = None):
+        origin_project_id = submission_project((payload or {}).get("project_id"), self.get_media_dir())
         parent = _load(job_id)
         try:
             old = await asyncio.to_thread(replay_recipe, parent, self.get_media_dir())
@@ -131,7 +140,8 @@ class CharacterAPI:
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
         child = core.Job(id=child_id, engine=ENGINE, prompt=recipe["resolved_request"],
-                         meta={"character_recipe": recipe, "parent_job_id": parent.id})
+                         meta={"character_recipe": recipe, "parent_job_id": parent.id,
+                               "origin_project_id": origin_project_id})
         await asyncio.to_thread(child.save)
         try:
             self.dispatch_job(child, {"recipe": recipe, "media_dir": Path(self.get_media_dir())})

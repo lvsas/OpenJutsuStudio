@@ -149,9 +149,12 @@ async function submit(event) {
   update();
   byId('run-overlay').hidden = false;
   try {
+    const projectId = await window.OpenGenjutsuProject?.ensure();
+    if (projectId) data.set('project_id', projectId);
     const response = await request('/api/h3/jobs', {method: 'POST', body: data});
     if (epoch !== take.epoch) return;
     if (!validId(response.job_id)) throw new Error('Server returned an invalid H3 job identifier. Check the service before retrying.');
+    window.OpenGenjutsuProject?.acceptJob(response.job_id, response.project_id, 'minimax-h3');
     take.watch(response.job_id);
     for (const url of blobs.values()) if (url) URL.revokeObjectURL(url);
     blobs.clear();

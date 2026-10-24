@@ -114,10 +114,13 @@
     replayButton.textContent = 'Starting replay…';
     status.textContent = 'Starting a linked local re-run with the recorded recipe and shot boundaries…';
     try {
-      const response = await fetch(`/api/jobs/${encodeURIComponent(activeJobId)}/replay`, { method: 'POST' });
+      const projectId = await window.OpenGenjutsuProject?.ensure();
+      const options = projectId ? {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:projectId})} : {method:'POST'};
+      const response = await fetch(`/api/jobs/${encodeURIComponent(activeJobId)}/replay`, options);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.detail || 'Could not start this take again.');
       if (current !== epoch) return;
+      window.OpenGenjutsuProject?.acceptJob(payload.job_id, payload.project_id, 'ltx25-ripple');
       window.dispatchEvent(new CustomEvent('opengenjutsu:resume-job', { detail: { id: payload.job_id } }));
     } catch (error) {
       if (current !== epoch) return;

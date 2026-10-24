@@ -41,6 +41,9 @@ export function bindProjectNavigation({getSearch=()=>location.search,root=docume
       try {
         const context=parseProjectContext(url.search);
         const values={};for(const key of ['project_id','job_id','character_id'])if(context[key])values[key]=context[key];
+        const working=valid?parseProjectContext(search):{};
+        if(working.character_id&&!values.character_id&&!values.job_id
+            &&(!values.project_id||values.project_id===working.project_id))values.character_id=working.character_id;
         const value=workspaceLink(url.pathname,values,valid?search:'')+url.hash;
         applied.set(link,{original,value});
         if(raw!==value)link.setAttribute('href',value);

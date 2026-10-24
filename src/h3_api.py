@@ -9,6 +9,8 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 import mimetypes
 import core
+from api_schema import _public_project_id
+from project_scope import submission_project
 from h3_capsule import contained, digest_file, frozen_references, get_capsule, replay_inputs
 from h3_graphs import REFERENCE_SLOTS
 from h3_recipe import ENGINE, MAX_TEXT, make_recipe
@@ -28,7 +30,9 @@ def _load(job_id):
 
 def _response(job):
     return {'job_id': job.id, 'status': job.status, 'parent_job_id': job.meta.get('parent_job_id'),
+            'project_id': _public_project_id(job),
             'job': {'id': job.id, 'engine': ENGINE, 'status': job.status,
+                    'project_id': _public_project_id(job),
                     'single_shot_only': True, 'parent_job_id': job.meta.get('parent_job_id')},
             'limitations': ['One continuous shot only; no automatic scene splitting or cut rejection.']}
 
@@ -89,7 +93,8 @@ class H3API:
     async def create_job(self, request: Request, video: UploadFile = File(...),
                          reference_images: list[UploadFile] = File(...),
                          edit_prompt: str = Form(default='', max_length=2000),
-                         seed: int = Form(default=302929098223082, ge=0, le=2**64-1)):
+                         seed: int = Form(default=302929098223082, ge=0, le=2**64-1),
+                         project_id: str | None = Form(default=None)):
         """Submit one continuous shot and one or two ordered character references.
 
         MVP processes the entire clip as one shot. Multi-cut editing is not
@@ -100,6 +105,8 @@ class H3API:
         model from that reference image and recorded as generated. Original audio is
         preserved and conditioned on; output timing is 24fps.
         """
+        media_dir = Path(self.get_media_dir()).resolve()
+        origin_project_id = submission_project(project_id, media_dir) if project_id is not None else None
         form = await request.form()
         if not 1 <= len(form.getlist('reference_images')) <= REFERENCE_SLOTS:
             raise HTTPException(422, f'H3 accepts between 1 and {REFERENCE_SLOTS} reference images')
@@ -113,7 +120,8 @@ class H3API:
             if Path(upload.filename or '').suffix.lower() not in {'.png', '.jpg', '.jpeg', '.webp'}:
                 raise HTTPException(415, 'Use a PNG, JPEG or WebP reference')
         await self.ready()
-        media_dir = Path(self.get_media_dir()).resolve()
+        if origin_project_id is None:
+            origin_project_id = submission_project(None, media_dir)
         media_dir.mkdir(parents=True, exist_ok=True)
         job_id = uuid.uuid4().hex
         source = media_dir / f'{job_id}-source{suffix}'
@@ -131,7 +139,8 @@ class H3API:
                                  source_width=info['width'], source_height=info['height'])
             recipe['source_timing'] = copy.deepcopy(info)
             job = core.Job(id=job_id, engine=ENGINE, prompt=recipe['effective_prompt'], video=str(source),
-                           meta={'h3_references': [str(path) for path in references], 'h3_recipe': recipe,
+                           meta={'origin_project_id': origin_project_id,
+                                 'h3_references': [str(path) for path in references], 'h3_recipe': recipe,
                                  'single_shot_only': True, 'source_info': info,
                                  'source_shot_plan': [{'start': 0, 'end': info['frames']-1,
                                                        'fps': info['fps']}]})
@@ -161,9 +170,10 @@ class H3API:
                             headers={'Content-Disposition': f'attachment; filename="h3-take-{job.id}.json"'})
         return capsule
 
-    async def replay(self, job_id: str):
-        parent = await asyncio.to_thread(_load, job_id)
+    async def replay(self, job_id: str, payload: dict | None = None):
         media_dir = Path(self.get_media_dir()).resolve()
+        origin_project_id = submission_project((payload or {}).get('project_id'), media_dir)
+        parent = await asyncio.to_thread(_load, job_id)
         try:
             recipe, source, references = await asyncio.to_thread(replay_inputs, parent, media_dir)
         except ValueError as exc:
@@ -172,7 +182,8 @@ class H3API:
             raise HTTPException(409, 'Frozen H3 recipe or verified local inputs are unavailable or changed') from exc
         await self.ready()
         child = core.Job(id=uuid.uuid4().hex, engine=ENGINE, prompt=recipe['effective_prompt'],
-                         video=str(source), meta={'h3_references': [str(path) for path in references],
+                         video=str(source), meta={'origin_project_id': origin_project_id,
+                                                 'h3_references': [str(path) for path in references],
                                                  'h3_recipe': recipe, 'parent_job_id': parent.id,
                                                  'single_shot_only': True})
         return await _dispatch(self.dispatch_job, child, source, references, recipe, media_dir)

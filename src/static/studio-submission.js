@@ -79,6 +79,8 @@
       refresh();
       onBegin();
       try {
+        const projectId = await window.OpenGenjutsuProject?.ensure();
+        if (projectId) data.set('project_id', projectId);
         const response = await fetch('/api/jobs', { method: 'POST', body: data });
         const result = await response.json();
         if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : 'Unable to start the swap.');

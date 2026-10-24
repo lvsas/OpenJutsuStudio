@@ -181,7 +181,7 @@ _HUNT_WORKER = Worker(_HUNT_ROOT, refine=_hunt_refine, submit=_hunt_submit)
 app.include_router(create_attempt_router(
     lambda: _HUNT_ROOT, worker=_HUNT_WORKER, create=_create_anchored_attempt,
     precheck=lambda take_id, raw: precheck_request(core.WORK, take_id, raw),
-    anchored_precheck=_anchored_precheck))
+    anchored_precheck=_anchored_precheck, get_work=lambda: core.WORK))
 from continuity_root_api import create_router as create_root_router
 from continuity_composer import create_router as create_composer_router
 app.include_router(create_root_router(lambda: core.WORK, lambda: _HUNT_ROOT,

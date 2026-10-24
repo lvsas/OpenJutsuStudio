@@ -233,7 +233,7 @@ async function refresh() {
     }
     entries = data.takes;
     if (!initialized) { await sequence.init(entries); initialized = true; }
-    else sequence.refresh(entries);
+    else await sequence.refresh(entries);
     const context=sequence.editable()?parseProjectContext(location.search):{};
     if(context.job_id&&!handoffStarted&&sequence.editable()){handoffStarted=true;void openLinkedSwap(context.job_id);}
   } catch (error) { notice(error.message); }
@@ -495,7 +495,7 @@ byId('forward-form').addEventListener('submit', async event => {
   const frozen={take_id:active.take.take_id,after:activePlacement.placement_id,
     project_id:sequence.state().project_id};
   try {
-    const body=attemptBody({...fields,count,request_id});
+    let body=attemptBody({...fields,count,request_id});
     // Save the anchor/project before submission; project_id was previously null
     // when Generate outran the debounced workspace save.
     inFlight=true;updateComposer();
@@ -504,6 +504,7 @@ byId('forward-form').addEventListener('submit', async event => {
         ||(frozen.project_id&&saved.project_id!==frozen.project_id))
       throw new Error('The selected take changed. Review this draft before generating.');
     comparison.clear();byId('candidate-tray').hidden=true;
+    body=body.slice(0,-1)+','+JSON.stringify({project_id:saved.project_id}).slice(1);
     await attemptClient.submit({...frozen,project_id:saved.project_id,request_id,body});
   } catch(error){forwardState(error.message);}
   finally {inFlight=false;unconfirmed=attemptClient.blocked();updateComposer();}

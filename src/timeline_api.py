@@ -15,7 +15,7 @@ from python_multipart.multipart import parse_options_header
 from starlette.concurrency import run_in_threadpool
 
 from timeline_export import ExportManager
-from timeline_models import CreateProject, EditNativeWorkspace, EditProject, ExportProject, ImportJob
+from timeline_models import CreateProject, EditNativeWorkspace, EditProject, ExportProject, ImportJob, AssociateAsset, RenameProject, DraftRequest
 from timeline_store import TimelineError, TimelineStore
 
 
@@ -164,6 +164,22 @@ def create_router(get_work_dir: Callable[[], Path], get_media_dir: Callable[[], 
                             content_disposition_type="attachment" if download else "inline",
                             headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
 
+    @router.get('/library')
+    def common_library():
+        return {'jobs': invoke(store().library_jobs)}
+
+    @router.get('/draft')
+    def get_draft():
+        return {'project': invoke(store().draft)}
+
+    @router.post('/draft')
+    def ensure_draft(payload: DraftRequest):
+        return {'project': invoke(store().draft, create=True)}
+
+    @router.patch('/projects/{project_id}/name')
+    def rename_project(project_id: str, payload: RenameProject):
+        return invoke(store().rename, project_id, payload.revision, payload.title)
+
     @router.get("/projects")
     def list_projects():
         return {"projects": invoke(store().list_projects)}
@@ -179,6 +195,14 @@ def create_router(get_work_dir: Callable[[], Path], get_media_dir: Callable[[], 
     @router.patch("/projects/{project_id}")
     def edit_project(project_id: str, payload: EditProject):
         return invoke(store().edit, project_id, payload)
+
+    @router.get('/projects/{project_id}/assets')
+    def get_project_assets(project_id: str):
+        return invoke(store().get_assets, project_id)
+
+    @router.post('/projects/{project_id}/assets')
+    def associate_project_asset(project_id: str, payload: AssociateAsset):
+        return invoke(store().associate_asset, project_id, payload)
 
     @router.get("/projects/{project_id}/native-workspace")
     def get_native_workspace(project_id: str):

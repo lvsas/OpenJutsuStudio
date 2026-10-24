@@ -29,6 +29,7 @@ class RootAttemptRequest(BaseModel):
     raw_frames: StrictInt = Field(ge=5, le=3600)
     seeds: list[StrictInt] = Field(min_length=1, max_length=attempts.MAX_CANDIDATES)
     reference_ids: list[str] = Field(min_length=1)
+    project_id: str | None = Field(default=None, pattern=r'^[0-9a-f]{32}$', min_length=32, max_length=32)
     width: StrictInt = Field(ge=32, le=2048)
     height: StrictInt = Field(ge=32, le=2048)
 
@@ -112,6 +113,9 @@ def create_router(get_work, get_root, *, worker, precheck) -> APIRouter:
     def start(request: RootAttemptRequest):
         if worker is None or precheck is None:
             raise HTTPException(503, 'New takes are not configured on this instance.')
+        if request.project_id is not None:
+            from project_scope import validate_project
+            validate_project(get_work(), request.project_id)
         context = request.root_context
         try:
             root_state(request.raw_frames)
@@ -124,7 +128,8 @@ def create_router(get_work, get_root, *, worker, precheck) -> APIRouter:
             attempt, created = attempts.create_or_get(
                 get_root(), take_id=None, mode='root', root_context=context,
                 request_id=request.request_id, prompt=request.prompt,
-                raw_frames=request.raw_frames, seeds=request.seeds)
+                raw_frames=request.raw_frames, seeds=request.seeds,
+                **({'project_id': request.project_id} if request.project_id is not None else {}))
         except attempts.AttemptConflict:
             raise HTTPException(409, 'This request identifier already has a different frozen payload.') from None
         except attempts.AttemptError:

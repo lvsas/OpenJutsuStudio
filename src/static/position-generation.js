@@ -123,7 +123,7 @@ export function mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate
       if(gap.mode==='root')extra={reference_ids:draft.reference_ids,width:draft.width,height:draft.height};
       else extra={mode:gap.mode,...(gap.mode==='bridge'?{second_take_id:right.take_id}:{}),
         ...(custom()?{reference_ids:draft.reference_ids}:{})};
-      body=body.slice(0,-1)+','+JSON.stringify(extra).slice(1);
+      body=body.slice(0,-1)+','+JSON.stringify({...extra,...(state.project_id?{project_id:state.project_id}:{})}).slice(1);
       return {request_id,take_id:gap.mode==='root'?null:(gap.mode==='prepend'?right:left).take_id,
         mode:gap.mode,second_take_id:gap.mode==='bridge'?right.take_id:null,
         after:gap.left,position:gap,project_id:state.project_id,body};

@@ -11,6 +11,8 @@
   <link rel="stylesheet" href="/static/timeline.css">
   <link rel="stylesheet" href="/static/studio-wip.css">
   <link rel="stylesheet" href="/static/continuity-studio.css">
+  <link rel="stylesheet" href="/static/project-session.css">
+  <script src="/static/project-session.js"></script>
 </head>
 <body>
   <header class="site-header">
@@ -50,6 +52,7 @@
     <div class="sequence-workbench">
       <aside id="native-library" class="sequence-library" aria-label="Take library" hidden>
         <div class="rail-head"><div><h2>Your takes</h2><span id="pool-count" class="microcopy"></span></div><button id="native-library-close" class="btn btn-ghost" type="button" aria-label="Hide your takes">Hide</button></div>
+        <label class="microcopy">Show <select id="native-library-scope" aria-label="Take library scope"><option value="project">This project</option><option value="common">Common library · reuse a take</option></select></label>
         <label class="sr-only" for="native-search">Find a take</label><input id="native-search" type="search" placeholder="Find a take…" autocomplete="off">
         <p class="microcopy">Preview a take, then add it. Dragging never starts generation.</p>
         <ul id="native-takes" class="library-takes"><li class="microcopy">Loading takes…</li></ul>

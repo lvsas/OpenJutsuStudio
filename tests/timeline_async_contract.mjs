@@ -498,3 +498,22 @@ test('Keep is gated until terminal and refuses a different frozen project withou
     assert.equal(e.get('candidate-video').src,'','pagehide releases comparison media');
   }
 });
+
+
+test('project context parser is strict, pure and keeps distinct literal IDs',async()=>{
+  const app=await environment(()=>{throw Error('Context parsing must not fetch');});
+  const {parseProjectContext,workspaceLink}=await app.entry('project-context.js');
+  const before=JSON.stringify([...app.storage]);
+  const context=parseProjectContext(`?project_id=${A}&job_id=${B}&character_id=${C}`);
+  assert.equal(context.project_id,A);assert.equal(context.job_id,B);assert.equal(context.character_id,C);
+  for(const key of ['project_id','job_id','character_id'])for(const invalid of ['',A.toUpperCase(),'../../bad',A+'0'])
+    assert.throws(()=>parseProjectContext(`?${key}=${invalid}`),/workspace link is invalid/i);
+  for(const key of ['project_id','job_id','character_id'])
+    assert.throws(()=>parseProjectContext(`?${key}=${A}&${key}=${A}`),/workspace link is invalid/i);
+  const link=workspaceLink('/timeline',{job_id:B},`?project_id=${A}&character_id=${C}`);
+  const params=new URL(link,'http://test.invalid').searchParams;
+  assert.equal(params.get('project_id'),A);assert.equal(params.get('job_id'),B);assert.equal(params.has('character_id'),false);
+  assert.throws(()=>workspaceLink('https://elsewhere.invalid/',{},''),/workspace destination/i);
+  assert.throws(()=>workspaceLink('/timeline',{job_id:'bad'},''),/workspace link is invalid/i);
+  assert.equal(JSON.stringify([...app.storage]),before);
+});

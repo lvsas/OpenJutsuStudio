@@ -22,7 +22,7 @@ class PositionDraftTests(IsolatedTimeline):
         self.payload={'revision':0,'placements':[],'selected_placement_id':None,'drafts':{},
             'selected_position':self.key,'position_drafts':{self.key:{'mode':'root','prompt':'A new shot',
             'seed':'18446744073709551615','raw_frames':124,'reference_ids':['a'*32],
-            'width':1024,'height':576,'count':2}}}
+            'width':1024,'height':576,'count':2,'reference_mode':'custom'}}}
 
     def test_root_roundtrip_preserves_reference_order_and_exact_seed(self):
         r=self.client.patch(self.url,json=self.payload)

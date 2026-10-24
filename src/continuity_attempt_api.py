@@ -1,12 +1,12 @@
-"""HTTP surface for bounded seed attempts over the proven forward chain."""
+"""HTTP surface for bounded seed attempts with frozen native anchor intent."""
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Path as ApiPath
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator, model_validator
 
 import continuity_attempts as attempts
 from continuable_take_api import TakeId
@@ -23,6 +23,18 @@ class AttemptRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=4000)
     raw_frames: StrictInt = Field(ge=5, le=3600)
     seeds: list[StrictInt] = Field(min_length=1, max_length=attempts.MAX_CANDIDATES)
+    mode: Literal['forward', 'prepend', 'bridge'] = 'forward'
+    reference_ids: list[str] | None = None
+    second_take_id: str | None = Field(default=None, pattern=r'^[0-9a-f]{32}$',
+                                       min_length=32, max_length=32)
+
+    @model_validator(mode='after')
+    def anchors(self):
+        # The distinctness check needs the path Take and runs before any hook.
+        attempts._validate_anchors(None, mode=self.mode, second_take_id=self.second_take_id)
+        if self.reference_ids is not None:
+            attempts.validate_reference_ids(self.reference_ids)
+        return self
 
     @field_validator('prompt')
     @classmethod
@@ -48,10 +60,13 @@ class AttemptRequest(BaseModel):
         return value
 
 
-def create_router(get_root, *, worker=None, create=None, precheck=None) -> APIRouter:
+def create_router(get_root, *, worker=None, create=None, precheck=None,
+                  anchored_precheck=None) -> APIRouter:
     """Only a newly persisted request queues work; recovery routes are read-only.
 
     The optional creation hook follows create_or_get's (record, created) contract.
+    Forward uses legacy positional precheck/callbacks. Other modes use
+    anchored_precheck(take_id, raw_frames, *, mode, second_take_id).
     """
     @asynccontextmanager
     async def lifespan(app):
@@ -64,19 +79,29 @@ def create_router(get_root, *, worker=None, create=None, precheck=None) -> APIRo
 
     @router.post('/takes/{take_id}/attempts', status_code=202)
     def start(take_id: TakeId, request: AttemptRequest):
+        try:
+            attempts._validate_anchors(take_id, mode=request.mode,
+                                       second_take_id=request.second_take_id)
+        except attempts.AttemptError as error:
+            raise HTTPException(422, str(error)) from None
         if worker is None:
             raise HTTPException(503, 'Variants are not configured on this instance.')
+        anchors = ({} if request.mode == 'forward' else
+                   {'mode': request.mode, 'second_take_id': request.second_take_id})
+        if request.reference_ids is not None:
+            anchors['reference_ids'] = request.reference_ids
         try:
             # Refuse a request that would freeze an uncontinuable take, before a
             # job exists: the check reads saved state and costs no GPU work.
-            if precheck is not None:
+            check = precheck if request.mode == 'forward' and request.reference_ids is None else anchored_precheck
+            if check is not None:
                 try:
-                    precheck(take_id, request.raw_frames)
+                    check(take_id, request.raw_frames, **anchors)
                 except ValueError as error:
                     raise HTTPException(422, str(error)) from None
             attempt, created = (create or attempts.create_or_get)(
                 get_root(), take_id=take_id, request_id=request.request_id, prompt=request.prompt,
-                raw_frames=request.raw_frames, seeds=request.seeds)
+                raw_frames=request.raw_frames, seeds=request.seeds, **anchors)
         except attempts.AttemptConflict as error:
             raise HTTPException(409, str(error)) from None
         except attempts.AttemptError as error:

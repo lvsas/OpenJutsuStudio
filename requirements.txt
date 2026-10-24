@@ -2,3 +2,4 @@ fastapi>=0.115,<1.0
 uvicorn[standard]>=0.30,<1.0
 python-multipart>=0.0.9
 comfy-sdk>=0.5,<0.6
+Pillow>=10.4,<14

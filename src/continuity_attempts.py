@@ -8,6 +8,7 @@ candidates are never resubmitted; interrupted submissions require explicit recov
 from __future__ import annotations
 
 import json
+import copy
 import os
 import re
 import threading
@@ -40,6 +41,52 @@ class AttemptNotFound(AttemptError):
 def _identifier(value, kind):
     if not isinstance(value, str) or not _ID.fullmatch(value):
         raise AttemptError(f'A valid {kind} identifier is required.')
+
+
+def _validate_anchors(take_id, *, mode, second_take_id):
+    if mode == 'root':
+        if take_id is not None or second_take_id is not None:
+            raise AttemptError('Root generation has no parent takes.')
+        return
+    if not isinstance(mode, str) or mode not in ('forward', 'prepend', 'bridge'):
+        raise AttemptError('Choose forward, prepend or bridge generation.')
+    if mode == 'bridge':
+        _identifier(second_take_id, 'second take')
+        if second_take_id == take_id:
+            raise AttemptError('Bridge generation requires two distinct takes.')
+    elif second_take_id is not None:
+        raise AttemptError('A second take is only allowed for bridge generation.')
+
+
+def validate_reference_ids(ids):
+    if not isinstance(ids, list) or not ids:
+        raise AttemptError('At least one generation reference is required.')
+    for identifier in ids:
+        _identifier(identifier, 'reference')
+    return list(ids)
+
+
+def validate_root_context(root_context):
+    """The entire browser-controllable root intent, not arbitrary graph JSON."""
+    if not isinstance(root_context, dict) or set(root_context) != {'reference_ids', 'width', 'height'}:
+        raise AttemptError('Root generation requires explicit references and picture size.')
+    ids = root_context['reference_ids']
+    if not isinstance(ids, list) or not ids:
+        raise AttemptError('At least one root reference is required.')
+    for identifier in ids:
+        _identifier(identifier, 'reference')
+    for field in ('width', 'height'):
+        value = root_context[field]
+        if type(value) is not int or not 32 <= value <= 2048 or value % 32:
+            raise AttemptError('Root picture size must be 32-aligned integers between 32 and 2048.')
+    return copy.deepcopy(root_context)
+
+
+def _validate_context(mode, root_context):
+    if mode == 'root':
+        validate_root_context(root_context)
+    elif root_context is not None:
+        raise AttemptError('Root context is only allowed for root generation.')
 
 
 @contextmanager
@@ -89,6 +136,12 @@ def load(root, attempt_id) -> dict:
             or any(not isinstance(c, dict) or not candidate_keys <= c.keys()
                    for c in value['candidates'])):
         raise AttemptError('The attempt record cannot be read.')
+    try:
+        _validate_anchors(value['take_id'], mode=value.get('mode', 'forward'),
+                          second_take_id=value.get('second_take_id'))
+        _validate_context(value.get('mode', 'forward'), value.get('root_context'))
+    except AttemptError:
+        raise AttemptError('The attempt record cannot be read.') from None
     return value
 
 
@@ -110,14 +163,28 @@ def by_request(root, take_id, request_id) -> dict:
     raise AttemptNotFound('Attempt not found.')
 
 
+def root_by_request(root, request_id) -> dict:
+    """Read-only recovery scoped strictly to parentless root records."""
+    _identifier(request_id, 'request')
+    for attempt in _records(root):
+        if (attempt.get('mode') == 'root' and attempt['take_id'] is None
+                and attempt.get('request_id') == request_id):
+            return attempt
+    raise AttemptNotFound('Attempt not found.')
+
+
 def list_for_take(root, take_id) -> list[dict]:
     """Include legacy attempts without a request_id, most recently updated first."""
     _identifier(take_id, 'take')
     return [attempt for attempt in _records(root) if attempt['take_id'] == take_id]
 
 
-def _validate(*, take_id, prompt, raw_frames, seeds, request_id):
-    _identifier(take_id, 'take')
+def _validate(*, take_id, prompt, raw_frames, seeds, request_id, mode, second_take_id,
+              root_context=None):
+    if mode != 'root':
+        _identifier(take_id, 'take')
+    _validate_anchors(take_id, mode=mode, second_take_id=second_take_id)
+    _validate_context(mode, root_context)
     if request_id is not None:
         _identifier(request_id, 'request')
     if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 4000:
@@ -135,23 +202,32 @@ def _validate(*, take_id, prompt, raw_frames, seeds, request_id):
     return seeds
 
 
-def create(root, *, take_id: str, prompt: str, raw_frames: int, seeds,
-           request_id: str | None = None) -> dict:
+def create(root, *, take_id: str | None, prompt: str, raw_frames: int, seeds,
+           request_id: str | None = None, mode: str = 'forward',
+           second_take_id: str | None = None, root_context=None) -> dict:
     """Legacy internal callers may omit the request identity."""
     attempt, _ = create_or_get(root, take_id=take_id, prompt=prompt,
-                               raw_frames=raw_frames, seeds=seeds, request_id=request_id)
+                               raw_frames=raw_frames, seeds=seeds, request_id=request_id,
+                               mode=mode, second_take_id=second_take_id, root_context=root_context)
     return attempt
 
 
-def create_or_get(root, *, take_id: str, prompt: str, raw_frames: int, seeds,
-                  request_id: str | None = None) -> tuple[dict, bool]:
+def create_or_get(root, *, take_id: str | None, prompt: str, raw_frames: int, seeds,
+                  request_id: str | None = None, mode: str = 'forward',
+                  second_take_id: str | None = None, root_context=None, reference_ids=None, frozen_reference_paths=None) -> tuple[dict, bool]:
     """Return (record, created); persist identity and intent in one locked write.
 
     Only the caller receiving created=True may queue work. A crash between this
     write and queueing leaves a recoverable pending record, not an automatic retry.
     """
     seeds = _validate(take_id=take_id, prompt=prompt, raw_frames=raw_frames,
-                      seeds=seeds, request_id=request_id)
+                      seeds=seeds, request_id=request_id, mode=mode, second_take_id=second_take_id,
+                      root_context=root_context)
+    root_context = copy.deepcopy(root_context)
+    if reference_ids is not None:
+        reference_ids = validate_reference_ids(reference_ids)
+        if mode == 'root':
+            raise AttemptError('Root references belong to its root context.')
     store = Path(root).joinpath(*ROOT)
     store.mkdir(parents=True, exist_ok=True)
     with _file_lock(store / '.create.lock'):
@@ -160,8 +236,10 @@ def create_or_get(root, *, take_id: str, prompt: str, raw_frames: int, seeds,
                 if existing.get('request_id') != request_id:
                     continue
                 intent = (existing['take_id'], existing['prompt'], existing['raw_frames'],
-                          [c['seed'] for c in existing['candidates']])
-                if intent != (take_id, prompt, raw_frames, seeds):
+                          [c['seed'] for c in existing['candidates']],
+                          existing.get('mode', 'forward'), existing.get('second_take_id'),
+                          existing.get('root_context'), existing.get('reference_ids'))
+                if intent != (take_id, prompt, raw_frames, seeds, mode, second_take_id, root_context, reference_ids):
                     raise AttemptConflict('This request identifier already has a different frozen payload.')
                 return existing, False
         attempt = {'version': 1, 'attempt_id': uuid.uuid4().hex, 'take_id': take_id,
@@ -172,6 +250,17 @@ def create_or_get(root, *, take_id: str, prompt: str, raw_frames: int, seeds,
                                   for seed in seeds]}
         if request_id is not None:
             attempt['request_id'] = request_id
+        if mode == 'root':
+            attempt.update(mode='root', root_context=root_context)
+        elif mode != 'forward':
+            attempt.update(mode=mode, second_take_id=second_take_id)
+        if reference_ids is not None:
+            attempt['reference_ids'] = list(reference_ids)
+        if frozen_reference_paths is not None:
+            if not isinstance(frozen_reference_paths, (list, tuple)) or not frozen_reference_paths or any(
+                    not isinstance(path, str) or not path for path in frozen_reference_paths):
+                raise AttemptError('Frozen references must be nonempty trusted server paths.')
+            attempt['frozen_reference_paths'] = list(frozen_reference_paths)
         _atomic(_folder(root, attempt['attempt_id']) / 'attempt.json', attempt)
         return attempt, True
 
@@ -191,12 +280,17 @@ def _public_error(error):
 
 
 def public(attempt: dict) -> dict:
-    return {'attempt_id': attempt['attempt_id'], 'take_id': attempt['take_id'],
+    result = {'attempt_id': attempt['attempt_id'], 'take_id': attempt['take_id'],
             'status': attempt['status'], 'error': _public_error(attempt['error']),
             'candidates': [{'seed': c['seed'], 'status': c['status'],
                             'take_id': c['take_id'], 'error': _public_error(c['error']),
                             'url': (f"/api/continuity/takes/{c['take_id']}" if c['take_id'] else None)}
                            for c in attempt['candidates']]}
+    if attempt.get('mode') == 'root':
+        result['mode'] = 'root'
+    elif attempt.get('mode', 'forward') != 'forward':
+        result.update(mode=attempt['mode'], second_take_id=attempt.get('second_take_id'))
+    return result
 
 
 def _update(root, attempt_id, mutate):
@@ -268,6 +362,15 @@ def run(root, attempt_id, *, refine, submit) -> dict:
 
 def _run_locked(root, attempt_id, *, refine, submit):
     attempt = load(root, attempt_id)
+    # Forward retains the exact historical positional callback contract.
+    anchors = ({} if attempt.get('mode', 'forward') == 'forward' else
+               {'mode': attempt['mode'], 'second_take_id': attempt.get('second_take_id')})
+    if attempt.get('mode') == 'root':
+        anchors = {'mode': 'root', 'root_context': attempt['root_context']}
+    if attempt.get('reference_ids') is not None:
+        anchors['reference_ids'] = validate_reference_ids(attempt['reference_ids'])
+    if attempt.get('frozen_reference_paths') is not None:
+        anchors['reference_paths'] = list(attempt['frozen_reference_paths'])
     if any(c['status'] in ('running', 'unknown') for c in attempt['candidates']):
         if any(c['status'] == 'running' for c in attempt['candidates']):
             return _mark_interrupted(root, attempt_id)
@@ -277,7 +380,7 @@ def _run_locked(root, attempt_id, *, refine, submit):
     refined = attempt.get('refined_prompt')
     if refined is None:
         try:
-            refined = refine(attempt['prompt'], attempt['take_id'])
+            refined = refine(attempt['prompt'], attempt['take_id'], **copy.deepcopy(anchors))
         except Exception as error:  # noqa: BLE001
             return _update(root, attempt_id, lambda a: a.update(status=_STATUS_FAILED,
                            error=f'The direction could not be prepared: {error}'[:400]))
@@ -290,7 +393,7 @@ def _run_locked(root, attempt_id, *, refine, submit):
             status=_STATUS_RUNNING, error=None))
         try:
             take_id = submit(candidate['operation_id'], refined, candidate['seed'],
-                             attempt['raw_frames'], attempt['take_id'])
+                             attempt['raw_frames'], attempt['take_id'], **copy.deepcopy(anchors))
         except Exception as error:  # noqa: BLE001
             _update(root, attempt_id, lambda a, i=index, e=error: a['candidates'][i].update(
                 status=_STATUS_FAILED, error=str(e)[:400]))

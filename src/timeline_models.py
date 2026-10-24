@@ -91,6 +91,7 @@ def position_is_current(key, placements):
 class PositionDraft(NativeDraft):
     mode: Literal['root', 'forward', 'prepend', 'bridge']
     reference_ids: list[Identifier] = Field(default_factory=list)
+    reference_mode: Literal['inherit', 'custom'] = 'inherit'
     width: Annotated[int, Field(strict=True, ge=32, le=2048)] = 1024
     height: Annotated[int, Field(strict=True, ge=32, le=2048)] = 576
     count: Annotated[int, Field(strict=True, ge=1, le=4)] = 1

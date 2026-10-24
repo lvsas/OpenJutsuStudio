@@ -31,7 +31,7 @@ export function selectPosition(state,position,{mode=position.mode}={}) {
   const actual=resolvePosition(state,{left:position.left,right:position.right});
   if(mode!=='root'&&mode!==actual.mode)throw new Error('This operation does not match the chosen position.');
   const chosen={...actual,mode},key=positionKey(chosen),drafts=state.position_drafts??{};
-  const draft=drafts[key]??{mode,prompt:'',seed:'',raw_frames:277,reference_ids:[],width:1024,height:576,count:1};
+  const draft=drafts[key]??{mode,prompt:'',seed:'',raw_frames:mode==='root'?124:277,reference_ids:[],reference_mode:mode==='root'?'custom':'inherit',width:1024,height:576,count:1};
   return {...state,selected_position:key,position_drafts:{...drafts,[key]:draft}};
 }
 export function savePositionDraft(state,changes) {

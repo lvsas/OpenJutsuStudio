@@ -20,7 +20,7 @@ export function createDurationPicker(select, hint) {
   }
   function ready(result) {
     const options = result.duration_options;
-    if (!result.extend || !Array.isArray(options) || !options.length || options.some(item =>
+    if (!(result.available ?? result.extend) || !Array.isArray(options) || !options.length || options.some(item =>
       !Number.isSafeInteger(item.raw_frames) || item.raw_frames < 5 || item.raw_frames > 3600 ||
       !Number.isFinite(item.seconds) || item.seconds <= 0)) { unavailable();return; }
     const nearest = seconds => options.reduce((best, item) =>

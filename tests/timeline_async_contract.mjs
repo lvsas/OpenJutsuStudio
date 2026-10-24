@@ -45,7 +45,7 @@ async function environment(fetcher,search='',initialStorage={}) {
   const notices=[],events={},storage=new Map(Object.entries(initialStorage));const location={search,href:'http://test.invalid/timeline'};
   const document={getElementById:id=>elements.get(id),createElement:()=>new Element()};
   const context=vm.createContext({document,location,console,URLSearchParams,URL,Response,File,
-    Blob,AbortSignal,queueMicrotask,fetch:fetcher,setTimeout,clearTimeout,structuredClone,
+    Blob,FormData,AbortSignal,queueMicrotask,fetch:fetcher,setTimeout,clearTimeout,structuredClone,
     crypto:{randomUUID,getRandomValues:a=>webcrypto.getRandomValues(a)},
     Option:class extends Element{constructor(text,value){super();this.textContent=text;this.value=value;}},
     navigator:{share:async()=>{},canShare:()=>true},
@@ -117,6 +117,44 @@ test('empty creation slot and exact drops never generate or overwrite drafts',as
   assert.equal(seq.state().drafts[A].prompt,'Original');
   assert.equal(seq.state().drafts[A].seed,'18446744073709551615');
   assert.equal(backend.calls.some(c=>c.url.endsWith('/attempts')),false);
+});
+
+test('New take uses the shared composer, exact seeds, root recovery and frozen empty position',async()=>{
+  const D='d'.repeat(32),E='e'.repeat(32),R='f'.repeat(32);let generated=false,body=null;
+  const saved={project_id:C,title:'Root',revision:1,placements:[],selected_placement_id:null,drafts:{}};
+  const view={attempt_id:R,take_id:null,mode:'root',status:'done',error:null,
+    candidates:[{seed:'18446744073709551615',status:'done',take_id:D,error:null},
+      {seed:'0',status:'done',take_id:E,error:null}]};
+  const backend=nativeBackend({saved,extra:async(url,options)=>{
+    if(url.startsWith('/api/continuity/composer-readiness'))return response({available:true,
+      duration_options:[{raw_frames:124,seconds:124/24},{raw_frames:243,seconds:243/24}]});
+    if(url==='/api/continuity/root-references')return response({reference_id:A});
+    if(url==='/api/continuity/roots/attempts'){body=options.body;generated=true;return response(view);}
+  }});
+  const app=await environment((url,options={})=>url==='/api/continuity/takes'&&generated
+    ?Promise.resolve(response({takes:[nativeEntry(D),nativeEntry(E),nativeEntry(A),nativeEntry(B)]}))
+    :backend.fetcher(url,options),'',{'opengenjutsu.sequence.project':C});
+  await app.entry('continuity-studio.js');await flush();const e=app.elements;
+  await e.get('board-track').children[0].children[0].click();await flush();
+  assert.equal(e.get('forward-form').hidden,false);
+  assert.equal(e.get('forward-submit').disabled,true,'root needs explicit reference');
+  assert.equal(generated,false,'opening a slot never submits');
+  e.get('forward-prompt').value='A new shot';await e.get('forward-prompt').fire('input');
+  e.get('forward-seed').value='18446744073709551615';await e.get('forward-seed').fire('input');
+  e.get('forward-variants').value='2';await e.get('forward-variants').fire('input');
+  e.get('forward-reference-input').files=[new File(['synthetic image'],'synthetic.png',{type:'image/png'})];
+  await e.get('forward-reference-input').fire('change');await flush();
+  assert.equal(e.get('forward-submit').disabled,false);
+  await e.get('forward-form').fire('submit');await flush();
+  assert.ok(body.includes('"seeds":[18446744073709551615,0]'));
+  assert.equal(JSON.parse(body).reference_ids[0],A);
+  assert.equal(JSON.parse(body).width,1024);
+  const receipt=JSON.parse(app.storage.get('opengenjutsu.sequence.pending-generation'));
+  assert.equal(receipt.take_id,null);assert.equal(receipt.mode,'root');assert.equal(receipt.position.left,null);
+  const keep=e.get('candidate-list').children[0].children.find(child=>child.textContent==='Keep');
+  await keep.click();await flush();
+  assert.equal(backend.saved().placements.length,1);assert.equal(backend.saved().placements[0].take_id,D);
+  assert.equal(e.get('forward-variants').value,'1');assert.equal(e.get('forward-form').hidden,false);
 });
 
 test('native seeking/play cannot replay trimmed-away prefix; sequence still advances',async()=>{

@@ -83,39 +83,110 @@ app.include_router(create_continuity_router(lambda: core.WORK))
 _HUNT_ROOT = Path(core.WORK) / 'native-attempts'
 
 
-def _hunt_refine(prompt, take_id):
-    paths = parent_references(core.WORK, take_id)
-    preflight_continuation(core.WORK, take_id, models=_continuity_models(),
-                           direction=prompt, reference_count=len(paths))
+def _hunt_refine(prompt, take_id, *, mode='forward', second_take_id=None,
+                 root_context=None, reference_ids=None, reference_paths=None):
+    from continuity_root_pipeline import resolve_root_references, preflight_root
+    if mode == 'root':
+        paths = resolve_root_references(core.WORK, root_context)
+        preflight_root(models=_continuity_models(), direction=prompt,
+                       root_context=root_context, raw_frames=277)
+    else:
+        paths = (tuple(Path(path) for path in reference_paths) if reference_paths is not None else
+                 resolve_root_references(core.WORK, {'reference_ids': reference_ids, 'width':32, 'height':32})
+                 if reference_ids is not None else parent_references(core.WORK, take_id))
+        options = {}
+        if mode != 'forward':
+            from continuity_composer import operation_options
+            ready = operation_options(core.WORK, mode, take_id, second_take_id)
+            if not ready['available']:
+                raise ValueError(ready['reason'])
+            options = {'mode': mode, 'second_take_id': second_take_id,
+                       'raw_frames': ready['duration_options'][0]['raw_frames']}
+        preflight_continuation(core.WORK, take_id, models=_continuity_models(),
+                               direction=prompt, reference_count=len(paths), **options)
     client = make_client()
     references = [client.assets.from_file(path).as_reference() for path in paths]
     return refine_prompt(client, prompt, references)
 
 
-def _hunt_submit(operation_id, refined, seed, raw_frames, take_id):
+def _hunt_submit(operation_id, refined, seed, raw_frames, take_id, *, mode='forward',
+                 second_take_id=None, root_context=None, reference_ids=None, reference_paths=None):
     from continuity_requests import PreparedH3Request
     import uuid as _uuid
     client = make_client()
-    paths = parent_references(core.WORK, take_id)
+    if reference_paths is not None and mode != 'root':
+        paths = tuple(Path(path) for path in reference_paths)
+    elif mode == 'root' or reference_ids is not None:
+        from continuity_root_pipeline import resolve_root_references
+        paths = resolve_root_references(core.WORK, root_context if mode == 'root' else
+            {'reference_ids': reference_ids, 'width':32, 'height':32})
+    else:
+        paths = parent_references(core.WORK, take_id)
     references = [client.assets.from_file(path).as_reference() for path in paths]
     request = PreparedH3Request(request_id=_uuid.uuid4().hex, prompt=refined,
-                             seed=seed, raw_frames=raw_frames)
-    view = submit_forward(core.WORK, take_id, request, client=client,
-                          models=_continuity_models(), references=references,
-                          target_fingerprint=target_fingerprint(comfy_base_url(), H3Models()),
-                          work_root=Path(core.WORK) / 'native-operations',
-                          reference_paths=paths, operation_id=operation_id)
+                               seed=seed, raw_frames=raw_frames)
+    options: dict[str, Any] = dict(client=client, models=_continuity_models(), references=references,
+                   target_fingerprint=target_fingerprint(comfy_base_url(), H3Models()),
+                   work_root=Path(core.WORK) / 'native-operations', reference_paths=paths,
+                   operation_id=operation_id)
+    if mode == 'root':
+        from continuity_root_pipeline import submit_root
+        view = submit_root(core.WORK, request, root_context=root_context, **options)
+    elif mode == 'forward':
+        view = submit_forward(core.WORK, take_id, request, **options)
+    else:
+        from continuity_pipeline import submit_continuation
+        if not isinstance(take_id,str):
+            raise ValueError('An explicit native anchor is required.')
+        if mode == 'bridge':
+            if not isinstance(second_take_id,str):
+                raise ValueError('The second native anchor is required.')
+            parents = (take_id, second_take_id)
+        else:
+            parents = (take_id,)
+        view = submit_continuation(core.WORK, parents, request, mode=mode, **options)
     if view['status'] != 'done':
-        raise ValueError(view.get('error_detail') or 'The continuation did not complete.')
+        raise ValueError(view.get('error_detail') or 'The native operation did not complete.')
     return view['take_id']
 
 
+def _anchored_precheck(take_id, raw, *, mode='forward', second_take_id=None, reference_ids=None):
+    from continuity_root_pipeline import resolve_root_references
+    paths = (resolve_root_references(core.WORK, {'reference_ids':reference_ids, 'width':32, 'height':32})
+             if reference_ids is not None else parent_references(core.WORK, take_id))
+    preflight_continuation(core.WORK, take_id, models=_continuity_models(),
+                           direction='Read-only dependency check', reference_count=len(paths),
+                           raw_frames=raw, mode=mode, second_take_id=second_take_id)
+
+
+def _root_precheck(context, raw, direction):
+    from continuity_root_pipeline import resolve_root_references, preflight_root
+    resolve_root_references(core.WORK, context)
+    preflight_root(models=_continuity_models(), direction=direction,
+                   root_context=context, raw_frames=raw)
+
+
+def _create_anchored_attempt(root, **intent):
+    from continuity_attempts import create_or_get
+    from continuity_root_pipeline import resolve_root_references
+    ids = intent.get('reference_ids')
+    paths = (resolve_root_references(core.WORK, {'reference_ids':ids, 'width':32, 'height':32})
+             if ids is not None else parent_references(core.WORK, intent['take_id']))
+    # Context files and native Take references are append-only. Freeze their
+    # ordered paths in the same atomic attempt, not a mutable pointer to a draft.
+    return create_or_get(root, **intent, frozen_reference_paths=[str(p) for p in paths])
+
+
+_HUNT_WORKER = Worker(_HUNT_ROOT, refine=_hunt_refine, submit=_hunt_submit)
 app.include_router(create_attempt_router(
-    lambda: _HUNT_ROOT,
-    worker=Worker(_HUNT_ROOT, refine=_hunt_refine, submit=_hunt_submit),
-    # A request is refused at the door when the take it would freeze could never
-    # be continued: no attempt record, no refiner, no GPU.
-    precheck=lambda take_id, raw: precheck_request(core.WORK, take_id, raw)))
+    lambda: _HUNT_ROOT, worker=_HUNT_WORKER, create=_create_anchored_attempt,
+    precheck=lambda take_id, raw: precheck_request(core.WORK, take_id, raw),
+    anchored_precheck=_anchored_precheck))
+from continuity_root_api import create_router as create_root_router
+from continuity_composer import create_router as create_composer_router
+app.include_router(create_root_router(lambda: core.WORK, lambda: _HUNT_ROOT,
+                                     worker=_HUNT_WORKER, precheck=_root_precheck))
+app.include_router(create_composer_router(lambda: core.WORK))
 app.include_router(create_forward_router(
     lambda: core.WORK,
     runner=make_forward_runner(

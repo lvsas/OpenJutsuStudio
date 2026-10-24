@@ -2,13 +2,16 @@
 export const PENDING_KEY='opengenjutsu.sequence.pending-generation';
 const id=value=>typeof value==='string'&&/^[a-f0-9]{32}$/.test(value);
 const terminal=value=>value==='done'||value==='failed';
+const mode=value=>value.mode||'forward';
+const validPosition=value=>value&&['root','forward','prepend','bridge'].includes(value.mode)&&[value.left,value.right].every(v=>v===null||id(v));
+const validSource=value=>mode(value)==='root'?value.take_id===null:id(value.take_id);
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 export function createAttemptClient({fetcher=fetch,storage=localStorage,onState=()=>{},
   onView=()=>{},onMessage=()=>{},sleep=pause,interval=4000}={}) {
   let receipt=null,invalid=false,token=0,phase='idle',legacy=[],canDismiss=false;
   try {const raw=storage.getItem(PENDING_KEY);if(raw)receipt=JSON.parse(raw);}
   catch {invalid=true;}
-  if(receipt&&(!id(receipt.take_id)||(receipt.project_id!=null&&!id(receipt.project_id))
+  if(receipt&&(!validSource(receipt)||(receipt.project_id!=null&&!id(receipt.project_id))
       ||(receipt.after!=null&&!id(receipt.after))))invalid=true;
   const blocked=()=>invalid||!!receipt&&!terminal(receipt.status);
   const emit=(next,extra={})=>{
@@ -25,7 +28,8 @@ export function createAttemptClient({fetcher=fetch,storage=localStorage,onState=
     return response.json();
   }
   function validView(view) {
-    if(!view||!id(view.attempt_id)||view.take_id!==receipt.take_id||!Array.isArray(view.candidates)
+    if(!view||!id(view.attempt_id)||view.take_id!==receipt.take_id||mode(view)!==mode(receipt)
+        ||(mode(receipt)==='bridge'&&view.second_take_id!==receipt.second_take_id)||!Array.isArray(view.candidates)
         ||!['pending','running','done','failed'].includes(view.status))
       throw new Error('The saved attempt response was invalid.');
     return view;
@@ -50,7 +54,7 @@ export function createAttemptClient({fetcher=fetch,storage=localStorage,onState=
   async function send() {
     const current=++token;emit('sending');
     try {
-      const response=await fetcher(`/api/continuity/takes/${receipt.take_id}/attempts`,{
+      const response=await fetcher(mode(receipt)==='root'?'/api/continuity/roots/attempts':`/api/continuity/takes/${receipt.take_id}/attempts`,{
         method:'POST',credentials:'same-origin',cache:'no-store',
         headers:{'Content-Type':'application/json'},body:receipt.body,signal:AbortSignal.timeout(30000)});
       if(!response.ok) {
@@ -79,6 +83,7 @@ export function createAttemptClient({fetcher=fetch,storage=localStorage,onState=
         emit('legacy');onMessage('Choose a saved attempt to inspect. No generation has been restarted.');return;
       }
       const url=id(receipt.attempt_id)?`/api/continuity/attempts/${receipt.attempt_id}`
+        :mode(receipt)==='root'?`/api/continuity/roots/attempts/by-request/${receipt.request_id}`
         :`/api/continuity/takes/${receipt.take_id}/attempts/by-request/${receipt.request_id}`;
       const view=await get(url);if(current===token)return await follow(view,current);
     } catch(error) {
@@ -91,8 +96,8 @@ export function createAttemptClient({fetcher=fetch,storage=localStorage,onState=
   return {
     async submit(value) {
       if(blocked())throw new Error('Reconnect the previous attempt before generating again.');
-      if(!id(value.request_id)||!id(value.take_id)||!id(value.project_id)||!id(value.after)
-          ||typeof value.body!=='string')throw new Error('Save a valid sequence and draft before generating.');
+      if(!id(value.request_id)||!validSource(value)||!id(value.project_id)
+          ||!(validPosition(value.position)||id(value.after))||typeof value.body!=='string')throw new Error('Save a valid sequence and draft before generating.');
       // Keep the literal body: JSON.parse/stringify would round uint64 seeds.
       save({...value,version:2,attempt_id:null,status:'unknown'});canDismiss=false;
       return send();
@@ -106,7 +111,7 @@ export function createAttemptClient({fetcher=fetch,storage=localStorage,onState=
     async selectLegacy(attemptId) {
       const found=legacy.find(v=>v.attempt_id===attemptId);
       if(!found||!id(attemptId))throw new Error('Choose an existing saved attempt.');
-      save({...receipt,version:2,attempt_id:attemptId,status:found.status});
+      save({...receipt,version:2,attempt_id:attemptId,status:found.status,mode:mode(found),second_take_id:found.second_take_id??null});
       return recover();
     },
     dismiss() {

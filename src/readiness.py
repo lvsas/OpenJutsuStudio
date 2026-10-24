@@ -6,7 +6,7 @@ import shutil
 import socket
 import threading
 import time
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, quote
 from urllib.request import Request, urlopen
 from config import LOCAL_COMFY_PROXY_URL, comfy_base_url
 from graphs import build_frame_edit, build_ripple
@@ -81,6 +81,15 @@ def _inventory(info, required_graph=None):
         inputs = info[name].get("input", {})
         specs = {**inputs.get("required", {}), **inputs.get("optional", {})}
         for key, value in node["inputs"].items():
+            if '.' in key:
+                group, member = key.split('.', 1)
+                dynamic = specs.get(group, [])
+                if dynamic and dynamic[0] == 'COMFY_AUTOGROW_V3':
+                    config = dynamic[1]['template']
+                    suffix = member.removeprefix(config['prefix'])
+                    if (not member.startswith(config['prefix']) or not suffix.isdecimal()
+                            or int(suffix) >= config['max']):
+                        raise ValueError('The reference count exceeds this installed target node capacity.')
             # A bundle-fed field is a node reference, not a literal filename.
             if not isinstance(value, str):
                 continue
@@ -101,7 +110,7 @@ def _probe_v2_jobs(base, api_key):
         raise ValueError("Expected Comfy API v2 job listing")
 
 
-def _target_object_info():
+def _target_object_info(required_graph=None):
     """Inventory of the configured target, or raise when it cannot be inspected."""
     base = _valid_url(comfy_base_url())
     mode = _target_mode(base)
@@ -109,7 +118,19 @@ def _target_object_info():
         health = _json_get(base + "/api/v2/health")
         if health.get("status") != "healthy" or not health.get("upstream"):
             raise ValueError("The configured self-hosted Comfy API Proxy is not healthy or has no upstream.")
-        return _object_info(_valid_url(health["upstream"]) + "/object_info", cache=True)
+        upstream = _valid_url(health['upstream'])
+        if required_graph is not None:
+            # Large installations can time out enumerating every unrelated
+            # plugin. Query exactly the classes this compiled graph consumes.
+            info = {}
+            for name in sorted({node['class_type'] for node in required_graph.values()}):
+                result = _object_info(upstream + '/object_info/' + quote(name, safe=''), cache=True)
+                if not isinstance(result, dict):
+                    raise ValueError('The required node inventory could not be read.')
+                if name in result:
+                    info[name] = result[name]
+            return info
+        return _object_info(upstream + '/object_info', cache=True)
     if mode == 'comfy-cloud':
         api_key = os.environ.get("COMFY_API_KEY", "").strip()
         if not api_key:
@@ -127,7 +148,7 @@ def missing_dependencies(required_graph):
     """
     if not isinstance(required_graph, dict) or not required_graph:
         raise ValueError("A compiled graph is required for the target preflight")
-    return _inventory(_target_object_info(), required_graph)
+    return _inventory(_target_object_info(required_graph), required_graph)
 
 
 def check_readiness(required_graph=None):

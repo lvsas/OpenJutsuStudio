@@ -6,6 +6,7 @@ import {createAttemptClient} from './continuity-attempt-client.js';
 import {mountCandidateComparison, candidateSeed} from './candidate-comparison.js';
 import {createDurationPicker} from './continuity-duration.js';
 import {positionLabel} from './sequence-positions.js';
+import {mountPositionGeneration} from './position-generation.js';
 const byId = id => document.getElementById(id);
 const validId = id => typeof id === 'string' && /^[a-f0-9]{32}$/.test(id);
 const duration = createDurationPicker(byId('forward-length'), byId('forward-duration-hint'));
@@ -32,37 +33,51 @@ function updateComposer() {
   byId('position-setup').disabled=locked;
   open.textContent=activePlacement?'Edit extension setup':'Add to sequence to extend';
   open.disabled=!active||locked;
-  byId('forward-submit').disabled=!!selectedPosition||!activePlacement||!canExtend||!referencesReady||!duration.valid()||locked;
+  byId('forward-submit').disabled=locked||(selectedPosition?!positionComposer.valid():
+    !activePlacement||!canExtend||!referencesReady||!duration.valid());
+  byId('position-new').disabled=locked;byId('position-character').disabled=locked;
   for(const control of byId('forward-form').querySelectorAll('textarea,input,select'))control.disabled=locked;
   duration.setLocked(locked);
   for(const button of byId('forward-reference-list').querySelectorAll('button'))button.disabled=locked;
 }
 const sequence = mountSequence({onSelect: showSelection,
-  onPreview: entry => showSelection(entry,null,null), onCompose: openForward, onPosition:showPosition, onError: notice});
-function showPosition(position) {
-  selectedPosition=position;
+  onPreview: entry => {showSelection(entry,null,null);if(selectedPosition)showPosition(selectedPosition,sequence.positionDraft());}, onCompose: openForward, onPosition:showPosition, onError: notice});
+const positionComposer=mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate:updateComposer,
+  onMessage:message=>{byId('forward-state').textContent=message;}});
+function showPosition(position,draft=null,{focus=false}={}) {
+  ++epoch;selectedPosition=position;
   byId('position-context').hidden=!position;
+  byId('position-context').parentElement?.classList.toggle('is-position',!!position);
   if(position) {
     byId('forward-form').hidden=true;
     const placements=sequence.state().placements;
     const take=id=>placements.find(p=>p.placement_id===id)?.take_id.slice(0,8);
     byId('position-title').textContent=positionLabel(position);
-    const anchors=position.mode==='root'?'Start from references, with no existing video parent.'
+    const anchors=position.mode==='root'?'Start from references. No video parent.'
       : position.mode==='prepend'?`Create footage leading into ${take(position.right)}.`
       : position.mode==='bridge'?`Create a connection from ${take(position.left)} to ${take(position.right)}.`
       : `Continue from the saved state of ${take(position.left)}.`;
-    byId('position-description').textContent=anchors+(position.mode==='forward'
-      ? ' Set up the next take, then generate explicitly.'
-      : ' Native generation at this position is being integrated. You can already place a saved take here; no Extend is substituted.');
-    byId('position-setup').hidden=position.mode!=='forward';
-    (position.mode==='forward'?byId('position-setup'):byId('position-add')).focus();
-  }
+    byId('position-description').textContent=anchors+' Only Generate starts a run.';
+    byId('position-setup').hidden=true;
+    byId('position-new').hidden=position.mode==='root';
+    byId('position-character').hidden=position.mode!=='root'||byId('native-character').hidden;
+    byId('forward-submit').textContent={root:'Generate new take',prepend:'Generate beginning',bridge:'Generate bridge',forward:'Generate extension'}[position.mode];
+    byId('composer-anchor').textContent=anchors;
+    positionComposer.open(position,draft||sequence.positionDraft()).then(()=>{
+      if(focus&&selectedPosition===position){
+        byId('position-context').scrollIntoView?.({block:'start',inline:'nearest',behavior:'instant'});
+        byId('forward-prompt').focus({preventScroll:true});
+      }
+    });
+  } else {positionComposer.close();byId('forward-submit').textContent='Generate extension';}
   updateComposer();
 }
 byId('position-setup').addEventListener('click',()=>{
   try{sequence.composePosition();}catch(error){notice(error.message);}
 });
 byId('position-add').addEventListener('click',()=>sequence.addAtPosition());
+byId('position-new').addEventListener('click',()=>sequence.openPosition(selectedPosition,{mode:'root'}));
+byId('position-character').addEventListener('click',()=>positionComposer.useCharacter());
 byId('position-close').addEventListener('click',()=>sequence.clearPosition());
 function showSelection(entry, placement, draft) {
   activePlacement = placement;
@@ -253,9 +268,11 @@ async function changeReference(takeId, index, file) {
 byId('forward-reference-input').addEventListener('change', event => {
   const file = event.target.files?.[0];
   event.target.value = '';
-  if (file && active) changeReference(active.take.take_id, 0, file);
+  if(file&&selectedPosition)positionComposer.add(file);
+  else if (file && active) changeReference(active.take.take_id, 0, file);
 });
 function closeForward() {
+  if(selectedPosition){sequence.clearPosition();return;}
   byId('forward-form').hidden = true;
   updateComposer();
 }
@@ -267,9 +284,10 @@ const draftFields = () => ({
   seed: byId('forward-seed').value.trim(),
   raw_frames: Number(byId('forward-length').value),
 });
-for (const id of ['forward-prompt', 'forward-seed', 'forward-length']) {
+for (const id of ['forward-prompt', 'forward-seed', 'forward-length','forward-variants']) {
   byId(id).addEventListener('input', () => {
     updateComposer();
+    if(selectedPosition){positionComposer.saveFields();return;}
     if (!activePlacement || inFlight) return;
     try { sequence.setDraft(draftFields()); } catch { /* placement changed under the draft */ }
   });
@@ -317,7 +335,7 @@ function drawCandidates(view, frozen) {
       keep.addEventListener('click', async () => {
         keep.disabled = true;
         try {
-          const placed = await sequence.insertResult(candidate.take_id, frozen.project_id, frozen.after);
+          const placed = await sequence.insertResult(candidate.take_id, frozen.project_id, frozen.after,frozen.position??null);
           forwardState(placed || 'Return to the original saved sequence to keep this candidate.');
           if (placed) {
             attemptClient.dismiss();comparison.clear();tray.hidden = true;
@@ -378,7 +396,15 @@ byId('attempt-dismiss').addEventListener('click',()=>{
 });
 byId('forward-form').addEventListener('submit', async event => {
   event.preventDefault();
-  if(selectedPosition||!active||!activePlacement||!canExtend||!referencesReady||!duration.valid()||inFlight||unconfirmed)return;
+  if(selectedPosition) {
+    if(inFlight||unconfirmed||!positionComposer.valid())return;
+    try {
+      await sequence.flush();const frozen=positionComposer.request();await sequence.flush();
+      await attemptClient.submit(frozen);
+    } catch(error){forwardState(error.message);}
+    return;
+  }
+  if(!active||!activePlacement||!canExtend||!referencesReady||!duration.valid()||inFlight||unconfirmed)return;
   const fields=draftFields(),count=Number(byId('forward-variants').value)||1;
   const request_id=crypto.randomUUID().replace(/-/g,'');
   const frozen={take_id:active.take.take_id,after:activePlacement.placement_id,

@@ -382,6 +382,67 @@ class TimelineStore:
                 raise TimelineError(409, "Timeline media is missing or changed")
             return path
 
+    def _native_family(self, take_id: str, capsule_sha256: str | None = None):
+        from continuable_take import get_validated_family
+        identifier(take_id)
+        try:
+            family = get_validated_family(self.work, take_id)
+        except FileNotFoundError as exc:
+            raise TimelineError(409, "Native Take files are missing or changed") from exc
+        except (ValueError, OSError) as exc:
+            raise TimelineError(409, "Native Take files are missing or changed") from exc
+        if capsule_sha256 is not None and family.record.capsule_sha256 != capsule_sha256:
+            raise TimelineError(409, "Snapshot native state changed")
+        return family
+
+    def native_take_media(self, take_id: str, capsule_sha256: str) -> Path:
+        """Recheck the complete sealed family, not only its visible derivative."""
+        return self._native_family(take_id, capsule_sha256).video
+
+    def native_snapshot(self, project_id: str, revision: int) -> dict:
+        """Freeze the persisted native path; no legacy projection or project write.
+
+        Decoding does not hold the project lock. A late revision check rejects
+        edits made during validation before any export can be queued.
+        """
+        with self.lock:
+            project = self._project(project_id)
+            check_revision(revision, project["revision"])
+            placements = [dict(p) for p in project.get("native_workspace", {}).get("placements", [])]
+            frozen = {k: project[k] for k in ("project_id", "title", "revision")}
+        if not placements:
+            raise TimelineError(422, "Add a take to the sequence before exporting")
+        assets, segments = {}, []
+        for placement in placements:
+            take_id = placement["take_id"]
+            if take_id not in assets:
+                family = self._native_family(take_id)
+                capsule = family.record.capsule_sha256
+                context = family.record.to_manifest()["family"]["context"]
+                before = digest_file(family.video)
+                media = inspect_mp4(family.video)
+                if (media["width"], media["height"], media["frames"]) != (
+                        context["width"], context["height"], context["delivered_frames"]) or (
+                        Fraction(media["fps_ratio"]) != Fraction(str(context["fps"]))):
+                    raise TimelineError(409, "Native video differs from its saved state")
+                path = self.native_take_media(take_id, capsule)
+                if path != family.video or digest_file(path) != before:
+                    raise TimelineError(409, "Native video changed during validation")
+                assets[take_id] = {**media, "sha256": before[0], "size_bytes": before[1],
+                                   "identity": list(before[2]), "capsule_sha256": capsule}
+            media = assets[take_id]
+            segments.append({**placement, "in_frame": 0, "out_frame": media["frames"],
+                             **{k: media[k] for k in ("width", "height", "fps")}})
+        rates = {a["fps_ratio"] for a in assets.values()}
+        if len(rates) != 1:
+            raise TimelineError(409, "Mixed frame rates are unsupported; no silent FPS conversion")
+        rate = Fraction(next(iter(rates)))
+        if sum(s["out_frame"] for s in segments) / rate > 1200:
+            raise TimelineError(422, "Export is limited to 20 minutes")
+        with self.lock:
+            check_revision(revision, self._project(project_id)["revision"])
+        return {"source": "native", "project": frozen, "segments": segments, "assets": assets}
+
     def snapshot(self, project_id: str, revision: int) -> dict:
         with self.lock:
             project = self._project(project_id)

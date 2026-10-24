@@ -16,7 +16,7 @@ import uuid
 
 from media_probe import probe_mp4
 from timeline_store import (MP4_INPUT, TimelineError, TimelineStore, atomic_json,
-                            digest_file, identifier, read_json)
+                            digest_file, identifier, read_json, check_revision)
 
 MAX_INTERMEDIATE_BYTES = 4 * 1024**3
 
@@ -42,7 +42,13 @@ def _display_fit(width: int, height: int) -> str:
 
 def render_snapshot(store: TimelineStore, snapshot: dict, output: Path, timeout: int = 600) -> None:
     """Sequential lossless intermediates keep decoder use independent of clip count."""
-    clips, assets = snapshot["project"]["clips"], snapshot["assets"]
+    native = snapshot.get("source") == "native"
+    clips = snapshot["segments"] if native else snapshot["project"]["clips"]
+    assets = snapshot["assets"]
+
+    def source_media(take_id):
+        return (store.native_take_media(take_id, assets[take_id]["capsule_sha256"])
+                if native else store.take_media(take_id))
     first = clips[0]
     # yuv420p requires even dimensions; round *up*, never crop an odd edge.
     width, height = (first["width"] + 1) // 2 * 2, (first["height"] + 1) // 2 * 2
@@ -63,7 +69,7 @@ def render_snapshot(store: TimelineStore, snapshot: dict, output: Path, timeout:
         entries = []
         for index, clip in enumerate(clips):
             take = assets[clip["take_id"]]
-            path = store.take_media(clip["take_id"])
+            path = source_media(clip["take_id"])
             # A snapshot is authoritative even if someone changes a take manifest.
             before = digest_file(path)
             if before[0] != take["sha256"] or before[1] != take["size_bytes"] or list(before[2]) != take["identity"]:
@@ -88,6 +94,7 @@ def render_snapshot(store: TimelineStore, snapshot: dict, output: Path, timeout:
             name = f"segment{index:04d}.nut"
             segment = staging / name
             _ffmpeg([*inputs, "-map", "0:v:0", "-map", audio_stream, "-vf", vf, "-af", af,
+                     "-map_metadata", "-1", "-map_chapters", "-1",
                      "-fps_mode", "passthrough", "-c:v", "ffv1", "-level", "3", "-threads", "1",
                      "-c:a", "pcm_s16le", "-f", "nut", str(segment)], remaining())
             if digest_file(path) != before:
@@ -100,7 +107,8 @@ def render_snapshot(store: TimelineStore, snapshot: dict, output: Path, timeout:
         listing.write_text("".join(entries), encoding="ascii")
         rendered = staging / "render.mp4"
         _ffmpeg(["-protocol_whitelist", "file", "-f", "concat", "-safe", "1", "-i", str(listing),
-                 "-map", "0:v:0", "-map", "0:a:0", "-fps_mode", "passthrough",
+                 "-map", "0:v:0", "-map", "0:a:0", "-map_metadata", "-1", "-map_chapters", "-1",
+                 "-fps_mode", "passthrough",
                  "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-threads", "1",
                  "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
                  "-video_track_timescale", str(rate.numerator), "-movie_timescale", "48000",
@@ -111,7 +119,7 @@ def render_snapshot(store: TimelineStore, snapshot: dict, output: Path, timeout:
             raise TimelineError(409, "Export frame verification failed")
         # All inputs are checked again before publication, not only their own pass.
         for take_id, take in assets.items():
-            path = store.take_media(take_id)
+            path = source_media(take_id)
             actual = digest_file(path)
             if actual[0] != take["sha256"] or list(actual[2]) != take["identity"]:
                 raise TimelineError(409, "Snapshot media changed while exporting")
@@ -128,7 +136,7 @@ class _ExportQueue:
         self._slots = threading.BoundedSemaphore(workers + max_queued)
         self._pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="timeline-cpu")
         self._closed = False
-        self._by_revision: dict[tuple[str, int], str] = {}
+        self._by_revision: dict[tuple[str, str, int], str] = {}
         self._terminal_failures: dict[str, dict] = {}
         with store.lock:
             for directory in (store.root / "exports").iterdir():
@@ -141,7 +149,7 @@ class _ExportQueue:
                         state.update(status="error", error="Export interrupted by application restart")
                         atomic_json(self._path(directory.name, "status.json"), state)
                     if state["status"] != "error":
-                        self._by_revision[(state["project_id"], state["revision"])] = directory.name
+                        self._by_revision[(state.get("source", "legacy"), state["project_id"], state["revision"])] = directory.name
                 except (TimelineError, KeyError):
                     continue
 
@@ -170,12 +178,18 @@ class _ExportQueue:
         result["status_url"] = base
         result["preview_url"] = base + "/media" if state["status"] == "ready" else None
         result["download_url"] = base + "/media?download=true" if state["status"] == "ready" else None
+        if state.get("source") == "native":
+            result.update(source="native", placement_ids=list(state["placement_ids"]))
         return result
 
-    def submit(self, project_id: str, revision: int) -> dict:
+    def submit(self, project_id: str, revision: int, *, source: str = "legacy") -> dict:
+        if source not in ("legacy", "native"):
+            raise TimelineError(422, "Unknown export source")
+        snapshot = (self.store.native_snapshot(project_id, revision) if source == "native"
+                    else self.store.snapshot(project_id, revision))
         with self.store.lock:
-            snapshot = self.store.snapshot(project_id, revision)
-            key = (project_id, revision)
+            check_revision(revision, self.store._project(project_id)["revision"])
+            key = (source, project_id, revision)
             if key in self._by_revision:
                 previous = self.get(self._by_revision[key])
                 if previous["status"] != "error":
@@ -190,7 +204,9 @@ class _ExportQueue:
                 raise TimelineError(503, "CPU export queue is full; try again later")
             export_id = uuid.uuid4().hex
             state = {"export_id": export_id, "status": "queued", "project_id": project_id,
-                     "revision": revision, "error": None}
+                     "revision": revision, "error": None, "source": source}
+            if source == "native":
+                state["placement_ids"] = [s["placement_id"] for s in snapshot["segments"]]
             try:
                 self._path(export_id, "status.json").parent.mkdir()
                 atomic_json(self._path(export_id, "snapshot.json"), snapshot)
@@ -269,10 +285,10 @@ class ExportManager:
                 self._queue, references = existing
                 _QUEUES[self._key] = (self._queue, references + 1)
 
-    def submit(self, project_id: str, revision: int) -> dict:
+    def submit(self, project_id: str, revision: int, *, source: str = "legacy") -> dict:
         if self._closed:
             raise TimelineError(503, "CPU export queue is closed")
-        return self._queue.submit(project_id, revision)
+        return self._queue.submit(project_id, revision, source=source)
 
     def get(self, export_id: str) -> dict:
         return self._queue.get(export_id)

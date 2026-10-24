@@ -24,11 +24,17 @@ export function validateProject(project) {
   }
   return project;
 }
-export function validateExport(value) {
+export function validateExport(value, source="legacy") {
   const {export_id:id, project_id:project, revision, status} = value || {};
   if (!validId(id) || !validId(project) || !integer(revision)
       || !['queued','running','ready','error'].includes(status)
       || value.status_url !== `/api/timeline/exports/${id}`) throw new Error('Invalid export status.');
+  if (!["legacy","native"].includes(source) || (value.source ?? "legacy") !== source)
+    throw new Error("The export source changed. Reload before downloading.");
+  if (source === "native" && (!Array.isArray(value.placement_ids) || !value.placement_ids.length
+      || value.placement_ids.length > 256 || value.placement_ids.some(id=>!validId(id))
+      || new Set(value.placement_ids).size !== value.placement_ids.length))
+    throw new Error("The exported sequence path is invalid.");
   if (status === 'ready') {
     if (value.preview_url !== `/api/timeline/exports/${id}/media`
         || value.download_url !== `/api/timeline/exports/${id}/media?download=true`) {
@@ -75,7 +81,8 @@ export function formatTime(value) {
   return `${Math.floor(seconds/60)}:${(seconds%60).toFixed(2).padStart(5,'0')}`;
 }
 export async function apiJSON(url,options={},fetcher=fetch) {
-  if (!/^\/api\/timeline\/(?:projects|exports)(?:\/[a-f0-9]{32}(?:\/(?:clips|imports|export))?)?$/.test(url)) {
+  if (!/^\/api\/timeline\/(?:projects|exports)(?:\/[a-f0-9]{32}(?:\/(?:clips|imports|export))?)?$/.test(url)
+      && !/^\/api\/timeline\/projects\/[a-f0-9]{32}\/native-workspace\/export$/.test(url)) {
     throw new Error('Invalid sequence API route.');
   }
   let response;

@@ -145,9 +145,9 @@ def create_router(get_work_dir: Callable[[], Path], get_media_dir: Callable[[], 
                 contexts[key] = (store, ExportManager(store))
             return contexts[key]
 
-    def invoke(function, *args):
+    def invoke(function, *args, **kwargs):
         try:
-            return function(*args)
+            return function(*args, **kwargs)
         except TimelineError as exc:
             raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
         except OSError as exc:
@@ -214,6 +214,12 @@ def create_router(get_work_dir: Callable[[], Path], get_media_dir: Callable[[], 
     @router.post("/projects/{project_id}/export")
     def export_project(project_id: str, payload: ExportProject):
         result = invoke(manager().submit, project_id, payload.revision)
+        code = 202 if result["status"] in {"queued", "running"} else 200
+        return JSONResponse(result, status_code=code)
+
+    @router.post("/projects/{project_id}/native-workspace/export")
+    def export_native_workspace(project_id: str, payload: ExportProject):
+        result = invoke(manager().submit, project_id, payload.revision, source="native")
         code = 202 if result["status"] in {"queued", "running"} else 200
         return JSONResponse(result, status_code=code)
 

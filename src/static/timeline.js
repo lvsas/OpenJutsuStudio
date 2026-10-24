@@ -1,11 +1,11 @@
 import {apiJSON,validateProject,validId,placements,totalDuration,trimPlacement,movePlacement,formatTime} from './timeline-state.js';
 import {SequencePlayer} from './timeline-player.js';
-import {TimelineExport} from './timeline-export-ui.js';
+import {getTimelineExport} from './timeline-export-ui.js';
 const $=id=>document.getElementById(id);
 const json=body=>({method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 const state={project:null,selected:null,busy:false,conflict:false,undo:[],epoch:0,scale:76};
 const notify=message=>window.OpenGenjutsuStudio?.showToast?.($('toast-region'),message);
-const exportsUI=new TimelineExport(notify);
+const exportsUI=getTimelineExport(notify);
 const player=new SequencePlayer($('timeline-video'),{
   onTime:(time,total)=>{
     $('sequence-seek').value=String(time);$('sequence-time').textContent=`${formatTime(time)} / ${formatTime(total)}`;

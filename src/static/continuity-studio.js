@@ -6,13 +6,14 @@ import {createAttemptClient} from './continuity-attempt-client.js';
 import {mountCandidateComparison, candidateSeed} from './candidate-comparison.js';
 import {createDurationPicker} from './continuity-duration.js';
 import {parseProjectContext} from './project-context.js';
+import {mountNativeExport} from './native-sequence-export.js';
 import {positionLabel,positionsOf} from './sequence-positions.js';
 import {mountPositionGeneration} from './position-generation.js';
 const byId = id => document.getElementById(id);
 const validId = id => typeof id === 'string' && /^[a-f0-9]{32}$/.test(id);
 const duration = createDurationPicker(byId('forward-length'), byId('forward-duration-hint'));
 let entries = [], active = null, epoch = 0, loading = false;
-let linkedTake=null,handoffStarted=false;
+let linkedTake=null,handoffStarted=false,nativeExport=null;
 const video = byId('native-video');
 const capsule = byId('native-capsule');
 function notice(message = '') {
@@ -40,12 +41,13 @@ function updateComposer() {
   byId('position-new').disabled=locked;byId('position-character').disabled=locked;
   byId('native-handoff-add').disabled=locked||!linkedTake;byId('native-handoff-new').disabled=locked;
   for(const control of byId('forward-form').querySelectorAll('textarea,input,select'))control.disabled=locked;
-  duration.setLocked(locked);
+  duration.setLocked(locked);nativeExport?.update();
   for(const button of byId('forward-reference-list').querySelectorAll('button'))button.disabled=locked;
 }
 const sequence = mountSequence({onSelect: showSelection,onLockChange:updateComposer,
   onContextChange:()=>{++epoch;byId('native-handoff').hidden=true;linkedTake=null;notice();},
   onPreview: entry => {showSelection(entry,null,null);if(selectedPosition)showPosition(selectedPosition,sequence.positionDraft());}, onCompose: openForward, onPosition:showPosition, onError: notice});
+nativeExport=mountNativeExport({sequence,button:byId('native-export'),notify:notice});
 const positionComposer=mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate:updateComposer,
   onMessage:message=>{byId('forward-state').textContent=message;}});
 function showPosition(position,draft=null,{focus=false}={}) {

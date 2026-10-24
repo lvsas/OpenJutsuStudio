@@ -1,6 +1,11 @@
 import {apiJSON,validateExport,validId} from './timeline-state.js';
 const $=id=>document.getElementById(id);
 
+let sharedExport = null;
+export function getTimelineExport(notify) {
+  return sharedExport ||= new TimelineExport(notify);
+}
+
 export class TimelineExport {
   constructor(notify) {
     this.notify=notify;this.epoch=0;this.current=null;this.project=null;this.file=null;
@@ -15,13 +20,18 @@ export class TimelineExport {
     $('share-export').addEventListener('click',()=>this.share());
     $('retry-export').addEventListener('click',()=>{
       if (this.current && ['queued','running'].includes(this.current.status)) this.watch(this.current.export_id,this.epoch);
-      else if (this.project) this.open(this.project);
+      else if (this.project) this.open(this.project,this.source,this.notify);
     });
     window.addEventListener('pagehide',()=>{clearTimeout(this.timer);this.epoch++;});
   }
-  async open(project) {
-    if (!project?.clips.length) return;
-    const epoch=++this.epoch;clearTimeout(this.timer);this.project=project;this.file=null;this.current=null;
+  async open(project,source="legacy",notify=this.notify) {
+    if (!project || !(source==='native'?project.placements?.length:project.clips?.length)) return;
+    if (!["legacy","native"].includes(source)) throw new Error("Unknown export source.");
+    project={project_id:project.project_id,title:project.title,revision:project.revision,
+      ...(source==='native'?{placements:project.placements.map(p=>({...p}))}:{clips:project.clips.map(c=>({...c}))})};
+    const epoch=++this.epoch;clearTimeout(this.timer);this.project=project;this.source=source;
+    this.notify=notify;this.file=null;this.current=null;
+    for(const player of document.querySelectorAll('video'))player.pause();
     $('share-export').disabled=false;
     $('export-video').pause();$('export-video').removeAttribute('src');$('export-video').hidden=true;
     for (const id of ['download-export','share-export','retry-export']) $(id).hidden=true;
@@ -29,11 +39,12 @@ export class TimelineExport {
     $('export-status').textContent='Preparing your cut. You can close this preview while it works.';
     const dialog=$('timeline-export-dialog');if (!dialog.open) dialog.showModal();
     try {
-      const value=validateExport(await apiJSON(`/api/timeline/projects/${project.project_id}/export`,{
+      const suffix=source==='native'?'native-workspace/export':'export';
+      const value=this.validate(await apiJSON(`/api/timeline/projects/${project.project_id}/${suffix}`,{
         method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:project.revision})}));
       if (epoch!==this.epoch) return;
       if (value.project_id!==project.project_id || value.revision!==project.revision) throw new Error('The export belongs to a different sequence revision.');
-      try {localStorage.setItem(`opengenjutsu.timeline.export.${project.project_id}`,value.export_id);} catch {}
+      try {localStorage.setItem(`opengenjutsu.timeline.export.${source==='native'?'native.':''}${project.project_id}`,value.export_id);} catch {}
       this.current=value;this.paint();
       if (['queued','running'].includes(value.status)) this.watch(value.export_id,epoch);
     } catch(error) {
@@ -42,11 +53,17 @@ export class TimelineExport {
       $('retry-export').hidden=false;$('retry-export').textContent='Retry export';
     }
   }
+  validate(value) {
+    validateExport(value,this.source);
+    if (this.source==='native' && JSON.stringify(value.placement_ids)!==JSON.stringify(this.project.placements.map(p=>p.placement_id)))
+      throw new Error("The exported sequence path changed. Reload before downloading.");
+    return value;
+  }
   async watch(id,epoch,attempt=0) {
     if (epoch!==this.epoch) return;
     clearTimeout(this.timer);
     try {
-      const value=validateExport(await apiJSON(`/api/timeline/exports/${id}`));
+      const value=this.validate(await apiJSON(`/api/timeline/exports/${id}`));
       if (epoch!==this.epoch) return;
       if (value.export_id!==id || value.project_id!==this.project.project_id || value.revision!==this.project.revision) {
         throw new Error('The export identity changed. Reload before downloading.');

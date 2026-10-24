@@ -199,3 +199,20 @@
 
 .native-handoff {padding: .75rem 1rem;border: 1px solid var(--line);border-radius: 12px;}
 .native-handoff .microcopy {margin-top: 0;}
+
+/* Comparison reuses the main canvas. It is inspection, not a new selection. */
+.native-canvas > .candidate-preview {margin:0;padding:0;border:0;}
+.native-canvas .candidate-preview video {display:block;width:100%;height:clamp(240px,39vh,430px);max-height:none;object-fit:contain;background:var(--surface-soft);border-radius:.7rem;}
+.native-canvas .candidate-preview .btn {min-height:44px;}
+.native-canvas .candidate-preview > p {overflow-wrap:anywhere;}
+@media(max-width:800px){
+  .native-workspace:has(> .native-canvas > .candidate-preview:not([hidden])) > .native-canvas {order:-2;}
+  .native-canvas .candidate-preview video {height:clamp(210px,34vh,360px);}
+}
+
+.native-workspace.is-comparing {grid-template-columns:minmax(0,1fr);}
+.native-workspace.is-comparing > .sequence-composer {display:none;}
+.native-canvas > .candidate-tray .candidate-list {grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));}
+.native-canvas > .candidate-tray .candidate {align-content:start;}
+
+@media(max-width:800px){.native-canvas > .candidate-tray .candidate-list {grid-template-columns:repeat(2,minmax(0,1fr));}}

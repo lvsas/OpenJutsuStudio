@@ -432,7 +432,8 @@ test('candidate comparison is explicit, read-only, stable through polls and clea
   assert.equal(JSON.stringify({view,frozen}),original,'preview cannot mutate attempt or anchor');
   await player.fire('error');assert.match(message.textContent,/unavailable/);
   comparison.update({...view,status:'done'},frozen);assert.match(message.textContent,/unavailable/);
-  await close.click();assert.equal(player.src,'');assert.equal(panel.hidden,true);assert.equal(player.paused,true);
+  let returned=0;comparison.preview(0,{returnTo:{focus(){returned++;}}});
+  await close.click();assert.equal(returned,1);assert.equal(player.src,'');assert.equal(panel.hidden,true);assert.equal(player.paused,true);
   comparison.preview(0);comparison.update({...view,attempt_id:C},frozen);
   assert.equal(player.src,'');assert.equal(panel.hidden,true,'different attempt releases old media');
   comparison.update({...view,candidates:[{status:'done',take_id:'../../etc',seed:1}]},frozen);
@@ -656,4 +657,32 @@ test('opening a project locks editing until its authoritative read finishes',asy
   late.resolve(response({project_id:B,title:'Server choice',revision:4,placements:[],selected_placement_id:null,drafts:{}}));await opening;
   assert.equal(sequence.editable(),true);assert.equal(e.get('native-project-title').disabled,false);
   assert.equal(sequence.state().project_id,B);assert.equal(backend.calls.some(c=>c.method!=='GET'),false);
+});
+
+
+test('candidate inspection occupies the main stage and restores its source paused without writes',async()=>{
+  const placement='1'.repeat(32),attempt='3'.repeat(32);
+  const saved={project_id:C,title:'Comparison',revision:4,placements:[{placement_id:placement,take_id:A}],
+    selected_placement_id:placement,drafts:{[placement]:{prompt:'Continue this exact state',seed:'18446744073709551615',raw_frames:158}}};
+  const receipt={version:2,project_id:C,after:placement,take_id:A,request_id:'2'.repeat(32),
+    attempt_id:attempt,status:'unknown',body:'{"seeds":[18446744073709551615]}'};
+  const view={attempt_id:attempt,take_id:A,status:'done',candidates:[{status:'done',take_id:B,seed:7}]};
+  const backend=nativeBackend({saved,extra:async url=>url===`/api/continuity/attempts/${attempt}`?response(view):null});
+  const app=await environment(backend.fetcher,'',{'opengenjutsu.sequence.project':C,
+    'opengenjutsu.sequence.pending-generation':JSON.stringify(receipt)});
+  await app.entry('continuity-studio.js');await flush();const e=app.elements,source=e.get('native-video');
+  assert.equal(e.get('attempt-recovery').hidden,true,'successful recovered results are not an incident panel');
+  source.currentTime=1;await source.play();
+  const original=JSON.stringify(backend.saved()),calls=backend.calls.length;
+  await e.get('candidate-list').children[0].children.find(c=>c.textContent==='Preview video / audio').click();
+  assert.equal(source.paused,true,'one active audio stream');
+  assert.equal(e.get('native-preview-stage').hidden,true);assert.equal(e.get('native-capsule').hidden,true);
+  assert.equal(e.get('candidate-preview').hidden,false);assert.match(e.get('candidate-preview-label').textContent,/18446744073709551615/);
+  await e.get('candidate-video').play();assert.equal(source.paused,true);
+  await e.get('candidate-preview-close').click();
+  assert.equal(e.get('native-preview-stage').hidden,false);assert.equal(e.get('native-capsule').hidden,false);
+  assert.equal(source.currentTime,1);assert.equal(source.paused,true,'Close never autoplays the source');
+  assert.equal(e.get('candidate-video').paused,true);assert.equal(e.get('candidate-video').src,'');
+  assert.equal(e.get('forward-prompt').value,'Continue this exact state');
+  assert.equal(JSON.stringify(backend.saved()),original);assert.equal(backend.calls.length,calls);
 });

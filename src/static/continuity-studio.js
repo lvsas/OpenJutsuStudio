@@ -49,7 +49,7 @@ const sequence = mountSequence({onSelect: showSelection,onLockChange:updateCompo
 const positionComposer=mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate:updateComposer,
   onMessage:message=>{byId('forward-state').textContent=message;}});
 function showPosition(position,draft=null,{focus=false}={}) {
-  ++epoch;selectedPosition=position;
+  comparison.clear();++epoch;selectedPosition=position;
   byId('position-context').hidden=!position;
   byId('position-context').parentElement?.classList.toggle('is-position',!!position);
   if(position) {
@@ -84,6 +84,7 @@ byId('position-new').addEventListener('click',()=>sequence.openPosition(selected
 byId('position-character').addEventListener('click',()=>positionComposer.useCharacter().catch(error=>notice(error.message)));
 byId('position-close').addEventListener('click',()=>sequence.clearPosition());
 function showSelection(entry, placement, draft) {
+  comparison.clear();
   byId('native-handoff').hidden=true;linkedTake=null;
   activePlacement = placement;
   canExtend = false; referencesReady = false;
@@ -365,7 +366,15 @@ for (const id of ['forward-prompt', 'forward-seed', 'forward-length','forward-va
 }
 const comparison = mountCandidateComparison({player:byId('candidate-video'),
   panel:byId('candidate-preview'), label:byId('candidate-preview-label'),
-  message:byId('candidate-preview-message'), close:byId('candidate-preview-close')});
+  message:byId('candidate-preview-message'), close:byId('candidate-preview-close'),
+  onPreview:()=>{
+    byId('native-workspace').classList.add('is-comparing');
+    video.pause();byId('native-preview-stage').hidden=true;byId('native-status').hidden=true;capsule.hidden=true;
+    byId('candidate-preview').scrollIntoView?.({block:'center',inline:'nearest',behavior:'instant'});
+  },
+  onClear:()=>{byId('native-workspace').classList.remove('is-comparing');byId('native-preview-stage').hidden=false;byId('native-status').hidden=false;capsule.hidden=false;}
+});
+video.addEventListener('play',()=>comparison.clear());
 let candidateSignature = '';
 function drawCandidates(view, frozen) {
   comparison.update(view, frozen);
@@ -397,9 +406,10 @@ function drawCandidates(view, frozen) {
       const preview = document.createElement('button');
       preview.type = 'button'; preview.className = 'btn btn-secondary';
       preview.textContent = 'Preview video / audio';
+      preview.setAttribute('aria-label',`Preview candidate ${index+1} video and audio`);
       preview.setAttribute('aria-label', `Preview candidate ${index + 1} video and audio`);
       preview.setAttribute('aria-controls', 'candidate-preview');
-      preview.addEventListener('click', () => comparison.preview(index));
+      preview.addEventListener('click', () => comparison.preview(index,{returnTo:preview}));
       const keep = document.createElement('button');
       keep.type = 'button'; keep.className = 'btn btn-primary'; keep.textContent = 'Keep';
       keep.disabled=!['done','failed'].includes(view.status);
@@ -426,7 +436,9 @@ function drawCandidates(view, frozen) {
 }
 function recoveryState(state) {
   unconfirmed=state.blocked;inFlight=['sending','running'].includes(state.phase);
-  const panel=byId('attempt-recovery');panel.hidden=state.phase==='idle';
+  const panel=byId('attempt-recovery');
+  panel.hidden=['idle','running','sending'].includes(state.phase)
+    ||(state.phase==='terminal'&&state.receipt?.status==='done');
   byId('attempt-reconnect').hidden=!['disconnected','not-found','legacy'].includes(state.phase);
   byId('attempt-resubmit').hidden=state.phase!=='not-found';
   byId('attempt-dismiss').hidden=!state.canDismiss;

@@ -8,6 +8,7 @@ import threading
 import time
 from urllib.parse import urlsplit, quote
 from urllib.request import Request, urlopen
+from comfy_schema import autogrow_member_spec
 from config import LOCAL_COMFY_PROXY_URL, comfy_base_url
 from graphs import build_frame_edit, build_ripple
 
@@ -85,11 +86,7 @@ def _inventory(info, required_graph=None):
                 group, member = key.split('.', 1)
                 dynamic = specs.get(group, [])
                 if dynamic and dynamic[0] == 'COMFY_AUTOGROW_V3':
-                    config = dynamic[1]['template']
-                    suffix = member.removeprefix(config['prefix'])
-                    if (not member.startswith(config['prefix']) or not suffix.isdecimal()
-                            or int(suffix) >= config['max']):
-                        raise ValueError('The reference count exceeds this installed target node capacity.')
+                    autogrow_member_spec(dynamic, member)
             # A bundle-fed field is a node reference, not a literal filename.
             if not isinstance(value, str):
                 continue

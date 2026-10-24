@@ -279,13 +279,30 @@ def _public_error(error):
         'This generation step could not finish. Check the saved attempt before starting another.')
 
 
+def _public_candidate(candidate, attempt):
+    # Older preparation failures left pending rows in a terminal attempt. Such a
+    # row was never started (running is checkpointed before submit). Normalize
+    # the read-only projection, not its durable record or an uncertain outcome.
+    unstarted = attempt['status'] == _STATUS_FAILED and candidate['status'] == _STATUS_PENDING
+    take_id = candidate['take_id']
+    return {'seed': candidate['seed'],
+            'status': _STATUS_FAILED if unstarted else candidate['status'],
+            'take_id': take_id,
+            'error': _public_error(attempt['error'] if unstarted else candidate['error']),
+            'url': f'/api/continuity/takes/{take_id}' if take_id else None}
+
+
+def _fail_preparation(attempt, error):
+    attempt.update(status=_STATUS_FAILED, error=error)
+    for candidate in attempt['candidates']:
+        if candidate['status'] == _STATUS_PENDING:
+            candidate.update(status=_STATUS_FAILED, error=error)
+
+
 def public(attempt: dict) -> dict:
     result = {'attempt_id': attempt['attempt_id'], 'take_id': attempt['take_id'],
             'status': attempt['status'], 'error': _public_error(attempt['error']),
-            'candidates': [{'seed': c['seed'], 'status': c['status'],
-                            'take_id': c['take_id'], 'error': _public_error(c['error']),
-                            'url': (f"/api/continuity/takes/{c['take_id']}" if c['take_id'] else None)}
-                           for c in attempt['candidates']]}
+            'candidates': [_public_candidate(c, attempt) for c in attempt['candidates']]}
     if attempt.get('mode') == 'root':
         result['mode'] = 'root'
     elif attempt.get('mode', 'forward') != 'forward':
@@ -382,8 +399,8 @@ def _run_locked(root, attempt_id, *, refine, submit):
         try:
             refined = refine(attempt['prompt'], attempt['take_id'], **copy.deepcopy(anchors))
         except Exception as error:  # noqa: BLE001
-            return _update(root, attempt_id, lambda a: a.update(status=_STATUS_FAILED,
-                           error=f'The direction could not be prepared: {error}'[:400]))
+            return _update(root, attempt_id, lambda a: _fail_preparation(
+                a, f'The direction could not be prepared: {error}'[:400]))
     _update(root, attempt_id, lambda a: a.update(
         refined_prompt=refined, status=_STATUS_RUNNING, error=None))
     for index, candidate in enumerate(load(root, attempt_id)['candidates']):

@@ -16,6 +16,7 @@ MCTX and COND. Raw frame count is never a prediction of delivered duration.
 """
 from __future__ import annotations
 
+from comfy_schema import autogrow_member_spec
 from dataclasses import asdict, dataclass
 import hashlib
 import json
@@ -461,10 +462,7 @@ def validate_graph_contracts(graph, object_info):
                 group, member = field.split('.', 1)
                 dynamic = specs.get(group)
                 if dynamic and dynamic[0] == 'COMFY_AUTOGROW_V3':
-                    config = dynamic[1]['template']; prefix = config['prefix']
-                    suffix = member.removeprefix(prefix)
-                    if member.startswith(prefix) and suffix.isdecimal() and int(suffix) < config['max']:
-                        spec = next(iter(config['input']['required'].values()))
+                    spec = autogrow_member_spec(dynamic, member)
             if spec is None:
                 raise ValueError(f'{node} has unknown installed input {field}')
             typ = spec[0]; options = spec[1] if len(spec) > 1 and isinstance(spec[1], dict) else {}

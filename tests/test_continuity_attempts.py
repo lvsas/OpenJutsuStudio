@@ -56,6 +56,26 @@ TAKE = 'a' * 32
 
 
 class AttemptTests(unittest.TestCase):
+    def test_preparation_failure_terminalizes_unstarted_candidates_without_submit(self):
+        record = self.make()
+        submit = Mock()
+        result = attempts.run(self.root, record['attempt_id'],
+                              refine=Mock(side_effect=KeyError('prefix')), submit=submit)
+        self.assertEqual(result['status'], 'failed')
+        self.assertTrue(all(c['status'] == 'failed' for c in result['candidates']))
+        self.assertTrue(all(c['error'] == result['error'] for c in result['candidates']))
+        submit.assert_not_called()
+
+    def test_public_legacy_failure_has_no_pending_spinner_or_mutation(self):
+        import copy
+        record = self.make()
+        record.update(status='failed', error='Private preparation diagnostic')
+        original = copy.deepcopy(record)
+        view = attempts.public(record)
+        self.assertTrue(all(c['status'] == 'failed' for c in view['candidates']))
+        self.assertNotIn('Private preparation diagnostic', str(view))
+        self.assertEqual(record, original)
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR'))
         self.addCleanup(self.tmp.cleanup)

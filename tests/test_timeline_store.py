@@ -1,4 +1,5 @@
 """All media and Job writes stay in a caller-owned TMPDIR fixture."""
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -54,6 +55,51 @@ class IsolatedTimeline(unittest.TestCase):
 
 
 class TimelineStoreTests(IsolatedTimeline):
+    def _project_list_fixtures(self):
+        expected = []
+        cases = (("legacy", 2, None), ("native", 0, 3), ("mixed", 1, 2),
+                 ("empty", 0, None), ("empty", 0, 0))
+        for index, (kind, legacy_count, native_count) in enumerate(cases):
+            project = self.store.create(f"Saved project {index}")
+            path = self.store._path("projects", project["project_id"])
+            saved = json.loads(path.read_text())
+            saved.update(revision=index, updated_at=1000 + index,
+                         clips=[{"clip_id": f"{n:032x}"} for n in range(legacy_count)])
+            # No take or media files exist: listing must use saved metadata only.
+            if native_count is not None:
+                saved["native_workspace"] = {
+                    "placements": [{"placement_id": f"{n:032x}"} for n in range(native_count)],
+                    "drafts": {"root": {"prompt": "Unsaved placement"}},
+                }
+            path.write_text(json.dumps(saved))
+            expected.append({**{key: saved[key] for key in
+                                ("project_id", "title", "revision", "updated_at")},
+                             "native_placement_count": native_count or 0,
+                             "legacy_clip_count": legacy_count, "workspace_kind": kind})
+        return list(reversed(expected))
+
+    def test_list_projects_adds_saved_workspace_counts_and_preserves_order_and_keys(self):
+        expected = self._project_list_fixtures()
+        projects = self.store.list_projects()
+        self.assertEqual(projects, expected)
+        for project in projects:
+            with self.subTest(project_id=project["project_id"]):
+                self.assertIs(type(project["native_placement_count"]), int)
+                self.assertIs(type(project["legacy_clip_count"]), int)
+
+    def test_list_projects_repeated_reads_preserve_bytes_mtime_and_revision(self):
+        expected = self._project_list_fixtures()
+        def snapshot():
+            return {path.relative_to(self.work): (path.read_bytes(), path.stat().st_mtime_ns)
+                    for path in self.work.rglob("*") if path.is_file()}
+        before = snapshot()
+        with patch("timeline_store.inspect_mp4", side_effect=AssertionError("Media decoding forbidden")), \
+                patch.object(self.store, "_public", side_effect=AssertionError("Take lookup forbidden")), \
+                patch.object(self.store, "_save_edit", side_effect=AssertionError("Project edits forbidden")):
+            for _ in range(3):
+                self.assertEqual(self.store.list_projects(), expected)
+                self.assertEqual(snapshot(), before)
+
     def test_empty_create_list_get_restart(self):
         project = self.store.create("First")
         self.assertEqual(project["clips"], [])

@@ -204,8 +204,15 @@ class TimelineStore:
     def list_projects(self) -> list[dict]:
         with self.lock:
             projects = [read_json(p) for p in (self.root / "projects").glob("*.json") if _ID.fullmatch(p.stem)]
-            return [{k: p[k] for k in ("project_id", "title", "revision", "updated_at")}
-                    for p in sorted(projects, key=lambda p: p["updated_at"], reverse=True)]
+            result = []
+            for project in sorted(projects, key=lambda p: p["updated_at"], reverse=True):
+                native_count = len(project.get("native_workspace", {}).get("placements", []))
+                legacy_count = len(project["clips"])
+                kind = ("mixed" if legacy_count else "native") if native_count else ("legacy" if legacy_count else "empty")
+                result.append({**{k: project[k] for k in ("project_id", "title", "revision", "updated_at")},
+                               "native_placement_count": native_count, "legacy_clip_count": legacy_count,
+                               "workspace_kind": kind})
+            return result
 
     def _public(self, project: dict) -> dict:
         result = {k: project[k] for k in ("project_id", "title", "revision", "created_at", "updated_at", "character_id")}

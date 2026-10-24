@@ -1,6 +1,7 @@
 // Shipped ES modules run in isolated DOMs. Fixtures below are unit-test responses,
 // not evidence of browser layout, valid decoded video, OS sharing or backend writes.
 import test from 'node:test';
+import {readMarkup} from './ui-markup.mjs';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
@@ -37,21 +38,21 @@ class Element {
   querySelectorAll(){return [];}
   focus(){} select(){} click(){return this.fire('click');}
 }
-async function environment(fetcher,search='',initialStorage={}) {
-  const markup=readFileSync(resolve(root,'src/templates/timeline.html'),'utf8');
+async function environment(fetcher,search='',initialStorage={},page='timeline.html') {
+  const markup=readMarkup(page);
   const elements=new Map([...markup.matchAll(/<[^>]*\bid="([^"]+)"[^>]*>/g)].map(([tag,id])=>{
     const element=new Element();element.hidden=/\bhidden(?:\s|>|=)/.test(tag);return [id,element];
   }));
-  const notices=[],events={},storage=new Map(Object.entries(initialStorage));const location={search,href:'http://test.invalid/timeline'};
+  const notices=[],events={},navigation=[],historyURLs=[],storage=new Map(Object.entries(initialStorage));const location={search,href:'http://test.invalid/'+(page==='assembly.html'?'assembly':'timeline'),assign:url=>navigation.push(url)};
   const document={getElementById:id=>elements.get(id),createElement:()=>new Element(),
-    querySelectorAll:selector=>selector==='video'?['native-video','candidate-video','timeline-video','export-video'].map(id=>elements.get(id)):[]};
+    querySelectorAll:selector=>selector==='video'?['native-video','candidate-video','timeline-video','export-video'].map(id=>elements.get(id)).filter(Boolean):[]};
   const context=vm.createContext({document,location,console,URLSearchParams,URL,Response,File,
     Blob,FormData,AbortSignal,queueMicrotask,fetch:fetcher,setTimeout,clearTimeout,structuredClone,
     crypto:{randomUUID,getRandomValues:a=>webcrypto.getRandomValues(a)},
     Option:class extends Element{constructor(text,value){super();this.textContent=text;this.value=value;}},
     navigator:{share:async()=>{},canShare:()=>true},
     localStorage:{getItem:key=>storage.get(key)??null,setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},
-    history:{replaceState:(_,__,url)=>{location.search=new URL(url,'http://test.invalid').search;}},
+    history:{replaceState:(_,__,url)=>{historyURLs.push(url);location.href=new URL(url,'http://test.invalid').href;location.search=new URL(url,'http://test.invalid').search;}},
     window:{addEventListener:(event,fn)=>{(events[event]||=[]).push(fn);},
       OpenGenjutsuStudio:{showToast:(_,text)=>notices.push(text)}}});
   const modules=new Map();
@@ -62,7 +63,7 @@ async function environment(fetcher,search='',initialStorage={}) {
     return module;
   }
   async function entry(name){const module=await load(resolve(root,'src/static',name));await module.evaluate();return module.namespace;}
-  return {elements,notices,entry,storage,events};
+  return {elements,notices,entry,storage,events,navigation,historyURLs};
 }
 
 test('positions use ordered placement identities and refuse a changed gap',async()=>{
@@ -162,7 +163,7 @@ test('New take uses the shared composer, exact seeds, root recovery and frozen e
 });
 
 test('native seeking/play cannot replay trimmed-away prefix; sequence still advances',async()=>{
-  const app=await environment(()=>{throw Error('No network in player');});
+  const app=await environment(()=>{throw Error('No network in player');},'',{},'assembly.html');
   const {SequencePlayer}=await app.entry('timeline-player.js');
   const video=app.elements.get('timeline-video');const selected=[];
   const player=new SequencePlayer(video,{onSelect:value=>selected.push(value.clip_id)});
@@ -213,7 +214,7 @@ test('reload cannot start or release editor locks while save PATCH is pending',a
       return response(saved);
     }
     throw Error(`Unexpected request: ${url}`);
-  },`?project_id=${A}`);
+  },`?project_id=${A}`,{},'assembly.html');
   await app.entry('timeline.js');await flush();
   const e=app.elements;await e.get('timeline-video').fire('error');
   assert.equal(e.get('reload-project').hidden,false);
@@ -563,15 +564,44 @@ test('legacy project is identified without conversion and compatibility opening 
   assert.match(e.get('native-project-picker').children[1].textContent,/saved cut/i);
   assert.equal(e.get('native-project-kind').hidden,false);
   assert.equal(e.get('native-legacy-open').hidden,false);
-  assert.equal(e.get('supporting-tools').open,false);
+  assert.equal(e.has('supporting-tools'),false);
   await e.get('native-legacy-open').click();
-  assert.equal(e.get('supporting-tools').open,true);
+  assert.deepEqual(app.navigation,[`/assembly?project_id=${C}`]);
   assert.equal(backend.saved().revision,3);assert.equal(sequence.state().placements.length,0);
   assert.equal(backend.calls.some(c=>c.method!=='GET'),false);
 });
 
 
 const sourceEntry=(id,job)=>{const entry=nativeEntry(id);entry.take.origin={source_job:job,operator_label:'native-swap'};return entry;};
+test('saved-cut navigation never creates a project or imports URL source assets',async()=>{
+  const calls=[];const app=await environment(async(url,options={})=>{
+    calls.push({url,method:options.method||'GET'});
+    if(url==='/api/jobs')return response([]);
+    if(url==='/api/timeline/projects')return response({projects:[]});
+    throw Error(`Unexpected mutation/read ${url}`);
+  },`?job_id=${B}&character_id=${C}`,{},'assembly.html');
+  await app.entry('timeline.js');await flush();
+  assert.ok(calls.length>0);assert.ok(calls.every(c=>c.method==='GET'));
+  assert.equal(app.elements.has('native-video'),false);
+  assert.equal(app.elements.get('timeline-error').hidden,true);
+  assert.ok(app.historyURLs.every(url=>url.startsWith('/assembly')));
+});
+
+test('failed native save blocks saved-cut handoff and preserves recovery',async()=>{
+  const saved={project_id:C,title:'Saved',revision:3,placements:[],selected_placement_id:null,drafts:{}};
+  const backend=nativeBackend({saved,extra:async(url,options)=>{
+    if(options.method==='PATCH')return new Response(JSON.stringify({detail:'Reload required'}),{status:409});
+    if(url==='/api/timeline/projects')return response({projects:[{...saved,workspace_kind:'legacy',legacy_clip_count:1,native_placement_count:0}]});
+  }});
+  const app=await environment(backend.fetcher,`?project_id=${C}`),errors=[],e=app.elements;
+  const {mountSequence}=await app.entry('sequence-workspace.js');
+  const sequence=mountSequence({onSelect(){},onPreview(){},onCompose(){},onError:message=>errors.push(message)});
+  await sequence.init([]);e.get('native-project-title').value='Unsaved name';await e.get('native-project-title').fire('input');
+  await e.get('native-legacy-open').click();
+  assert.equal(app.navigation.length,0);assert.ok(errors.length>0);
+  assert.equal(sequence.state().title,'Unsaved name');assert.ok(app.storage.get('opengenjutsu.sequence.recovery'));
+});
+
 test('position reference failure preserves ready durations and draft without generation',async()=>{
   const app=await environment(()=>{throw Error('No write allowed');});
   const {mountPositionGeneration}=await app.entry('position-generation.js');

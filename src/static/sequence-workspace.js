@@ -268,7 +268,13 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     try{if(!contextBlocked)await flush();await load(id);}catch(error){onError(error.message);event.target.value=state.project_id||'';}
   });
   el('native-legacy-open').addEventListener('click',async()=>{
-    try{await flush();const panel=el('supporting-tools');panel.open=true;panel.scrollIntoView?.({block:'start'});}
+    try{
+      const project=state.project_id,token=contextEpoch;
+      if(!validContextId(project))throw new Error('Choose a saved cut first.');
+      await flush();
+      if(token!==contextEpoch||state.project_id!==project)throw new Error('The project changed. Open its saved cut again.');
+      location.assign(`/assembly?project_id=${project}`);
+    }
     catch(error){onError(error.message);}
   });
   el('native-reload').addEventListener('click',()=>{

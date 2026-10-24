@@ -1,5 +1,6 @@
 // Native export UI contracts. No inference, browser layout or OS-sharing claim.
 import test from 'node:test';
+import {readMarkup} from './ui-markup.mjs';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
@@ -22,10 +23,10 @@ class Element {
   showModal(){this.open=true;}close(){this.open=false;}focus(){}select(){}
 }
 async function environment(fetcher) {
-  const elements=new Map([...readFileSync(resolve(root,'src/templates/timeline.html'),'utf8').matchAll(/\bid="([^"]+)"/g)].map(m=>[m[1],new Element()]));
+  const elements=new Map([...readMarkup().matchAll(/\bid="([^"]+)"/g)].map(m=>[m[1],new Element()]));
   const notices=[],storage=new Map(),modules=new Map();
   const context=vm.createContext({console,Response,URL,AbortSignal,fetch:fetcher,setTimeout,clearTimeout,
-    document:{getElementById:id=>elements.get(id),querySelectorAll:()=>['native-video','candidate-video','timeline-video','export-video'].map(id=>elements.get(id))},window:{addEventListener(){}},navigator:{},
+    document:{getElementById:id=>elements.get(id),querySelectorAll:()=>['native-video','candidate-video','timeline-video','export-video'].map(id=>elements.get(id)).filter(Boolean)},window:{addEventListener(){}},navigator:{},
     localStorage:{setItem:(k,v)=>storage.set(k,v)},Blob,File:class{}});
   async function load(path){
     path=resolve(path);if(modules.has(path))return modules.get(path);
@@ -42,6 +43,7 @@ test('native export sends revision only and uses the shared ready artifact',asyn
   app.elements.get('native-video').paused=false;app.elements.get('candidate-video').paused=false;
   const original=workspace();await ui.open(original,'native');
   assert.equal(app.elements.get('native-video').paused,true);assert.equal(app.elements.get('candidate-video').paused,true);
+  assert.equal(app.elements.has('timeline-video'),false);
   assert.equal(calls[0].url,`/api/timeline/projects/${A}/native-workspace/export`);
   assert.equal(calls[0].options.body,'{"revision":12}');
   assert.equal(calls[0].options.method,'POST');

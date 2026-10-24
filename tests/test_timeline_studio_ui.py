@@ -7,6 +7,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def markup_for(name):
+    return (ROOT / 'src/templates' / name).read_text().replace('<!-- shared-export-dialog -->', (ROOT / 'src/templates/export-dialog.html').read_text())
+
+
 def luminance(color):
     parts = [int(color[i:i+2], 16) / 255 for i in (1, 3, 5)]
     linear = [part/12.92 if part <= .04045 else ((part+.055)/1.055)**2.4 for part in parts]
@@ -14,16 +18,16 @@ def luminance(color):
 
 
 class TimelineStudioUITests(unittest.TestCase):
-    def test_native_take_is_primary_and_assembly_is_closed_and_lazy(self):
+    def test_native_take_is_primary_without_a_duplicate_editor(self):
         markup = (ROOT / 'src/templates/timeline.html').read_text()
         script = (ROOT / 'src/static/continuity-studio.js').read_text()
         self.assertIn('Work in progress', markup)
         self.assertIn('id="native-video"', markup)
         self.assertIn('id="native-capsule"', markup)
-        self.assertLess(markup.index('id="native-video"'), markup.index('id="supporting-tools"'))
-        self.assertRegex(markup, r'<details id="supporting-tools" class="timeline-supporting">')
+        self.assertNotIn('supporting-tools', markup)
+        self.assertIn('href="/assembly"', markup)
         self.assertNotIn('src="/static/timeline.js"', markup)
-        self.assertIn("await import('./timeline.js')", script)
+        self.assertNotIn("import('./timeline.js')", script)
         self.assertIn("getJSON('/api/continuity/takes')", script)
         self.assertNotIn('innerHTML', script)
         # Generation is supported. The async contract below verifies that only
@@ -84,7 +88,7 @@ class TimelineStudioUITests(unittest.TestCase):
         self.assertNotRegex(css, r'\.candidate-preview[^}]*position:\s*(fixed|absolute)')
 
     def test_editor_shell_keeps_real_controls_and_token_order(self):
-        markup = (ROOT / 'src/templates/timeline.html').read_text()
+        markup = markup_for('assembly.html')
         self.assertLess(markup.index('/static/design-system.css'), markup.index('/static/app.css'))
         self.assertLess(markup.index('/static/app.css'), markup.index('/static/timeline.css'))
         for identifier in ('timeline-video', 'clip-track', 'sequence-seek', 'clip-editor',

@@ -231,7 +231,7 @@ def runtime_inventory() -> dict[str, Any]:
 
 
 TEMPLATES = Path(__file__).parent / "templates"
-_PAGE_CACHE: dict[str, tuple[int, str]] = {}
+_PAGE_CACHE: dict[str, tuple[tuple[int, ...], str]] = {}
 
 
 def _page(name: str) -> str:
@@ -242,10 +242,19 @@ def _page(name: str) -> str:
     Keyed on the file's modification stamp, so a request stays cheap.
     """
     path = TEMPLATES / name
-    stamp = path.stat().st_mtime_ns
+    # Only these server-owned pages share this fixed fragment. No user path or
+    # general-purpose template language is accepted. Track both modification stamps.
+    fragment = TEMPLATES / 'export-dialog.html' if name in ('timeline.html', 'assembly.html') else None
+    stamp = (path.stat().st_mtime_ns, fragment.stat().st_mtime_ns if fragment else 0)
     cached = _PAGE_CACHE.get(name)
     if cached is None or cached[0] != stamp:
-        cached = (stamp, path.read_text())
+        content = path.read_text()
+        if fragment:
+            marker = '<!-- shared-export-dialog -->'
+            if content.count(marker) != 1:
+                raise ValueError('The page must contain exactly one shared export dialog slot')
+            content = content.replace(marker, fragment.read_text())
+        cached = (stamp, content)
         _PAGE_CACHE[name] = cached
     return cached[1]
 
@@ -258,6 +267,11 @@ def home() -> str:
 @app.get("/timeline", response_class=HTMLResponse)
 def timeline_page() -> str:
     return _page("timeline.html")
+
+
+@app.get('/assembly', response_class=HTMLResponse)
+def assembly_page() -> str:
+    return _page('assembly.html')
 
 
 @app.post("/api/upload-character")

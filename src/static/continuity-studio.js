@@ -509,13 +509,6 @@ byId('forward-form').addEventListener('submit', async event => {
   finally {inFlight=false;unconfirmed=attemptClient.blocked();updateComposer();}
 });
 window.addEventListener('pagehide',()=>{comparison.clear();attemptClient.dispose();});
-let editorLoaded = false;
-byId('supporting-tools').addEventListener('toggle', async event => {
-  if (!event.currentTarget.open || editorLoaded) return;
-  editorLoaded = true;
-  try { await import('./timeline.js'); }
-  catch { editorLoaded = false; notice('Supporting media tools could not be loaded. Refresh the page to retry.'); }
-});
 let character=null;
 try{character=parseProjectContext(location.search).character_id;}catch(error){notice(error.message);}
 if (validCharacterId(character)) {

@@ -140,9 +140,13 @@
   .studio-wip span{display:none}
   .sequence-toolbar{margin:.5rem 0;gap:.5rem}.sequence-toolbar h1{font-size:1.3rem}
   .sequence-toolbar .eyebrow{display:none}
-  .sequence-toolbar-actions{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto auto 44px;gap:.3rem}
-  .sequence-toolbar-actions select{width:100%;min-width:0;max-width:none;min-height:44px}
-  .sequence-toolbar-actions .btn{padding:.45rem .55rem;min-height:44px;min-width:44px}
+  .sequence-toolbar-actions{width:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.4rem}
+  .sequence-toolbar-actions select{grid-column:1/3;grid-row:1;width:100%;min-width:0;max-width:none;min-height:44px}
+  .sequence-toolbar-actions .btn{padding:.45rem .55rem;min-height:44px;min-width:44px;white-space:normal;line-height:1.2}
+  #native-new-sequence{grid-column:1;grid-row:2}
+  #native-library-toggle{grid-column:2;grid-row:2}
+  #native-export{grid-column:3;grid-row:2}
+  #native-refresh{grid-column:3;grid-row:1;justify-self:end;width:44px}
   .sequence-workbench{flex-direction:column}
   .sequence-library{flex:none;width:100%;padding:.7rem}
   .library-takes{max-height:min(30vh,250px);overscroll-behavior:contain}

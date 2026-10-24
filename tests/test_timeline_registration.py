@@ -21,7 +21,11 @@ class TimelineRegistrationTests(unittest.TestCase):
                 with TestClient(studio.app) as client:
                     page = client.get('/timeline')
                     self.assertEqual(page.status_code, 200)
-                    self.assertIn('id="clip-track"', page.text)
+                    self.assertNotIn('id="clip-track"', page.text)
+                    compatibility = client.get('/assembly')
+                    self.assertEqual(compatibility.status_code, 200)
+                    self.assertIn('id="clip-track"', compatibility.text)
+                    self.assertNotIn('id="native-video"', compatibility.text)
                     self.assertIn('Work in progress', page.text)
                     self.assertIn('id="native-video"', page.text)
                     native = client.get('/api/continuity/takes')

@@ -12,7 +12,7 @@ const player=new SequencePlayer($('timeline-video'),{
     $('playhead').style.left=`${time*state.scale}px`;
   },
   onSelect:clip=>{state.selected=clip.clip_id;paintSelection();},
-  onPlayback:playing=>{$('play-sequence').textContent=playing&&player.sequenceMode?'Pause sequence':'Play sequence';},
+  onPlayback:playing=>{$('play-sequence').textContent=playing&&player.sequenceMode?'Pause cut':'Play cut';},
   onError:message=>{notify(message);$('reload-project').hidden=false;},
 });
 function remember(id) {try {if (id) localStorage.setItem('opengenjutsu.timeline.project',id);else localStorage.removeItem('opengenjutsu.timeline.project');} catch {}}
@@ -88,7 +88,7 @@ function useProject(project,{resetUndo=false}={}) {
   $('project-title').value=project.title;
   $('timeline-empty').hidden=project.clips.length>0;$('timeline-video').hidden=!project.clips.length;
   const params=new URLSearchParams(location.search);params.set('project_id',project.project_id);
-  history.replaceState(null,'',`/timeline?${params}`);
+  history.replaceState(null,'',`/assembly?${params}`);
   paintTrack();player.setClips(project.clips,state.selected);
   const character=project.character_id;
   $('character-context').hidden=!character;
@@ -116,7 +116,7 @@ async function loadProject(id) {
 }
 async function ensureProject(characterId=null) {
   if (state.project) return state.project;
-  const created=validateProject(await apiJSON('/api/timeline/projects',json({title:'Untitled sequence',...(characterId?{character_id:characterId}:{})})));
+  const created=validateProject(await apiJSON('/api/timeline/projects',json({title:'Untitled cut',...(characterId?{character_id:characterId}:{})})));
   // Read back the exact persisted target before claiming creation succeeded.
   const saved=validateProject(await apiJSON(`/api/timeline/projects/${created.project_id}`));
   useProject(saved,{resetUndo:true});await refreshProjects();return saved;
@@ -142,7 +142,7 @@ async function addJob(id) {
     const saved=validateProject(await apiJSON(`/api/timeline/projects/${response.project_id}`));
     state.undo.push({title:project.title,clips:placements(project.clips)});state.selected=saved.clips.at(-1)?.clip_id;
     useProject(saved);await refreshProjects();notify('Take added. Your original swap is unchanged.');
-    const params=new URLSearchParams(location.search);params.delete('job_id');history.replaceState(null,'',`/timeline?${params}`);
+    const params=new URLSearchParams(location.search);params.delete('job_id');history.replaceState(null,'',`/assembly?${params}`);
   } catch(exception) {error(exception.message,exception.status===409||!exception.status);}
   finally {busy(false);}
 }
@@ -211,7 +211,7 @@ $('reload-project').addEventListener('click',()=>{if (state.project&&!state.busy
 $('new-project').addEventListener('click',async()=>{
   if (!allowChange()) return;
   if (state.project&&$('project-title').value!==state.project.title) return notify('Save the sequence name before starting another cut.');
-  state.project=null;state.selected=null;state.undo=[];history.replaceState(null,'','/timeline');busy(true);
+  state.project=null;state.selected=null;state.undo=[];history.replaceState(null,'','/assembly');busy(true);
   try {await ensureProject();} catch(exception) {error(exception.message);} finally {busy(false);}
 });
 $('project-picker').addEventListener('change',()=>{
@@ -228,23 +228,16 @@ window.addEventListener('beforeunload',event=>{
 async function boot() {
   busy(true);
   const params=new URLSearchParams(location.search),projectId=params.get('project_id');
-  // Native references are not instructions to create/import an editing project.
-  const nativeView=!!document.getElementById('native-video');
-  const jobId=nativeView?null:params.get('job_id'),character=nativeView?null:params.get('character_id');
-  for (const key of ['project_id','job_id','character_id']) if (params.has(key)&&(params.getAll(key).length!==1||!validId(params.get(key)))) throw new Error('This workspace link is invalid. Open Timeline from the navigation to start safely.');
+  // Navigation is readonly: source/character links never create/import a cut.
+  // Existing explicit Add/Import/New actions keep their original business paths.
+  for (const key of ['project_id','job_id','character_id']) if (params.has(key)&&(params.getAll(key).length!==1||!validId(params.get(key)))) throw new Error('This workspace link is invalid. Open Saved cuts from Sequence to start safely.');
   const projects=await refreshProjects();
   if (projectId) await loadProject(projectId);
-  else if (character) {busy(true);try {await ensureProject(character);} finally {busy(false);}}
   else {
     const remembered=recalled(),fallback=projects.find(item=>item.project_id===remembered)?.project_id;
     if (fallback) await loadProject(fallback);
   }
   busy(false);
-  if (jobId) {
-    if (state.project?.clips.some(clip=>clip.source_job_id===jobId)) {
-      params.delete('job_id');params.set('project_id',state.project.project_id);history.replaceState(null,'',`/timeline?${params}`);
-    } else await addJob(jobId);
-  }
   paintLocks();
 }
 paintTrack();refreshSources();boot().catch(exception=>error(exception.message)).finally(()=>busy(false));

@@ -77,6 +77,12 @@ export function mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate
     size.value=value;
     const state=sequence.state(),left=state.placements.find(p=>p.placement_id===position.left),
       right=state.placements.find(p=>p.placement_id===position.right);
+    const anchors=position.mode==='root'?[]:position.mode==='prepend'?[right]:position.mode==='bridge'?[left,right]:[left];
+    if(anchors.some(anchor=>anchor?.source_kind==='swap')) {
+      duration.unavailable();renderReferences();
+      byId('native-readiness').textContent='This Swap is video only. Choose New take for an independent generation; no native saved state is available.';
+      onUpdate();return;
+    }
     const query=new URLSearchParams({mode:position.mode});
     if(position.mode!=='root')query.set('take_id',(position.mode==='prepend'?right:left).take_id);
     if(position.mode==='bridge')query.set('second_take_id',right.take_id);
@@ -119,6 +125,8 @@ export function mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate
     request(request_id=uuid()) {
       const state=sequence.state(),gap=resolvePosition(state,position);save(fields());
       const left=state.placements.find(p=>p.placement_id===gap.left),right=state.placements.find(p=>p.placement_id===gap.right);
+      const anchors=gap.mode==='root'?[]:gap.mode==='prepend'?[right]:gap.mode==='bridge'?[left,right]:[left];
+      if(anchors.some(anchor=>anchor?.source_kind==='swap'))throw new Error('Video-only Swaps cannot supply native saved state. Choose New take.');
       let body=attemptBody({...fields(),request_id}),extra;
       if(gap.mode==='root')extra={reference_ids:draft.reference_ids,width:draft.width,height:draft.height};
       else extra={mode:gap.mode,...(gap.mode==='bridge'?{second_take_id:right.take_id}:{}),

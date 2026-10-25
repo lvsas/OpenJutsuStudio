@@ -38,7 +38,7 @@ class Element {
   querySelectorAll(){return [];}
   focus(){} select(){} click(){return this.fire('click');}
 }
-async function environment(fetcher,search='',initialStorage={},page='timeline.html') {
+async function environment(fetcher,search='',initialStorage={},page='timeline.html',libraryJobs=[]) {
   const markup=readMarkup(page);
   const elements=new Map([...markup.matchAll(/<[^>]*\bid="([^"]+)"[^>]*>/g)].map(([tag,id])=>{
     const element=new Element();element.hidden=/\bhidden(?:\s|>|=)/.test(tag);return [id,element];
@@ -47,7 +47,7 @@ async function environment(fetcher,search='',initialStorage={},page='timeline.ht
   const document={getElementById:id=>elements.get(id),createElement:()=>new Element(),
     querySelectorAll:selector=>selector==='video'?['native-video','candidate-video','timeline-video','export-video'].map(id=>elements.get(id)).filter(Boolean):[]};
   const context=vm.createContext({document,location,console,URLSearchParams,URL,Response,File,
-    Blob,FormData,AbortSignal,queueMicrotask,fetch:fetcher,setTimeout,clearTimeout,structuredClone,
+    Blob,FormData,AbortSignal,queueMicrotask,fetch:async(url,options)=>url==='/api/timeline/library'?response({jobs:libraryJobs}):fetcher(url,options),setTimeout,clearTimeout,structuredClone,
     crypto:{randomUUID,getRandomValues:a=>webcrypto.getRandomValues(a)},
     Option:class extends Element{constructor(text,value){super();this.textContent=text;this.value=value;}},
     navigator:{share:async()=>{},canShare:()=>true},
@@ -808,4 +808,46 @@ test('candidate inspection occupies the main stage and restores its source pause
   assert.equal(e.get('candidate-video').paused,true);assert.equal(e.get('candidate-video').src,'');
   assert.equal(e.get('forward-prompt').value,'Continue this exact state');
   assert.equal(JSON.stringify(backend.saved()),original);assert.equal(backend.calls.length,calls);
+});
+
+test('completed Swaps are visible without automatic placement; explicit add and reload keep their type',async()=>{
+  for(const engine of ['minimax-h3','ltx25-ripple']) {
+    const saved={project_id:C,title:'Swap project',revision:0,placements:[],selected_placement_id:null,drafts:{}};
+    const backend=nativeBackend({saved,extra:async url=>url.endsWith('/assets')?response({project_id:C,assets:{takes:[],jobs:[B]}}):null});
+    const app=await environment(backend.fetcher,`?project_id=${C}`,{},'timeline.html',[{job_id:B,engine,status:'done',created:1}]);
+    app.context.window.OpenGenjutsuProject={ready:Promise.resolve()};
+    await app.entry('continuity-studio.js');await flush();const e=app.elements;
+    assert.equal(backend.saved().placements.length,0,'filing is not a placement');
+    const row=e.get('native-takes').children.find(r=>r.dataset.sourceKind==='swap');assert.ok(row);
+    await row.children[0].click();await flush();
+    assert.equal(e.get('native-video').src,`/api/jobs/${B}/result`);
+    assert.equal(e.get('forward-form').hidden,true,'video-only preview never offers native generation');
+    assert.equal(e.get('native-capsule-download').hidden,true);
+    assert.equal(backend.calls.some(c=>c.method==='POST'),false);
+    await row.children[1].click();await flush();
+    const {mountSequence}=await app.entry('sequence-workspace.js');
+    // Flush the actual page via its existing navigation guard.
+    await app.context.window.OpenGenjutsuProject.beforeNavigate();
+    assert.equal(backend.saved().placements.length,1);
+    assert.equal(backend.saved().placements[0].source_kind,'swap');
+    assert.equal(backend.calls.some(c=>c.method==='POST'),false,'placing never generates');
+  }
+});
+
+test('video-only anchors refuse native timing before network calls; independent New take remains available',async()=>{
+  const saved={project_id:C,title:'Video anchor',revision:0,placements:[{placement_id:A,take_id:B,source_kind:'swap'}],selected_placement_id:A,drafts:{}};
+  const backend=nativeBackend({saved});const app=await environment(backend.fetcher);
+  const {mountPositionGeneration}=await app.entry('position-generation.js');
+  let state=saved, draft={mode:'forward',prompt:'',seed:'',raw_frames:124,count:1,reference_ids:[],reference_mode:'inherit',width:1024,height:576};
+  const calls=[],messages=[];
+  const composer=mountPositionGeneration({sequence:{state:()=>state,positionDraft:()=>draft,setPositionDraft:changes=>{draft={...draft,...changes};}},
+    getJSON:async url=>{calls.push(url);return {available:true,duration_options:[]};},byId:id=>app.elements.get(id),
+    duration:{reset(){},unavailable(){messages.push('unavailable');},ready(){},valid:()=>false},onUpdate(){},onMessage(){}});
+  await composer.open({left:A,right:null,mode:'forward'},draft);
+  assert.equal(calls.length,0,'a job UUID is never probed as a native Take');
+  assert.match(app.elements.get('native-readiness').textContent,/video only/i);
+  assert.equal(composer.valid(),false);
+  draft={...draft,mode:'root',reference_mode:'custom'};
+  await composer.open({left:A,right:null,mode:'root'},draft);
+  assert.equal(calls.length,1,'independent New take is allowed next to video-only media');
 });

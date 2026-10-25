@@ -2,12 +2,8 @@
 import {emptyWorkspace,addPlacement,removePlacement,movePlacement,saveDraft} from './sequence-state.js';
 import {positionsOf,resolvePosition,insertAtPosition,positionLabel,positionFromKey,positionKey,selectPosition as selectPositionState,savePositionDraft as savePositionDraftState} from './sequence-positions.js';
 import {parseProjectContext,workspaceLink,validContextId} from './project-context.js';
-export function takeLabel(entry) {
-  if(!entry)return 'Unavailable take';
-  const record=entry.take,c=record.family.context;
-  const kind=record.lineage.relation==='extends'?'Extension':record.lineage.parent_id?'Continuation':'Take';
-  return `${kind} · ${(c.delivered_frames/c.fps).toFixed(1)} s`;
-}
+import {isSwap,sourceId,sourceKind,sourceKey,sourceLabel} from './sequence-sources.js';
+export const takeLabel=sourceLabel;
 const el=id=>document.getElementById(id);
 const uuid=()=>crypto.randomUUID().replace(/-/g,'');
 const rememberKey='opengenjutsu.sequence.project';
@@ -15,9 +11,11 @@ const stored=key=>{try{return localStorage.getItem(key);}catch{return null;}};
 const remember=(key,value)=>{try{localStorage.setItem(key,value);}catch{/* Server remains authoritative. */}};
 export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},onContextChange=()=>{},onLockChange=()=>{},onError}) {
   let insertionPosition=null,contextBlocked=false,contextLoading=true,contextEpoch=0;
-  let projectMembers=new Set(),memberJobs=new Set(),commonLibrary=false;
+  let projectMembers=new Set(),memberJobs=new Set(),excludedTakes=new Set(),commonLibrary=false;
   let state=emptyWorkspace(),entries=[],version=0,savedVersion=0,saving=null,timer=null,conflicted=false,previewedId=null;
-  const entryFor=id=>entries.find(e=>e.take.take_id===id);
+  const entryFor=(id,kind='native')=>entries.find(e=>sourceId(e)===id&&sourceKind(e)===kind);
+  const placementKind=p=>p.source_kind??'native';
+  const placementKey=p=>`${placementKind(p)}:${p.take_id}`;
   const status=text=>{el('native-save-state').textContent=text;};
   const selected=()=>state.placements.find(p=>p.placement_id===state.selected_placement_id);
   async function api(path,options={}) {
@@ -69,7 +67,8 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
               selected_placement_id:snapshot.selected_placement_id,drafts:snapshot.drafts,
               ...(snapshot.position_drafts?{selected_position:snapshot.selected_position??null,
                 position_drafts:snapshot.position_drafts}:{})})});
-          for(const placement of snapshot.placements)projectMembers.add(placement.take_id);
+          for(const placement of snapshot.placements)
+            (placementKind(placement)==='swap'?memberJobs:projectMembers).add(placement.take_id);
           state={...state,revision:response.revision};savedVersion=sentVersion;
         }
         shadow();status('Saved');el('native-reload').hidden=true;
@@ -83,8 +82,8 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
   }
   function notifySelection() {
     const placement=selected();
-    previewedId=placement?.take_id||null;markLibrarySelection();
-    onSelect(placement?entryFor(placement.take_id):null,placement,
+    previewedId=placement?placementKey(placement):null;markLibrarySelection();
+    onSelect(placement?entryFor(placement.take_id,placementKind(placement)):null,placement,
       placement?state.drafts[placement.placement_id]:null);
     if(state.selected_position) {
       insertionPosition=positionFromKey(state,state.selected_position);
@@ -103,54 +102,93 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
   }
   function markLibrarySelection() {
     for(const row of el('native-takes').children)
-      row.children[0]?.setAttribute('aria-pressed',String(row.dataset.takeId===previewedId));
+      row.children[0]?.setAttribute('aria-pressed',String(row.dataset.sourceKey===previewedId));
   }
-  function focusLibraryAdd(id) {
-    [...el('native-takes').children].find(row=>row.dataset.takeId===id)?.children[1]?.focus({preventScroll:true});
+  function focusLibraryAdd(id,kind='native') {
+    [...el('native-takes').children].find(row=>row.dataset.sourceKey===`${kind}:${id}`)?.children[1]?.focus({preventScroll:true});
   }
-  function add(id,afterId=null,draft=null) {
+  function add(id,afterId=null,draft=null,kind='native') {
     if(contextBlocked||contextLoading)return;
-    if(!entryFor(id))return;
+    if(!entryFor(id,kind))return;
+    const placementId=uuid();
     let next=insertionPosition&&!afterId
-      ? insertAtPosition(state,id,uuid(),insertionPosition) : addPlacement(state,id,uuid(),afterId);
+      ? insertAtPosition(state,id,placementId,insertionPosition) : addPlacement(state,id,placementId,afterId,kind);
+    // Keep the single existing position resolver and rail. The legacy position
+    // helper defaults native; type only the newly inserted placement here.
+    if(kind==='swap')next={...next,placements:next.placements.map(p=>p.placement_id===placementId?{...p,source_kind:'swap'}:p)};
     insertionPosition=null;onPosition(null);
     if(draft)next=saveDraft(next,next.selected_placement_id,draft);
     change({...next,selected_position:null},{select:true});
   }
   function poster(entry) {
+    if(isSwap(entry)) {
+      const video=document.createElement('video');video.preload='none';video.autoplay=false;
+      video.muted=true;video.playsInline=true;video.tabIndex=-1;video.setAttribute('aria-hidden','true');
+      video.className='sequence-poster';video.src=entry.media_url;return video;
+    }
     const image=document.createElement('img');image.alt='';image.loading='lazy';
     image.className='sequence-poster';image.src=`/api/continuity/takes/${entry.take.take_id}/poster`;
     image.addEventListener('error',()=>{image.hidden=true;image.parentElement?.classList.add('poster-unavailable');});
     return image;
   }
   function label(entry) {
-    return takeLabel(entry);
+    return sourceLabel(entry);
   }
   function action(text,fn,className='btn btn-ghost') {
     const button=document.createElement('button');button.type='button';button.className=className;
     button.textContent=text;button.disabled=contextBlocked||contextLoading;button.addEventListener('click',fn);return button;
   }
+  function sourceInfo(entry) {
+    return isSwap(entry)?'Video only':'H3 · Native state';
+  }
   function drawLibrary() {
-    const container=el('native-takes'),search=el('native-search').value.toLowerCase();container.replaceChildren();
-    const scoped=commonLibrary||!window.OpenGenjutsuProject?entries:entries.filter(e=>projectMembers.has(e.take.take_id)
-      ||state.placements.some(p=>p.take_id===e.take.take_id)||memberJobs.has(e.take.origin?.source_job));
-    const filtered=scoped.filter(e=>(label(e)+' '+e.take.take_id).toLowerCase().includes(search));
-    el('pool-count').textContent=`${filtered.length} ${commonLibrary?'common-library':'project'} takes`;
+    const container=el('native-takes'),search=el('native-search').value.toLowerCase();
+    const focused=[...container.children].find(row=>[...row.children].includes(document.activeElement));
+    const focusKey=focused?.dataset.sourceKey,focusIndex=focused?[...focused.children].indexOf(document.activeElement):-1;
+    container.replaceChildren();
+    const scoped=commonLibrary||!window.OpenGenjutsuProject?entries:entries.filter(entry=>
+      (!excludedTakes.has(sourceId(entry))||isSwap(entry))&&((isSwap(entry)?memberJobs:projectMembers).has(sourceId(entry))
+      ||state.placements.some(p=>placementKey(p)===sourceKey(entry))
+      ||!isSwap(entry)&&entry.project_job_ids?.some(id=>memberJobs.has(id))));
+    const filtered=scoped.filter(entry=>(label(entry)+' '+sourceInfo(entry)+' '+sourceId(entry)).toLowerCase().includes(search));
+    el('pool-count').textContent=`${filtered.length} ${commonLibrary?'common-library':'project'} sources`;
     for(const entry of filtered.slice(0,100)) {
-      const id=entry.take.take_id,row=document.createElement('li');row.className='library-take';
-      const preview=action('',()=>{previewedId=id;markLibrarySelection();onPreview(entry);},'library-preview');
-      preview.setAttribute('aria-pressed',String(id===previewedId));
-      preview.setAttribute('aria-label',`Preview ${label(entry)} · ${id.slice(0,8)}`);preview.title=`Native take ${id}`;preview.append(poster(entry));
+      const id=sourceId(entry),kind=sourceKind(entry),key=sourceKey(entry),row=document.createElement('li');row.className='library-take';
+      const preview=action('',()=>{previewedId=key;markLibrarySelection();onPreview(entry);},'library-preview');
+      preview.setAttribute('aria-pressed',String(key===previewedId));
+      preview.setAttribute('aria-label',`Preview ${label(entry)} · ${id.slice(0,8)}`);preview.title=`${isSwap(entry)?'Swap':'Native take'} ${id}`;preview.append(poster(entry));
       const text=document.createElement('span');text.className='library-take-info';
       const name=document.createElement('strong');name.textContent=label(entry);
-      const info=document.createElement('small');info.textContent=`H3 · ${id.slice(0,8)}${state.placements.some(p=>p.take_id===id)?' · In sequence':''}`;
+      const info=document.createElement('small');info.textContent=`${sourceInfo(entry)} · ${id.slice(0,8)}${state.placements.some(p=>placementKey(p)===key)?' · In sequence':''}`;
       text.append(name,info);preview.append(text);
-      const append=action('+',()=>{add(id);focusLibraryAdd(id);},'btn btn-secondary library-add');append.setAttribute('aria-label',`Add ${label(entry)} · ${id.slice(0,8)} to sequence`);
-      row.draggable=true;row.dataset.takeId=id;
-      row.addEventListener('dragstart',event=>{event.dataTransfer.setData('text/plain',id);event.dataTransfer.effectAllowed='copy';});
-      row.append(preview,append);container.append(row);
+      const append=action('+',()=>{add(id,null,null,kind);focusLibraryAdd(id,kind);},'btn btn-secondary library-add');append.setAttribute('aria-label',`Add ${label(entry)} · ${id.slice(0,8)} to sequence`);
+      row.draggable=true;row.dataset.takeId=id;row.dataset.sourceKind=kind;row.dataset.sourceKey=key;
+      row.addEventListener('dragstart',event=>{event.dataTransfer.setData('text/plain',isSwap(entry)?JSON.stringify({kind,id}):id);event.dataTransfer.effectAllowed='copy';});
+      row.append(preview,append);
+      if(!commonLibrary&&window.OpenGenjutsuProject?.remove) {
+        const remove=action('×',async()=>{
+          remove.disabled=true;
+          try {await window.OpenGenjutsuProject.remove(isSwap(entry)?'job':'take',id);el('native-search').focus({preventScroll:true});}
+          catch(error){onError(error.message);remove.disabled=false;}
+        },'btn btn-ghost library-remove');
+        remove.title='Remove from project · keep in common library';
+        remove.setAttribute('aria-label',`Remove ${label(entry)} from project; keep in common library`);
+        row.append(remove);
+      }
+      container.append(row);
     }
-    if(!filtered.length) {const text=document.createElement('li');text.className='microcopy';text.textContent=scoped.length?'No matching takes.':commonLibrary?'No saved native takes yet.':'No takes in this project yet. Browse the common library or create a new take.';container.append(text);}
+    if(!filtered.length) {const text=document.createElement('li');text.className='microcopy';text.textContent=scoped.length?'No matching sources.':commonLibrary?'No saved takes or Swaps yet.':'No sources in this project yet. Browse the common library or create a new take.';container.append(text);}
+    if(focusKey)[...container.children].find(row=>row.dataset.sourceKey===focusKey)?.children[focusIndex]?.focus({preventScroll:true});
+  }
+  function droppedSource(event) {
+    const raw=event.dataTransfer.getData('text/plain');
+    let source={id:raw,kind:'native'};
+    if(raw.startsWith('{')) {
+      try {source=JSON.parse(raw);}catch {throw new Error('Drop a saved take or Swap from the library.');}
+    }
+    if(!['native','swap'].includes(source.kind)||!validContextId(source.id)||!entryFor(source.id,source.kind))
+      throw new Error('Drop a saved take or Swap from the library.');
+    return source;
   }
   function openPosition(position,options={}) {
     if(contextBlocked||contextLoading)return;
@@ -170,16 +208,15 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     open.setAttribute('aria-pressed',String(insertionPosition?.left===position.left&&insertionPosition?.right===position.right));
     const mark=document.createElement('span');mark.className='position-mark';mark.textContent='+';mark.setAttribute('aria-hidden','true');
     const name=document.createElement('strong');name.textContent=positionLabel(position);
-    const hint=document.createElement('small');hint.textContent='or drop a saved take';
+    const hint=document.createElement('small');hint.textContent='or drop a saved take or Swap';
     open.append(mark,name,hint);slot.append(open);
     slot.addEventListener('dragover',event=>{event.preventDefault();slot.classList.add('is-target');});
     slot.addEventListener('dragleave',()=>slot.classList.remove('is-target'));
     slot.addEventListener('drop',event=>{
       event.preventDefault();event.stopPropagation?.();slot.classList.remove('is-target');el('take-board').classList.remove('is-target');
       try {
-        const id=event.dataTransfer.getData('text/plain');
-        if(!entryFor(id))throw new Error('Drop a saved take from Your takes.');
-        insertionPosition=resolvePosition(state,position);add(id);
+        const {id,kind}=droppedSource(event);
+        insertionPosition=resolvePosition(state,position);add(id,null,null,kind);
       }
       catch(error){onError(error.message);}
     });
@@ -192,14 +229,14 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     const positions=positionsOf(state);
     rail.append(positionSlot(positions[0]));
     state.placements.forEach((placement,index)=>{
-      const entry=entryFor(placement.take_id),slot=document.createElement('li');slot.className='sequence-slot';
+      const entry=entryFor(placement.take_id,placementKind(placement)),slot=document.createElement('li');slot.className='sequence-slot';
       slot.dataset.placementId=placement.placement_id;
       const card=action('',()=>select(placement.placement_id),'sequence-take');
       card.setAttribute('aria-pressed',String(placement.placement_id===state.selected_placement_id));
-      card.title=`Native take ${placement.take_id}`;
+      card.title=`${placementKind(placement)==='swap'?'Swap':'Native take'} ${placement.take_id}`;
       const name=document.createElement('strong');name.textContent=entry?label(entry):`Unavailable · ${placement.take_id.slice(0,8)}`;
       if(entry)card.append(poster(entry));
-      const time=document.createElement('small');time.textContent=entry?`H3 · ${placement.take_id.slice(0,8)}`:'Source not listed';
+      const time=document.createElement('small');time.textContent=entry?`${sourceInfo(entry)} · ${placement.take_id.slice(0,8)}`:'Source not listed';
       card.append(name,time);
       const tools=document.createElement('div');tools.className='sequence-take-tools';
       const previous=action('←',()=>change(movePlacement(state,placement.placement_id,-1)));
@@ -229,7 +266,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     if(token!==contextEpoch)return;
     if(data.project_id!==id||!Array.isArray(data.assets?.takes)||!Array.isArray(data.assets?.jobs))
       throw new Error('The project library could not be read.');
-    projectMembers=new Set(data.assets.takes);memberJobs=new Set(data.assets.jobs);
+    projectMembers=new Set(data.assets.takes);memberJobs=new Set(data.assets.jobs);excludedTakes=new Set(data.excluded?.takes||[]);
   }
   async function load(id,{preserveSource=false}={}) {
     if(!validContextId(id))throw new Error('This workspace link is invalid.');
@@ -243,6 +280,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
       remember(rememberKey,id);syncProjectURL({preserveSource});status('Saved');el('native-reload').hidden=true;onContextChange();notifySelection();
     } finally {if(token===contextEpoch){contextLoading=false;render();onLockChange();}}
   }
+  window.addEventListener('opengenjutsu:project-assets',()=>{if(state.project_id)load(state.project_id).catch(error=>onError(error.message));});
   el('native-rail-add').addEventListener('click',()=>showLibrary(true,{focus:true}));
   el('native-library-close').addEventListener('click',()=>showLibrary(false,{focus:true}));
   el('native-library').addEventListener('keydown',event=>{
@@ -258,7 +296,9 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
   });
   el('take-board').addEventListener('dragleave',()=>el('take-board').classList.remove('is-target'));
   el('take-board').addEventListener('drop',event=>{
-    event.preventDefault();el('take-board').classList.remove('is-target');add(event.dataTransfer.getData('text/plain'));
+    event.preventDefault();el('take-board').classList.remove('is-target');
+    try {const {id,kind}=droppedSource(event);add(id,null,null,kind);}
+    catch(error){onError(error.message);}
   });
   el('board-track').addEventListener('keydown',event=>{
     if(!['ArrowLeft','ArrowRight'].includes(event.key)||event.target.tagName==='INPUT')return;
@@ -293,7 +333,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     async refresh(items){entries=items;if(state.project_id)await loadMembers(state.project_id,contextEpoch);render();},
     state:()=>structuredClone(state), selected,
     editable:()=>!contextBlocked&&!contextLoading,
-    preview(takeId){const entry=entryFor(takeId);if(entry){previewedId=takeId;markLibrarySelection();onPreview(entry);}},
+    preview(id,kind='native'){const entry=entryFor(id,kind);if(entry){previewedId=sourceKey(entry);markLibrarySelection();onPreview(entry);}},
     openPlacement(id){if(state.placements.some(p=>p.placement_id===id))select(id);},
     clearPosition(){insertionPosition=null;onPosition(null);change({...state,selected_position:null},{select:true});},
     openPosition,
@@ -303,12 +343,16 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     composePosition(){
       const gap=resolvePosition(state,insertionPosition);
       if(gap.mode!=='forward')throw new Error('This native operation is not available in the composer yet.');
-      select(gap.left);onCompose(entryFor(selected().take_id),selected());
+      select(gap.left);onCompose(entryFor(selected().take_id,placementKind(selected())),selected());
     },
     draft(){const p=selected();return p?state.drafts[p.placement_id]:null;},
     setDraft(changes){const p=selected();if(p)change(saveDraft(state,p.placement_id,changes));},
     flush,
-    place(takeId,draft){add(takeId,null,draft);},
+    place(id,afterId=null,draft=null,kind='native'){
+      // Preserve the native controller's legacy place(id, draft) call.
+      if(afterId&&typeof afterId==='object'){draft=afterId;afterId=null;}
+      add(id,afterId,draft,kind);
+    },
     async insertResult(takeId,projectId,afterId,position=null) {
       if(!entryFor(takeId)||state.project_id!==projectId)return false;
       if(position) {
@@ -321,6 +365,6 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
       }
       await flush();return 'Saved with continuation state.';
     },
-    compose(){const p=selected();if(p)onCompose(entryFor(p.take_id),p);}
+    compose(){const p=selected();if(p)onCompose(entryFor(p.take_id,placementKind(p)),p);}
   };
 }

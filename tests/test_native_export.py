@@ -19,7 +19,7 @@ from media_probe import probe_mp4
 
 
 class NativeExportTests(IsolatedTimeline):
-    def family(self, take_id, color='black', frames=5, audio=False, private_metadata=False):
+    def family(self, take_id, color='black', frames=5, audio=False, private_metadata=False, source_job=None):
         source = self.work / ('source-' + take_id)
         source.mkdir()
         video = make_video(source / 'source.mp4', color=color, frames=frames,
@@ -44,7 +44,7 @@ class NativeExportTests(IsolatedTimeline):
             'structure': ('U8', [len(structure)], structure)},
             {'format': 'obvpm_cond_v1', 'self_id': sha}))
         ct.import_family(video, mctx, cond, root=source, work=self.work,
-                         take_id=take_id, captured_graph=None, operator_label='synthetic-export-only')
+                         take_id=take_id, captured_graph=None, source_job=source_job, operator_label='synthetic-export-only')
         return ct.get_validated_family(self.work, take_id)
 
     def project(self, takes):

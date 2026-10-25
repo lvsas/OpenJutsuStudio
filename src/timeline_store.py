@@ -21,6 +21,7 @@ from fractions import Fraction
 
 from media_probe import probe_mp4
 from timeline_models import CreateProject, EditNativeWorkspace, EditProject, MAX_CLIPS, MAX_KNOWN_CLIPS, ProjectAssets, AssociateAsset
+from timeline_swap_sources import freeze_swap_asset, native_take_link, placement_asset_key, swap_source
 
 _ID = re.compile(r"[0-9a-f]{32}\Z")
 _LOCKS: dict[str, threading.RLock] = {}
@@ -226,7 +227,9 @@ class TimelineStore:
             assets = ProjectAssets.model_validate(project.get('assets', {})).model_dump()
             if project.get('character_id'):
                 assets['characters'].append(project['character_id'])
-            assets['takes'].extend(p['take_id'] for p in project.get('native_workspace', {}).get('placements', []))
+            for placement in project.get('native_workspace', {}).get('placements', []):
+                group = 'jobs' if placement.get('source_kind', 'native') == 'swap' else 'takes'
+                assets[group].append(placement['take_id'])
             for path in (self.work / 'jobs').glob('*.json'):
                 if not _ID.fullmatch(path.stem) or path.is_symlink():
                     continue
@@ -249,7 +252,8 @@ class TimelineStore:
                 if attempt.get('project_id') == project['project_id']:
                     assets['takes'].extend(c['take_id'] for c in attempt['candidates'] if c.get('take_id'))
             assets = {key: list(dict.fromkeys(values)) for key, values in assets.items()}
-            return ProjectAssets.model_validate(assets).model_dump()
+            from project_lifecycle import filtered_memberships
+            return filtered_memberships(project, ProjectAssets.model_validate(assets).model_dump())
         except (ValueError, KeyError, TypeError) as exc:
             raise TimelineError(409, 'Project membership cannot be read') from exc
 
@@ -258,7 +262,9 @@ class TimelineStore:
             project = self._project(project_id)
             assets = self._memberships(project)
             return {'project_id': project['project_id'], 'revision': project['revision'],
-                    'assets': assets, 'jobs': self._project_job_summaries(assets)}
+                    'assets': assets, 'jobs': self._project_job_summaries(assets),
+                    'excluded': ProjectAssets.model_validate(project.get('excluded_assets', {})).model_dump(),
+                    **({'archived': True} if project.get('archived') else {})}
 
     def library_jobs(self) -> list[dict]:
         """Safe library projection over existing job files; no separate index."""
@@ -273,7 +279,7 @@ class TimelineStore:
             if job.engine not in ('flux3-klein-character', 'minimax-h3', 'ltx25-ripple') or job.status != 'done':
                 continue
             rows.append({'job_id': job.id, 'engine': job.engine, 'status': job.status,
-                         'created': job.created})
+                         'created': job.created, **native_take_link(self, job)})
         return sorted(rows, key=lambda row: row['created'], reverse=True)
 
     def _project_job_summaries(self, assets: dict) -> list[dict]:
@@ -314,15 +320,27 @@ class TimelineStore:
             if len(assets[group]) >= MAX_KNOWN_CLIPS:
                 raise TimelineError(422, 'This project resource list is full')
             assets[group].append(data.asset_id)
+            from project_lifecycle import clear_exclusion
+            clear_exclusion(project, group, data.asset_id)
             project['assets'] = assets
             self._save_edit(project, native=True)
             return self.get_assets(project_id)
 
-    def list_projects(self) -> list[dict]:
+    def dissociate_asset(self, project_id, data):
+        from project_lifecycle import dissociate_asset
+        return dissociate_asset(self, project_id, data)
+
+    def set_archived(self, project_id, revision, archived):
+        from project_lifecycle import set_archived
+        return set_archived(self, project_id, revision, archived)
+
+    def list_projects(self, archived: bool = False) -> list[dict]:
         with self.lock:
             projects = [read_json(p) for p in (self.root / "projects").glob("*.json") if _ID.fullmatch(p.stem)]
             result = []
             for project in sorted(projects, key=lambda p: p["updated_at"], reverse=True):
+                if project.get('archived', False) != archived:
+                    continue
                 native_count = len(project.get("native_workspace", {}).get("placements", []))
                 legacy_count = len(project["clips"])
                 kind = ("mixed" if legacy_count else "native") if native_count else ("legacy" if legacy_count else "empty")
@@ -342,6 +360,8 @@ class TimelineStore:
                           "in_frame": placement["in_frame"], "out_frame": placement["out_frame"],
                           "media_url": f"/api/timeline/takes/{known['take_id']}/media"})
         result["is_draft"] = project.get("is_draft", False)
+        if project.get('archived'):
+            result['archived'] = True
         result["clips"] = clips
         return result
 
@@ -367,7 +387,10 @@ class TimelineStore:
         with self.lock:
             project = self._project(project_id)
             check_revision(edit.revision, project["revision"])
-            for take_id in dict.fromkeys(p.take_id for p in edit.placements):
+            for kind, take_id in dict.fromkeys((p.source_kind, p.take_id) for p in edit.placements):
+                if kind == 'swap':
+                    swap_source(self, take_id)
+                    continue
                 try:
                     # Only read frozen metadata, not media integrity or ancestry.
                     continuable_take.get_take(self.work, take_id)
@@ -376,8 +399,13 @@ class TimelineStore:
                 except ValueError as exc:
                     raise TimelineError(422, "Native Take metadata cannot be read") from exc
             assets = self._memberships(project)
-            assets['takes'] = list(dict.fromkeys(assets['takes'] + [p.take_id for p in edit.placements]))
-            if len(assets['takes']) > MAX_KNOWN_CLIPS:
+            from project_lifecycle import clear_exclusion
+            for placement in edit.placements:
+                group = 'jobs' if placement.source_kind == 'swap' else 'takes'
+                clear_exclusion(project, group, placement.take_id)
+                if placement.take_id not in assets[group]:
+                    assets[group].append(placement.take_id)
+            if any(len(values) > MAX_KNOWN_CLIPS for values in assets.values()):
                 raise TimelineError(422, 'This project resource list is full')
             project['assets'] = assets
             prior = project.get('native_workspace', {})
@@ -400,7 +428,9 @@ class TimelineStore:
                 project["title"] = edit.title
             return self._save_edit(project, native=True)
 
-    def _save_edit(self, project: dict, *, native: bool = False) -> dict:
+    def _save_edit(self, project: dict, *, native: bool = False, allow_archived: bool = False) -> dict:
+        if project.get('archived') and not allow_archived:
+            raise TimelineError(409, 'Restore this archived project before editing it.')
         project["revision"] += 1
         project["updated_at"] = time.time()
         atomic_json(self._path("projects", project["project_id"]), project)
@@ -542,7 +572,10 @@ class TimelineStore:
         assets, segments = {}, []
         for placement in placements:
             take_id = placement["take_id"]
-            if take_id not in assets:
+            key = placement_asset_key(placement)
+            if key not in assets and placement.get('source_kind', 'native') == 'swap':
+                assets[key] = freeze_swap_asset(self, take_id)
+            elif key not in assets:
                 family = self._native_family(take_id)
                 capsule = family.record.capsule_sha256
                 context = family.record.to_manifest()["family"]["context"]
@@ -555,9 +588,9 @@ class TimelineStore:
                 path = self.native_take_media(take_id, capsule)
                 if path != family.video or digest_file(path) != before:
                     raise TimelineError(409, "Native video changed during validation")
-                assets[take_id] = {**media, "sha256": before[0], "size_bytes": before[1],
-                                   "identity": list(before[2]), "capsule_sha256": capsule}
-            media = assets[take_id]
+                assets[key] = {**media, "sha256": before[0], "size_bytes": before[1],
+                               "identity": list(before[2]), "capsule_sha256": capsule}
+            media = assets[key]
             segments.append({**placement, "in_frame": 0, "out_frame": media["frames"],
                              **{k: media[k] for k in ("width", "height", "fps")}})
         rates = {a["fps_ratio"] for a in assets.values()}

@@ -181,8 +181,8 @@ def create_router(get_work_dir: Callable[[], Path], get_media_dir: Callable[[], 
         return invoke(store().rename, project_id, payload.revision, payload.title)
 
     @router.get("/projects")
-    def list_projects():
-        return {"projects": invoke(store().list_projects)}
+    def list_projects(archived: bool = False):
+        return {"projects": invoke(store().list_projects, archived=archived)}
 
     @router.post("/projects", status_code=201)
     def create_project(payload: CreateProject):
@@ -203,6 +203,18 @@ def create_router(get_work_dir: Callable[[], Path], get_media_dir: Callable[[], 
     @router.post('/projects/{project_id}/assets')
     def associate_project_asset(project_id: str, payload: AssociateAsset):
         return invoke(store().associate_asset, project_id, payload)
+
+    @router.post('/projects/{project_id}/assets/remove')
+    def remove_project_asset(project_id: str, payload: AssociateAsset):
+        return invoke(store().dissociate_asset, project_id, payload)
+
+    @router.post('/projects/{project_id}/archive')
+    def archive_project(project_id: str, payload: ExportProject):
+        return invoke(store().set_archived, project_id, payload.revision, True)
+
+    @router.post('/projects/{project_id}/restore')
+    def restore_project(project_id: str, payload: ExportProject):
+        return invoke(store().set_archived, project_id, payload.revision, False)
 
     @router.get("/projects/{project_id}/native-workspace")
     def get_native_workspace(project_id: str):

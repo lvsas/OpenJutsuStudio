@@ -9,11 +9,13 @@ import {parseProjectContext} from './project-context.js';
 import {mountNativeExport} from './native-sequence-export.js';
 import {positionLabel,positionsOf} from './sequence-positions.js';
 import {mountPositionGeneration} from './position-generation.js';
+import {mergeSequenceLibrary} from './sequence-library.js';
+import {isSwap,sourceId,sourceKind} from './sequence-sources.js';
 const byId = id => document.getElementById(id);
 const validId = id => typeof id === 'string' && /^[a-f0-9]{32}$/.test(id);
 const duration = createDurationPicker(byId('forward-length'), byId('forward-duration-hint'));
 let entries = [], active = null, epoch = 0, loading = false;
-let linkedTake=null,handoffStarted=false,nativeExport=null;
+let linkedTake=null,linkedKind='native',handoffStarted=false,nativeExport=null;
 const video = byId('native-video');
 const capsule = byId('native-capsule');
 function notice(message = '') {
@@ -32,7 +34,7 @@ let unconfirmed = false, referencesReady = false, selectedPosition = null;
 function updateComposer() {
   const locked=inFlight||unconfirmed||!sequence.editable();
   const open=byId('forward-open');
-  open.hidden=!!selectedPosition||!active|| (!!activePlacement&&!byId('forward-form').hidden);
+  open.hidden=!!selectedPosition||!active||isSwap(active)|| (!!activePlacement&&!byId('forward-form').hidden);
   byId('position-setup').disabled=locked;
   open.textContent=activePlacement?'Edit extension setup':'Add to sequence to extend';
   open.disabled=!active||locked;
@@ -57,7 +59,7 @@ function showPosition(position,draft=null,{focus=false}={}) {
   if(position) {
     byId('forward-form').hidden=true;
     const placements=sequence.state().placements;
-    const take=id=>takeLabel(entries.find(e=>e.take.take_id===placements.find(p=>p.placement_id===id)?.take_id));
+    const take=id=>{const p=placements.find(p=>p.placement_id===id);return takeLabel(entries.find(e=>sourceId(e)===p?.take_id&&sourceKind(e)===(p.source_kind||'native')));};
     byId('position-title').textContent=positionLabel(position);
     const anchors=position.mode==='root'?'Start from references. No video parent.'
       : position.mode==='prepend'?`Create footage leading into ${take(position.right)}.`
@@ -95,7 +97,7 @@ function showSelection(entry, placement, draft) {
   duration.reset(draft?.raw_frames ?? null);
   // Selecting a library preview must expose setup too. Placement and generation
   // stay separate explicit actions, rather than a hidden prerequisite.
-  byId('forward-form').hidden = !!selectedPosition || !entry;
+  byId('forward-form').hidden = !!selectedPosition || !entry || isSwap(entry);
   if (!entry) {
     ++epoch; active = null; video.pause(); video.removeAttribute('src'); video.load(); video.hidden = true;
     byId('native-empty').hidden = false;
@@ -106,6 +108,7 @@ function showSelection(entry, placement, draft) {
     byId('native-capsule-download').hidden = true;
     updateComposer();return;
   }
+  if(isSwap(entry)){showSwap(entry);updateComposer();return;}
   choose(entry);
   byId('composer-anchor').textContent = placement
     ? `Continue ${takeLabel(entry)} · original unchanged`
@@ -113,7 +116,7 @@ function showSelection(entry, placement, draft) {
   updateComposer();
 }
 async function inspect() {
-  if (!active || !capsule.open) return;
+  if (!active || isSwap(active) || !capsule.open) return;
   const token = epoch, entry = active;
   byId('native-capsule-json').textContent = 'Reading the public capsule…';
   try {
@@ -123,6 +126,29 @@ async function inspect() {
   } catch (error) {
     if (token === epoch && capsule.open) byId('native-capsule-json').textContent = error.message;
   }
+}
+function showSwap(entry) {
+  ++epoch;active=entry;notice();canExtend=false;referencesReady=false;duration.unavailable();
+  byId('forward-form').hidden=true;
+  byId('native-empty').hidden=true;video.hidden=false;video.pause();
+  video.dataset.takeId=sourceId(entry);video.src=entry.media_url;video.load();
+  byId('native-title').textContent=takeLabel(entry);
+  byId('native-title').title='Completed Swap result';
+  byId('native-geometry').textContent='Video only';
+  byId('native-state').textContent='No registered native saved state for this Swap.';
+  byId('native-lineage').textContent='No native parent available';
+  const recipe=byId('native-recipe');recipe.textContent='';
+  const link=document.createElement('a');
+  const studio=entry.job.engine==='minimax-h3'?'/h3':'/';
+  const context=new URLSearchParams({job_id:sourceId(entry)});
+  if(sequence.state().project_id)context.set('project_id',sequence.state().project_id);
+  link.href=studio+'?'+context;link.textContent='Open Swap and recipe in its studio';recipe.append(link);
+  byId('native-compatibility').textContent='This video can be arranged and exported, but cannot supply native continuation state.';
+  byId('native-status').textContent='Loading Swap preview…';
+  byId('native-readiness').textContent='Video only. Use New take for an independent generation; no saved state is invented.';
+  byId('composer-anchor').textContent='Preview or add this Swap to your sequence. Adding it starts no generation.';
+  byId('native-capsule-download').hidden=true;
+  capsule.open=false;byId('native-capsule-json').textContent='No registered native Take receipt. Its Swap recipe remains in the source studio.';
 }
 function choose(entry) {
   ++epoch; active = entry; notice();
@@ -158,13 +184,22 @@ function choose(entry) {
 }
 /* A studio link is an inspection request, never a placement or a computation. */
 function showLinkedNative(entry) {
-  sequence.preview(entry.take.take_id);linkedTake=entry.take.take_id;
+  sequence.preview(entry.take.take_id);linkedTake=entry.take.take_id;linkedKind='native';
   byId('native-handoff').hidden=false;
-  const existing=sequence.state().placements.filter(p=>p.take_id===linkedTake);
+  const existing=sequence.state().placements.filter(p=>p.take_id===linkedTake&&(p.source_kind||'native')===linkedKind);
   byId('native-handoff-message').textContent='Your Swap and its saved state are ready to inspect. Choose where it belongs; nothing has been added.';
   const add=byId('native-handoff-add');add.hidden=false;
   add.textContent=existing.length===1?'Open placement':existing.length>1?'Add another placement':'Add this take';
   byId('native-handoff-new').hidden=true;updateComposer();
+}
+function showLinkedVideo(entry) {
+  sequence.preview(sourceId(entry),'swap');linkedTake=sourceId(entry);linkedKind='swap';
+  byId('native-handoff').hidden=false;
+  byId('native-handoff-message').textContent='Your Swap is ready to preview. Add it explicitly to arrange and export; native continuation is unavailable for this video-only result.';
+  const existing=sequence.state().placements.filter(p=>p.take_id===linkedTake&&p.source_kind==='swap');
+  const add=byId('native-handoff-add');add.hidden=false;
+  add.textContent=existing.length===1?'Open placement':'Add this Swap';
+  byId('native-handoff-new').hidden=false;updateComposer();
 }
 async function openLinkedSwap(jobId) {
   const token=epoch,projectId=sequence.state().project_id;
@@ -172,7 +207,7 @@ async function openLinkedSwap(jobId) {
   const panel=byId('native-handoff'),choices=byId('native-handoff-choices');
   choices.replaceChildren();byId('native-handoff-add').hidden=true;byId('native-handoff-new').hidden=true;
   try {
-    const matches=entries.filter(entry=>entry.take.origin?.source_job===jobId);
+    const matches=entries.filter(entry=>entry.take&&(entry.take.origin?.source_job===jobId||entry.project_job_ids?.includes(jobId)));
     if(matches.length===1){showLinkedNative(matches[0]);return;}
     if(matches.length>1){
       // An origin can publish several families. Recency is not the creator's choice.
@@ -186,6 +221,8 @@ async function openLinkedSwap(jobId) {
       }
       return;
     }
+    const savedVideo=entries.find(entry=>isSwap(entry)&&sourceId(entry)===jobId);
+    if(savedVideo){showLinkedVideo(savedVideo);return;}
     const response=await fetch(`/api/jobs/${jobId}`,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(20000)});
     if(!current())return;
     if(!response.ok)throw new Error('This linked Swap is unavailable. Choose a saved take or start a New take; your project is unchanged.');
@@ -208,9 +245,9 @@ async function openLinkedSwap(jobId) {
 byId('native-handoff-add').addEventListener('click',async()=>{
   if(!linkedTake||!sequence.editable()||inFlight||unconfirmed)return;
   try {
-    const matches=sequence.state().placements.filter(p=>p.take_id===linkedTake);
+    const matches=sequence.state().placements.filter(p=>p.take_id===linkedTake&&(p.source_kind||'native')===linkedKind);
     if(matches.length===1)sequence.openPlacement(matches[0].placement_id);
-    else sequence.place(linkedTake);
+    else sequence.place(linkedTake,null,null,linkedKind);
     await sequence.flush();byId('native-handoff').hidden=true;linkedTake=null;
   }catch(error){notice(error.message);}
 });
@@ -232,7 +269,14 @@ async function refresh() {
           || entry.capsule_url !== `/api/continuity/takes/${id}/capsule`)
         throw new Error('The native take response was invalid.');
     }
-    entries = data.takes;
+    let library;
+    try {
+      library=await getJSON('/api/timeline/library');
+      if(!Array.isArray(library.jobs))throw new Error('Invalid Swap library response');
+    } catch {
+      library={jobs:[]};notice('Swap results could not be loaded. Native takes remain available; Refresh to retry.');
+    }
+    entries = mergeSequenceLibrary(data.takes,library.jobs);
     if (!initialized) { await sequence.init(entries); initialized = true; }
     else await sequence.refresh(entries);
     const context=sequence.editable()?parseProjectContext(location.search):{};
@@ -242,11 +286,11 @@ async function refresh() {
 }
 video.addEventListener('loadedmetadata', () => {
   if (active && video.readyState >= 1 && new URL(video.currentSrc,location.href).pathname === active.media_url)
-    byId('native-status').textContent = 'Recovered preview · native states stay attached to this take.';
+    byId('native-status').textContent = isSwap(active)?'Swap preview · video only; no native continuation is implied.':'Recovered preview · native states stay attached to this take.';
 });
 video.addEventListener('error', () => {
   if (active && video.getAttribute('src') === active.media_url)
-    byId('native-status').textContent = 'Preview unavailable. Refresh this take to retry; no raw native file is substituted.';
+    byId('native-status').textContent = 'Preview unavailable. Refresh to retry; the original files are unchanged.';
 });
 capsule.addEventListener('toggle', inspect);
 byId('native-refresh').addEventListener('click', refresh);
@@ -254,7 +298,7 @@ byId('native-refresh').addEventListener('click', refresh);
 /* Continuation: one decision, one button, nothing sent before it is asked for. */
 const forwardState = message => { byId('forward-state').textContent = message; };
 async function openForward() {
-  if(!active||inFlight||unconfirmed)return;
+  if(!active||isSwap(active)||inFlight||unconfirmed)return;
   try {
     if(!activePlacement) {
       const draft=draftFields();

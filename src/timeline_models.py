@@ -1,6 +1,6 @@
 """Bounded, path-free timeline API inputs (frame ranges are end-exclusive)."""
 from typing import Annotated, Literal
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator, model_serializer
 
 Identifier = Annotated[str, StringConstraints(strict=True, pattern=r"^[0-9a-f]{32}$")]
 Title = Annotated[str, StringConstraints(strict=True, strip_whitespace=True, min_length=1, max_length=160)]
@@ -77,7 +77,16 @@ class ExportProject(Payload):
 
 class NativePlacement(Payload):
     placement_id: Identifier
+    # A native capsule ID, or (only for source_kind='swap') an application job ID.
     take_id: Identifier
+    source_kind: Literal['native', 'swap'] = 'native'
+
+    @model_serializer(mode='wrap')
+    def serialize_source(self, handler):
+        value = handler(self)
+        if self.source_kind == 'native':
+            value.pop('source_kind', None)
+        return value
 
 
 class NativeDraft(Payload):

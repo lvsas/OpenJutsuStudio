@@ -17,6 +17,7 @@ import uuid
 from media_probe import probe_mp4
 from timeline_store import (MP4_INPUT, TimelineError, TimelineStore, atomic_json,
                             digest_file, identifier, read_json, check_revision)
+from timeline_swap_sources import placement_asset_key, swap_source
 
 MAX_INTERMEDIATE_BYTES = 4 * 1024**3
 
@@ -46,15 +47,18 @@ def render_snapshot(store: TimelineStore, snapshot: dict, output: Path, timeout:
     clips = snapshot["segments"] if native else snapshot["project"]["clips"]
     assets = snapshot["assets"]
 
-    def source_media(take_id):
-        return (store.native_take_media(take_id, assets[take_id]["capsule_sha256"])
-                if native else store.take_media(take_id))
+    def source_media(key):
+        take = assets[key]
+        if native and take.get('source_kind') == 'swap':
+            return swap_source(store, take['job_id'], take)[0]
+        return (store.native_take_media(key, take["capsule_sha256"])
+                if native else store.take_media(key))
     first = clips[0]
     # yuv420p requires even dimensions; round *up*, never crop an odd edge.
     width, height = (first["width"] + 1) // 2 * 2, (first["height"] + 1) // 2 * 2
     if width * height > 8_847_360:
         raise TimelineError(422, "Export canvas exceeds the supported pixel budget")
-    rate = Fraction(assets[first["take_id"]]["fps_ratio"])
+    rate = Fraction(assets[placement_asset_key(first)]["fps_ratio"])
     deadline = time.monotonic() + timeout
 
     def remaining():
@@ -68,8 +72,9 @@ def render_snapshot(store: TimelineStore, snapshot: dict, output: Path, timeout:
         total_bytes = 0
         entries = []
         for index, clip in enumerate(clips):
-            take = assets[clip["take_id"]]
-            path = source_media(clip["take_id"])
+            key = placement_asset_key(clip)
+            take = assets[key]
+            path = source_media(key)
             # A snapshot is authoritative even if someone changes a take manifest.
             before = digest_file(path)
             if before[0] != take["sha256"] or before[1] != take["size_bytes"] or list(before[2]) != take["identity"]:
@@ -121,7 +126,7 @@ def render_snapshot(store: TimelineStore, snapshot: dict, output: Path, timeout:
         for take_id, take in assets.items():
             path = source_media(take_id)
             actual = digest_file(path)
-            if actual[0] != take["sha256"] or list(actual[2]) != take["identity"]:
+            if actual[0] != take["sha256"] or actual[1] != take['size_bytes'] or list(actual[2]) != take["identity"]:
                 raise TimelineError(409, "Snapshot media changed while exporting")
         rendered.replace(output)
 

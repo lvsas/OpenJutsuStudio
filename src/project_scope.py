@@ -9,7 +9,9 @@ from timeline_store import identifier
 def validate_project(work, project_id) -> None:
     try:
         identifier(project_id)
-        TimelineStore(work, Path(work) / 'media', 1).get_assets(project_id)
+        project = TimelineStore(work, Path(work) / 'media', 1).get_assets(project_id)
+        if project.get('archived'):
+            raise HTTPException(409, 'Restore this archived project before generating.')
     except TimelineError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
     except OSError as exc:
@@ -27,6 +29,8 @@ def submission_project(project_id, media_dir) -> str:
         project = store.get_assets(project_id) if project_id is not None else store.draft(create=True)
         if project is None:
             raise HTTPException(503, 'Draft creation could not be confirmed')
+        if project.get('archived'):
+            raise HTTPException(409, 'Restore this archived project before generating.')
         return project['project_id']
     except TimelineError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc

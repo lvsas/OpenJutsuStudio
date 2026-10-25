@@ -1,0 +1,7 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Mixed sequence DOM contracts</title><body>
+<div id="harness"></div><pre id="results">Running…</pre>
+<script type="module">
+import {runMixedSequenceDOMTests} from './sequence_mixed_sources_dom.mjs';
+try {const passed=await runMixedSequenceDOMTests();window.contractResult={passed};document.getElementById('results').textContent=JSON.stringify(window.contractResult);}
+catch(error){window.contractResult={error:error.stack};document.getElementById('results').textContent=error.stack;}
+</script></body></html>

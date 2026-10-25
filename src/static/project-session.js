@@ -102,6 +102,10 @@
     bar.querySelector('[data-project-save]').hidden = Boolean(blocked);
     bar.querySelector('[data-project-save] summary').textContent = project && !project.is_draft ? 'Rename project' : 'Save project';
     bar.querySelector('[data-project-state]').textContent = blocked ? 'Project unavailable' : project?.is_draft || !project ? 'Draft' : 'Project';
+    const archive=bar.querySelector('[data-project-archive]');
+    archive.hidden=!project||project.is_draft||Boolean(blocked);
+    archive.textContent=project?.archived?'Restore project':'Archive project';
+    if(project?.archived)bar.querySelector('[data-project-state]').textContent='Archived project';
     const selected = [...bar.querySelector('.project-actions select').options].find(option => option.value === projectId);
     if (selected && project) selected.textContent = project.title;
   }
@@ -110,7 +114,7 @@
     bar = document.createElement('section'); bar.className = 'project-bar';
     bar.setAttribute('aria-label', 'Current creation');
     bar.innerHTML = '<span class="project-context-title"><small data-project-state>Draft</small><strong data-project-label>Draft · explore freely</strong></span>' +
-      '<details class="project-actions"><summary>Open project</summary><div class="project-menu"><label>Saved projects<select aria-label="Open project"><option value="">Choose a project…</option></select></label><button type="button" data-project-draft>Back to draft</button></div></details>' +
+      '<details class="project-actions"><summary>Open project</summary><div class="project-menu"><label>Saved projects<select aria-label="Open project"><option value="">Choose a project…</option></select></label><button type="button" data-project-draft>Back to draft</button><button type="button" data-project-archive hidden>Archive project</button><details data-archived-projects><summary>Archived projects</summary><ul data-archived-list></ul></details></div></details>' +
       '<details data-project-library><summary>Creations</summary><div class="project-library"><label>Show<select data-creation-scope aria-label="Creation library scope"><option value="project">This project</option><option value="common">Common library</option></select></label><p class="microcopy">Characters and Swap results. Preview or reuse explicitly; originals stay unchanged. Native takes are in Sequence’s take library.</p><ul data-creation-list></ul></div></details>' +
       '<details data-project-save><summary>Save project</summary><form class="project-name-form"><label>Name this creation<input name="title" maxlength="160" required placeholder="My next creation"></label><button type="submit">Save</button></form></details><p class="project-error" role="status" hidden></p>';
     document.querySelector('.site-header').after(bar); render();
@@ -168,7 +172,17 @@
               location.assign(path+'?project_id='+projectId+'&job_id='+row.job_id);
             } catch (error) { fail(error); button.disabled = false; }
           });
-          item.append(description,button); creationList.append(item);
+          item.append(description,button);
+          if(!common) {
+            const remove=document.createElement('button');remove.type='button';remove.className='btn btn-ghost';
+            remove.textContent='Remove from project';remove.title='Keep the original in the common library';
+            remove.addEventListener('click',async()=>{
+              remove.disabled=true;
+              try{await window.OpenGenjutsuProject.remove(row.engine==='flux3-klein-character'?'character':'job',row.job_id);await showCreations();}
+              catch(error){fail(error);remove.disabled=false;}
+            });item.append(remove);
+          }
+          creationList.append(item);
         }
         if (visible.length > libraryLimit) {
           const more = document.createElement('button'); more.type = 'button'; more.className = 'btn btn-ghost'; more.textContent = 'Show more creations';
@@ -185,6 +199,36 @@
     bar.querySelector('.project-actions select').addEventListener('change', event => {
       if (!valid(event.target.value)) return;
       go(event.target.value);
+    });
+    const archiveButton=bar.querySelector('[data-project-archive]');
+    archiveButton.addEventListener('click',async()=>{
+      if(!projectId)return;archiveButton.disabled=true;
+      try {
+        await window.OpenGenjutsuProject.beforeNavigate?.();
+        const owner=projectId,current=await api('/projects/'+owner);
+        if(owner!==projectId)throw new Error('The project changed. Reopen it before organizing.');
+        await api('/projects/'+owner+(current.archived?'/restore':'/archive'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:current.revision})});
+        if(current.archived){await read(owner,++epoch);location.reload();}
+        else {putStored(remembered,'');putStored('opengenjutsu.sequence.project','');await go(null);}
+      } catch(error){fail(error);archiveButton.disabled=false;}
+    });
+    const archivedDetails=bar.querySelector('[data-archived-projects]');
+    archivedDetails.addEventListener('toggle',async()=>{
+      if(!archivedDetails.open)return;
+      const list=bar.querySelector('[data-archived-list]');list.replaceChildren();
+      try {
+        const result=await api('/projects?archived=true');
+        for(const row of result.projects) {
+          const item=document.createElement('li'),label=document.createElement('span'),restore=document.createElement('button');
+          label.textContent=row.title;restore.type='button';restore.textContent='Restore';
+          restore.addEventListener('click',async()=>{
+            restore.disabled=true;
+            try {await window.OpenGenjutsuProject.beforeNavigate?.();await api('/projects/'+row.project_id+'/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:row.revision})});await go(row.project_id);}
+            catch(error){fail(error);restore.disabled=false;}
+          });item.append(label,restore);list.append(item);
+        }
+        if(!result.projects.length)list.textContent='No archived projects.';
+      }catch(error){fail(error);}
     });
     bar.querySelector('[data-project-draft]').addEventListener('click', async () => {
       try { await window.OpenGenjutsuProject.openDraft(); }
@@ -215,6 +259,18 @@
   }
   window.OpenGenjutsuProject = {
     ready, ensure, associate, recovery, acceptJob,
+    async remove(kind,id) {
+      if(!valid(id)||!['character','job','take'].includes(kind))throw new Error('Invalid project resource.');
+      await this.beforeNavigate?.();
+      const owner=projectId,token=epoch;
+      if(!owner)throw new Error('Open a project before removing a resource.');
+      const current=await api('/projects/'+owner+'/assets');
+      const result=await api('/projects/'+owner+'/assets/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:current.revision,kind,asset_id:id})});
+      if(token!==epoch||owner!==projectId)throw new Error('The project changed. The original removal was preserved.');
+      assets=result.assets;jobs=result.jobs;render();
+      window.dispatchEvent(new CustomEvent('opengenjutsu:project-assets'));
+      return result;
+    },
     async openDraft() {
       await ready.catch(() => {}); // This explicit action can recover an unavailable project.
       await window.OpenGenjutsuProject.beforeNavigate?.();

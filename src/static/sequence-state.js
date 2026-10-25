@@ -4,13 +4,14 @@ const assertId = id => { if (!ID.test(id || '')) throw new Error('Invalid take o
 export const defaultDraft = () => ({prompt:'',seed:'',raw_frames:277});
 export const emptyWorkspace = () => ({project_id:null,title:'Untitled sequence',revision:0,
   placements:[],selected_placement_id:null,drafts:{}});
-export function addPlacement(state, takeId, placementId, afterId = null) {
+export function addPlacement(state, takeId, placementId, afterId = null, sourceKind = 'native') {
   assertId(takeId); assertId(placementId);
+  if(!['native','swap'].includes(sourceKind))throw new Error('Invalid source kind.');
   if (state.placements.some(p=>p.placement_id===placementId)) throw new Error('Duplicate placement.');
   const placements=[...state.placements];
   const index=afterId ? placements.findIndex(p=>p.placement_id===afterId) : placements.length-1;
   if(afterId && index<0) throw new Error('The starting placement is no longer here.');
-  placements.splice(index+1,0,{placement_id:placementId,take_id:takeId});
+  placements.splice(index+1,0,{placement_id:placementId,take_id:takeId,...(sourceKind==='swap'?{source_kind:'swap'}:{})});
   return {...state,placements,selected_placement_id:placementId,
     drafts:{...state.drafts,[placementId]:defaultDraft()}};
 }

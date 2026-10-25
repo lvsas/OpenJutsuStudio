@@ -7,6 +7,8 @@ This project rebuilds it in the open, on top of open-weight models.
 
 Built for the **Open Source Higgsfield Competition** (ComfyUI · NVIDIA · Runpod).
 
+**Projects:** the project picker chooses where new attempts are filed; it never adds them to the chosen sequence. Timeline lists both completed Swaps and native takes, with video-only capabilities labeled explicitly. Add/Keep is deliberate. Remove a placement from the sequence, or remove the resource from the project while retaining it in the common library. Used resources must be unplaced first. **Open project → Archive project** hides a named project without deleting its media; **Archived projects → Restore** brings it back. Restore before generating or editing an archive.
+
 **For developers:** start with [Contributing](CONTRIBUTING.md) for setup, GPU-free tests,
 module boundaries and review requirements. The [Timeline editor guide](docs/architecture/timeline-editor.md)
 describes media editing/export; the separate [H3 artifact integrity contract](docs/architecture/timeline-artifacts.md)

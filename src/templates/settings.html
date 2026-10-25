@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en" data-engine="settings">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101014">
+  <title>Compute setup — OpenGenjutsu</title>
+  <link rel="stylesheet" href="/static/design-system.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/settings.css">
+  <script src="/static/settings.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="wordmark" href="/" aria-label="OpenGenjutsu home">OPEN<span>GENJUTSU</span></a>
+    <nav class="engine-switch" aria-label="Creative workspace">
+      <span class="nav-capsule"><a class="engine-chip" href="/characters">Characters</a></span>
+      <span class="nav-capsule" role="group" aria-label="Studio engines">
+        <a class="engine-chip" href="/">LTX <span>Studio</span></a>
+        <a class="engine-chip" href="/h3">H3 <span>Studio</span></a>
+      </span>
+      <span class="nav-capsule"><a class="engine-chip" href="/timeline">Timeline</a></span>
+    </nav>
+    <div class="header-utilities">
+      <span class="badge">Shared compute</span>
+      <a class="settings-utility" href="/settings" aria-label="Settings" title="Settings" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M22.00,12.00 L21.81,13.95 L19.11,14.95 L18.40,16.28 L19.07,19.07 L17.56,20.31 L14.95,19.11 L13.50,19.55 L12.00,22.00 L10.05,21.81 L9.05,19.11 L7.72,18.40 L4.93,19.07 L3.69,17.56 L4.89,14.95 L4.45,13.50 L2.00,12.00 L2.19,10.05 L4.89,9.05 L5.60,7.72 L4.93,4.93 L6.44,3.69 L9.05,4.89 L10.50,4.45 L12.00,2.00 L13.95,2.19 L14.95,4.89 L16.28,5.60 L19.07,4.93 L20.31,6.44 L19.11,9.05 L19.55,10.50 Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+    </div>
+  </header>
+  <main class="settings-shell">
+    <section class="settings-intro" aria-labelledby="settings-title">
+      <p class="eyebrow">Settings · shared across studios</p>
+      <h1 id="settings-title">Compute setup</h1>
+      <p>Choose the API v2 target used by your studios. Test connection and Save settings are separate actions.</p>
+    </section>
+    <div class="settings-grid">
+      <section class="settings-card" aria-labelledby="connection-title">
+        <h2 id="connection-title">Connection</h2>
+        <p id="settings-source" class="settings-help">Loading saved configuration…</p>
+        <form id="settings-form" autocomplete="off" aria-busy="false">
+          <div>
+            <label class="field-label" for="compute-url">API v2 URL</label>
+            <input id="compute-url" class="text-input" type="url" required spellcheck="false" autocapitalize="none" autocomplete="off" aria-describedby="url-help">
+            <p id="url-help" class="settings-help">Use the API v2 base URL, not a raw ComfyUI address. A different URL never inherits the previous target’s key.</p>
+          </div>
+          <div>
+            <label class="field-label" for="compute-key">API key</label>
+            <input id="compute-key" class="text-input" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="none" aria-describedby="key-status key-help">
+            <p id="key-status" class="settings-help">Checking whether a key is configured…</p>
+            <p id="key-help" class="settings-help">Write-only: your saved key is never displayed. A blank field keeps it only for an unchanged URL.</p>
+          </div>
+          <label class="settings-checkbox" for="clear-key"><input id="clear-key" type="checkbox"> <span>Remove saved key</span></label>
+          <p class="settings-help">Removal takes priority over a replacement key. Test checks these proposed settings without saving them; Save applies the removal.</p>
+          <div class="settings-actions">
+            <button id="test-connection" class="btn btn-secondary" type="button" disabled>Test connection</button>
+            <button id="save-settings" class="btn btn-primary" type="submit" disabled>Save settings</button>
+          </div>
+          <p id="settings-status" class="settings-message" role="status" aria-live="polite">Loading settings…</p>
+        </form>
+      </section>
+      <aside class="settings-card settings-guide" aria-labelledby="target-title">
+        <p class="eyebrow">Before you connect</p>
+        <h2 id="target-title">Use an API v2 endpoint</h2>
+        <p><strong>Local or self-hosted ComfyUI</strong> needs the official <code>comfy-api-proxy</code>. A raw ComfyUI server is not an API v2 target.</p>
+        <p><strong>API-v2 Cloud or deployment</strong> endpoints can be used directly. Use the base URL and authentication supplied for that endpoint.</p>
+        <a href="https://docs.comfy.org/development/api-development/sdks" target="_blank" rel="noopener noreferrer">Official API and SDK documentation ↗</a>
+        <hr>
+        <p>Test connection is read-only. It checks connectivity, required nodes and models; it never saves settings, uploads media or submits generation.</p>
+        <p>Save activates settings only when safe. If processing is in flight or the revision conflicts, your edits stay here. No automatic retry or overwrite.</p>
+      </aside>
+    </div>
+    <section class="settings-card settings-diagnostics" aria-labelledby="diagnostics-title">
+      <h2 id="diagnostics-title">Connection diagnostics</h2>
+      <p id="test-status" class="settings-message" role="status" aria-live="polite">Not tested. Opening this page does not contact your compute target.</p>
+      <div id="test-results" hidden></div>
+      <p class="settings-help">Node and model diagnostics are read-only. Match the required model filenames on your ComfyUI target, then test again. This page does not install or rename files.</p>
+    </section>
+    <noscript><p class="settings-message">JavaScript is required to load, test and save compute settings. No settings have been changed.</p></noscript>
+  </main>
+</body>
+</html>

@@ -40,6 +40,11 @@ def self_hosted_response(url, info, queue=None):
 
 class ReadinessTests(unittest.TestCase):
     def setUp(self):
+        import config
+        isolated = tempfile.TemporaryDirectory()
+        self.addCleanup(isolated.cleanup)
+        settings = patch.object(config, 'WORK', Path(isolated.name))
+        settings.start(); self.addCleanup(settings.stop)
         with readiness._OBJECT_INFO_LOCK:
             readiness._OBJECT_INFO_CACHE.clear()
 

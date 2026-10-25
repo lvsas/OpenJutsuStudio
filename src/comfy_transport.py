@@ -13,8 +13,11 @@ from config import WORK, comfy_base_url
 def make_client():
     """Use the same documented SDK base URL for assets, jobs and downloads."""
     from comfy_sdk import Comfy
-    comfy_base_url()
-    return Comfy()
+    import config
+    from compute_settings import sdk_environment
+    target = config.compute_target()
+    with sdk_environment(target):
+        return Comfy(api_key=target.api_key or None)
 
 
 def _run_graph(client, graph: dict, output_node: str, on_progress: Callable | None = None):

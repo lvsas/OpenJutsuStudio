@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="/static/studio-wip.css">
   <link rel="stylesheet" href="/static/project-session.css">
   <script src="/static/project-session.js"></script>
+  <link rel="stylesheet" href="/static/settings.css">
+  <script src="/static/settings.js" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -26,7 +28,10 @@
         <a class="engine-chip" href="/timeline">Timeline</a>
       </span>
     </nav>
-    <div id="readiness" class="badge" role="status" aria-live="polite">Checking local studio…</div>
+    <div class="header-utilities">
+      <div id="readiness" class="badge" role="status" aria-live="polite">Checking local studio…</div>
+      <a class="settings-utility" href="/settings" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M22.00,12.00 L21.81,13.95 L19.11,14.95 L18.40,16.28 L19.07,19.07 L17.56,20.31 L14.95,19.11 L13.50,19.55 L12.00,22.00 L10.05,21.81 L9.05,19.11 L7.72,18.40 L4.93,19.07 L3.69,17.56 L4.89,14.95 L4.45,13.50 L2.00,12.00 L2.19,10.05 L4.89,9.05 L5.60,7.72 L4.93,4.93 L6.44,3.69 L9.05,4.89 L10.50,4.45 L12.00,2.00 L13.95,2.19 L14.95,4.89 L16.28,5.60 L19.07,4.93 L20.31,6.44 L19.11,9.05 L19.55,10.50 Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+    </div>
   </header>
 
   <aside class="studio-wip" aria-label="Development status"><strong>Work in progress</strong><span>Character creation, your saved library and studio handoffs are being refined.</span></aside>

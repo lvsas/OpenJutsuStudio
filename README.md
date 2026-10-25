@@ -190,7 +190,7 @@ bash scripts/run_app.sh
 
 Open `http://127.0.0.1:8000`. Both services bind to loopback only. The launcher requires Python 3.12 and clears inherited `PYTHONPATH`.
 
-`OPENGENJUTSU_COMFY_BASE_URL` is the **only** application target override. The default is the loopback self-hosted SDK proxy; an inherited `COMFY_BASE_URL` is deliberately overwritten to prevent accidental remote inference. Explicit Cloud/deployment targets require `COMFY_API_KEY` in the app process environment. Remote readiness branches are tested locally, not evidence of a live Cloud render. See the [local setup guide](docs/local-setup.md).
+Open **Settings** (`/settings`) to configure the shared API-v2 target and a write-only API key, explicitly test connectivity, and save when no processing is in flight. Saved settings take precedence; otherwise `OPENGENJUTSU_COMFY_BASE_URL` and `COMFY_API_KEY` bootstrap the app, with a local proxy default. Ambient SDK targets never silently select Cloud. The SDK environment is scoped to client construction, then restored. Test and Save do not submit generation. Remote connection success is distinct from verified node/model inventory and a real Cloud render. See the [setup guide](docs/local-setup.md).
 
 
 ---
@@ -313,7 +313,7 @@ scripts/
 
 **Pipeline**: `detect_scenes()` → `edit_segment()` per shot → `merge_segments()` → `upscale_video()`
 
-The launcher always ignores inherited `COMFY_BASE_URL`; the SDK target is local by default and may be changed only with the explicit `OPENGENJUTSU_COMFY_BASE_URL` setting for an explicitly selected Comfy target. This prevents an accidental ambient Cloud target from becoming an inference dependency.
+The application ignores inherited `COMFY_BASE_URL`. Its default is local; change the target explicitly in Settings or bootstrap it with `OPENGENJUTSU_COMFY_BASE_URL`. Credentials stay server-side in the private ignored settings store, never in a capsule or a browser-readable configuration response.
 
 The app has target-aware readiness for a local proxy, remote self-hosted proxy, Comfy Cloud and API v2 deployments. **Only the self-hosted path has live render evidence**; Cloud/deployment authentication branches have tests, but required nodes/models and real rendering must still be validated on the selected target. Queueing behind an existing Comfy job is allowed with an on-screen waiting notice. No specific server cache setting is required.
 

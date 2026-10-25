@@ -31,14 +31,15 @@ def workflow_node_types() -> list[str]:
 def declared_runtime_inventory() -> dict[str, Any]:
     """Return declarations, not a claim that every model file is present or eligible."""
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "engine": "ltx25-ripple",
         "inference": {
-            "mode": "self-hosted-only",
-            "transport": "comfy-sdk to Comfy API Proxy",
+            "mode": "configurable-api-v2",
+            "transport": "official comfy-sdk to Comfy API v2",
             "default_proxy": config.LOCAL_COMFY_PROXY_URL,
-            "target_selection": "OPENGENJUTSU_COMFY_BASE_URL only; inherited COMFY_BASE_URL is ignored",
-            "hosted_inference_supported": False,
+            "target_selection": "Settings first, otherwise OPENGENJUTSU_COMFY_BASE_URL or the local default; ambient COMFY_BASE_URL is ignored",
+            "supported_target_modes": ["self-hosted", "remote-self-hosted", "comfy-cloud", "comfy-api-deployment"],
+            "hosted_render_verified": False,
         },
         "declared_model_files": MODEL_FILES,
         "declared_workflow_nodes": workflow_node_types(),

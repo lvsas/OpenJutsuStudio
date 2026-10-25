@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import sys
 import unittest
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from continuity_requests import ForwardRequest, PreparedH3Request
@@ -53,6 +53,24 @@ class PreparedPromptTests(unittest.TestCase):
         self.assertEqual(submit.call_args.args[2].prompt, text)
         self.assertEqual(submit.call_args.args[2].seed, 7)
         client.submit.assert_not_called()
+
+    def test_forward_resolves_target_identity_for_each_new_run(self):
+        import continuity_forward_api as forward
+        client = MagicMock()
+        target = {'value': 'first-target'}
+        request = ForwardRequest(**self.fields('Keep the motion'))
+        with patch.object(forward, 'parent_references', return_value=[Path('/synthetic-reference.png')]), \
+             patch.object(forward, 'refine_prompt', return_value='Prepared direction'), \
+             patch.object(forward, 'submit_forward', return_value={'status': 'done'}) as submit:
+            runner = forward.make_forward_runner(client_factory=lambda: client,
+                models_factory=lambda: MODELS, fingerprint=lambda: target['value'],
+                work_root=Path('/synthetic-work'), preflight=lambda *a, **k: None)
+            runner('/synthetic-work', 'a'*32, request)
+            self.assertEqual(submit.call_args.kwargs['target_fingerprint'], 'first-target')
+            target['value'] = 'second-target'
+            runner('/synthetic-work', 'a'*32, request)
+            self.assertEqual(submit.call_args.kwargs['target_fingerprint'], 'second-target')
+        client.run.assert_not_called()
 
     def test_public_attempt_errors_do_not_leak_legacy_generated_text_or_credentials(self):
         secret = 'PRIVATE_GENERATED_PROMPT https://unit.invalid/?token=PRIVATE_TOKEN'

@@ -117,11 +117,9 @@ In terminal B, from the same checkout:
 bash scripts/run_app.sh
 ```
 
-The launcher always uses `http://127.0.0.1:8189` unless
-`OPENGENJUTSU_COMFY_BASE_URL` is set explicitly for another trusted,
-self-hosted Comfy API Proxy. It deliberately ignores inherited `COMFY_BASE_URL`
-values so an interactive shell configured for Comfy Cloud cannot silently send a
-local job to Cloud. The app binds to `127.0.0.1:8000`. Override the app port if necessary:
+Before any saved configuration, the app uses `http://127.0.0.1:8189` unless
+`OPENGENJUTSU_COMFY_BASE_URL` selects another API-v2 endpoint. Saved Settings take
+precedence. Ambient `COMFY_BASE_URL` cannot silently select a Cloud target. The app binds to `127.0.0.1:8000`. Override the app port if necessary:
 
 ```bash
 OPENGENJUTSU_PORT=8001 bash scripts/run_app.sh
@@ -136,8 +134,26 @@ not automatically loaded by these shell scripts. Never commit credentials:
 | Setting | Meaning | Local default |
 | --- | --- | --- |
 | `COMFYUI_URL` | Upstream passed to proxy `--comfyui` | `http://127.0.0.1:8188` in the example |
-| `OPENGENJUTSU_COMFY_BASE_URL` | Explicit app SDK proxy override (self-hosted only) | `http://127.0.0.1:8189` |
+| `OPENGENJUTSU_COMFY_BASE_URL` | Bootstrap API-v2 target when no Settings are saved | `http://127.0.0.1:8189` |
 | `OPENGENJUTSU_PORT` | App HTTP listen port | `8000` |
+
+### Configure in the app
+
+Open **Settings** in the shared header, or `/settings`. Enter the API-v2 URL and,
+if required, its API key. The saved key is never read back into the browser; blank
+keeps it only for an unchanged URL. Selecting a different URL does not forward the
+old credential. **Test connection** checks the proposed target without saving,
+uploading or generating. **Save settings** activates the configuration without a
+restart, but refuses while submissions, queued workers or native work are active.
+Revision conflicts keep your draft; no request is retried automatically.
+
+The private `work/settings/compute.json` is excluded from Git, mode0600 inside a
+0700 directory. Protect/back up it as server configuration, not a shareable asset.
+Opening Settings only reads this configuration. Local/Cloud inventory checks can
+list missing nodes/models; remote API-v2 connection with unavailable inventory is
+reported **unknown**, not falsely ready or missing. Install the required files on
+the actual ComfyUI host. Model binding editing and live Cloud acceptance remain
+separate gates; no automatic model/node download or paid render occurs here.
 
 ## 5. Verify without submitting a render
 

@@ -74,7 +74,7 @@
         studio.clipLimit = report.limits?.max_clip_seconds;
         window.OpenGenjutsuClip?.setLimit(studio.clipLimit);
         indicator.classList.toggle('live', ready);
-        indicator.textContent = ready ? 'Studio ready' : (report.issues || ['Studio unavailable']).join(' ');
+        indicator.textContent = ready ? (report.inventory_verified === false ? 'Connected · dependencies unchecked' : 'Studio ready') : (report.issues || ['Studio unavailable']).join(' ');
         notices.textContent = (report.warnings || []).join(' ');
         notices.hidden = !notices.textContent;
       } catch {

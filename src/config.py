@@ -11,19 +11,19 @@ WORK.mkdir(parents=True, exist_ok=True)
 LOCAL_COMFY_PROXY_URL = "http://127.0.0.1:8189"
 
 
+def compute_target():
+    """Saved explicit settings win; otherwise use the app override/local default."""
+    from compute_settings import Store
+    return Store(WORK).current()
+
+
 def comfy_base_url() -> str:
-    """Set the SDK target from an explicit self-hosted app override only.
-
-    `COMFY_BASE_URL` is the SDK's variable and may be inherited from another
-    application. OpenGenjutsu deliberately ignores it as an input so an app
-    launched directly cannot silently switch to a hosted inference service.
-    """
-    value = os.environ.get("OPENGENJUTSU_COMFY_BASE_URL", "").strip() or LOCAL_COMFY_PROXY_URL
-    os.environ["COMFY_BASE_URL"] = value
-    return value
+    """Resolve without mutating the SDK environment or trusting an ambient target."""
+    return compute_target().base_url
 
 
-COMFY_BASE_URL = comfy_base_url()
+# Legacy declared default; actual clients resolve a fresh, explicit target.
+COMFY_BASE_URL = LOCAL_COMFY_PROXY_URL
 
 # model files (see README > Models)
 F_UNET_KLEIN = "flux-2-klein-9b-fp8.safetensors"

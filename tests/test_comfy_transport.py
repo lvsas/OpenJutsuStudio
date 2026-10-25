@@ -11,6 +11,13 @@ import comfy_transport as transport
 
 
 class ComfyTargetTests(unittest.TestCase):
+    def setUp(self):
+        import config
+        isolated = tempfile.TemporaryDirectory()
+        self.addCleanup(isolated.cleanup)
+        settings = patch.object(config, 'WORK', Path(isolated.name))
+        settings.start(); self.addCleanup(settings.stop)
+
     def test_no_environment_targets_local_without_key(self):
         with patch.dict(os.environ, {}, clear=True):
             client = transport.make_client()

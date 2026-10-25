@@ -116,7 +116,7 @@ def make_forward_runner(*, client_factory, models_factory, fingerprint, work_roo
         request = PreparedH3Request.model_validate(request.model_dump() | {'prompt': refined})
         return submit_forward(work, take_id, request, client=client,
                               models=models, references=references,
-                              target_fingerprint=fingerprint, work_root=work_root,
+                              target_fingerprint=fingerprint() if callable(fingerprint) else fingerprint, work_root=work_root,
                               reference_paths=paths)
     return run
 

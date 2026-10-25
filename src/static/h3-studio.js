@@ -54,7 +54,7 @@ async function checkReadiness() {
     ready = report.ready === true;
     clip.setLimit(report.limits?.max_clip_seconds);
     badge.classList.toggle('live', ready);
-    badge.textContent = ready ? 'Studio ready' : (report.issues || ['Studio unavailable']).join(' ');
+    badge.textContent = ready ? (report.inventory_verified === false ? 'Connected · dependencies unchecked' : 'Studio ready') : (report.issues || ['Studio unavailable']).join(' ');
     notes.textContent = (report.warnings || []).join(' ');
     notes.hidden = !notes.textContent;
   } catch (error) {

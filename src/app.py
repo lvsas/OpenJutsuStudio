@@ -6,7 +6,6 @@ import asyncio
 import os
 import re
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
 import core
+from compute_activity import Activity, ActivityMiddleware, LeasedExecutor
 from api_schema import _public_job, _target_size
 from readiness import check_readiness
 from source_clip import MAX_CLIP_SECONDS
@@ -74,7 +74,12 @@ async def revalidate_local_assets(request: Request, call_next):
 MAX_UPLOAD_BYTES = int(os.getenv("OPENGENJUTSU_MAX_UPLOAD_BYTES", str(500 * 1024 * 1024)))
 MEDIA_DIR = core.WORK / "media"
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
-_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="opengenjutsu")
+_COMPUTE_ACTIVITY = Activity()
+app.add_middleware(ActivityMiddleware, activity=_COMPUTE_ACTIVITY)
+_EXECUTOR = LeasedExecutor(max_workers=1, thread_name_prefix="opengenjutsu", activity=_COMPUTE_ACTIVITY)
+from compute_probe import diagnose_target
+from compute_settings_api import create_router as create_settings_router
+app.include_router(create_settings_router(lambda: core.WORK, _COMPUTE_ACTIVITY, diagnose_target))
 PIPELINE_RUNNER = core.run_pipeline
 _REEL_SERVICE = ReelService(lambda: MEDIA_DIR)
 app.include_router(create_share_reel_router(_REEL_SERVICE))
@@ -180,6 +185,14 @@ def _create_anchored_attempt(root, **intent):
 
 
 _HUNT_WORKER = Worker(_HUNT_ROOT, refine=_hunt_refine, submit=_hunt_submit)
+
+
+def _native_compute_busy():
+    with _HUNT_WORKER._lock:
+        return bool(_HUNT_WORKER._active)
+
+
+_COMPUTE_ACTIVITY.extra_busy = _native_compute_busy
 app.include_router(create_attempt_router(
     lambda: _HUNT_ROOT, worker=_HUNT_WORKER, create=_create_anchored_attempt,
     precheck=lambda take_id, raw: precheck_request(core.WORK, take_id, raw),
@@ -193,7 +206,7 @@ app.include_router(create_forward_router(
     lambda: core.WORK,
     runner=make_forward_runner(
         client_factory=make_client, models_factory=_continuity_models,
-        fingerprint=target_fingerprint(comfy_base_url(), H3Models()),
+        fingerprint=lambda: target_fingerprint(comfy_base_url(), H3Models()),
         work_root=Path(core.WORK) / 'native-operations')))
 
 

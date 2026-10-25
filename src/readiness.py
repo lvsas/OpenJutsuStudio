@@ -6,10 +6,12 @@ import shutil
 import socket
 import threading
 import time
+from contextvars import ContextVar
 from urllib.parse import urlsplit, quote
-from urllib.request import Request, urlopen
+from urllib.request import Request, urlopen, HTTPRedirectHandler, build_opener
 from comfy_schema import autogrow_member_spec
-from config import LOCAL_COMFY_PROXY_URL, comfy_base_url
+from config import LOCAL_COMFY_PROXY_URL, comfy_base_url, compute_target
+from compute_settings import CONFIG_LOCK
 from graphs import build_frame_edit, build_ripple
 
 _LOG = logging.getLogger(__name__)
@@ -18,11 +20,24 @@ CAPABILITY_TIMEOUT_SECONDS = 15
 OBJECT_INFO_CACHE_TTL_SECONDS = 15
 _OBJECT_INFO_CACHE = {}
 _OBJECT_INFO_LOCK = threading.Lock()
+_READ_DEADLINE = ContextVar("compute_probe_deadline", default=None)
+
+
+class _NoCredentialRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 
 def _json_get(url, headers=None, timeout=READINESS_HTTP_TIMEOUT_SECONDS):
+    deadline = _READ_DEADLINE.get()
+    if deadline is not None:
+        remaining = deadline-time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError('Connection diagnostic deadline reached')
+        timeout = min(timeout, remaining)
     request_headers = {"Accept": "application/json", **(headers or {})}
-    with urlopen(Request(url, headers=request_headers), timeout=timeout) as response:
+    open_request = build_opener(_NoCredentialRedirect()).open if headers else urlopen
+    with open_request(Request(url, headers=request_headers), timeout=timeout) as response:
         return json.load(response)
 
 
@@ -122,9 +137,16 @@ def _probe_v2_jobs(base, api_key):
         raise ValueError("Expected Comfy API v2 job listing")
 
 
-def _target_object_info(required_graph=None):
+def _connection(target=None):
+    if target is not None:
+        return _valid_url(target.base_url), target.api_key
+    with CONFIG_LOCK:
+        return _valid_url(comfy_base_url()), compute_target().api_key
+
+
+def _target_object_info(required_graph=None, *, target=None):
     """Inventory of the configured target, or raise when it cannot be inspected."""
-    base = _valid_url(comfy_base_url())
+    base, api_key = _connection(target)
     mode = _target_mode(base)
     if mode == 'self-hosted':
         health = _json_get(base + "/api/v2/health")
@@ -133,7 +155,6 @@ def _target_object_info(required_graph=None):
         upstream = _valid_url(health['upstream'])
         return _graph_object_info(upstream, required_graph)
     if mode == 'comfy-cloud':
-        api_key = os.environ.get("COMFY_API_KEY", "").strip()
         if not api_key:
             raise ValueError("Set COMFY_API_KEY in the app process environment for this authenticated Comfy target.")
         return _object_info(base + "/api/object_info", {"X-API-Key": api_key})
@@ -152,16 +173,16 @@ def missing_dependencies(required_graph):
     return _inventory(_target_object_info(required_graph), required_graph)
 
 
-def check_readiness(required_graph=None):
+def check_readiness(required_graph=None, *, target=None):
     """Check the configured Comfy target without leaking its URL or credentials."""
     issues, warnings = [], []
     report = {"ready": False, "mode": "unknown", "issues": issues,
-              "warnings": warnings, "missing_nodes": [], "missing_models": []}
+              "warnings": warnings, "missing_nodes": [], "missing_models": [], "inventory_verified": False}
     for command in ("ffmpeg", "ffprobe"):
         if not shutil.which(command):
             issues.append(f"Install {command} and make it available on PATH.")
     try:
-        base = _valid_url(comfy_base_url())
+        base, api_key = _connection(target)
         mode = _target_mode(base)
         report["mode"] = mode
         if mode == "self-hosted":
@@ -174,32 +195,29 @@ def check_readiness(required_graph=None):
                 if queue.get("queue_running") or queue.get("queue_pending"):
                     warnings.append("ComfyUI is busy. Your workflow can join its queue and will run after earlier jobs; waiting time is not inference time.")
                 nodes, models = _inventory(_graph_object_info(upstream, required_graph), required_graph)
-                report.update(missing_nodes=nodes, missing_models=models)
+                report.update(missing_nodes=nodes, missing_models=models, inventory_verified=True)
                 if nodes:
                     issues.append("Install missing ComfyUI nodes: " + ", ".join(nodes))
                 if models:
                     issues.append("Install the required models under their license terms: " + ", ".join(models))
         elif mode == "comfy-cloud":
-            api_key = os.environ.get("COMFY_API_KEY", "").strip()
             if not api_key:
                 issues.append("Set COMFY_API_KEY in the app process environment for this authenticated Comfy target; never put the key in the URL or repository.")
             else:
                 info = _object_info(base + "/api/object_info", {"X-API-Key": api_key})
                 nodes, models = _inventory(info, required_graph)
-                report.update(missing_nodes=nodes, missing_models=models)
+                report.update(missing_nodes=nodes, missing_models=models, inventory_verified=True)
                 if nodes:
                     issues.append("The selected Comfy target is missing required nodes: " + ", ".join(nodes))
                 if models:
                     issues.append("The selected Comfy target is missing required models: " + ", ".join(models))
         elif mode == "comfy-api-deployment":
-            api_key = os.environ.get("COMFY_API_KEY", "").strip()
             if not api_key:
                 issues.append("Set COMFY_API_KEY in the app process environment for this authenticated Comfy target.")
             else:
                 _probe_v2_jobs(base, api_key)
                 warnings.append("Deployment API v2 credentials are accepted. Upstream availability and node/model inventory are not fully verified; workflow submission remains the execution check.")
         else:
-            api_key = os.environ.get("COMFY_API_KEY", "").strip()
             headers = {"Authorization": f"Bearer {api_key}"} if api_key else None
             health = _json_get(base + "/api/v2/health", headers=headers)
             if health.get("status") != "healthy" or not health.get("upstream"):

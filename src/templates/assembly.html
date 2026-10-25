@@ -9,6 +9,8 @@
   <link rel="stylesheet" href="/static/design-system.css">
   <link rel="stylesheet" href="/static/app.css">
   <link rel="stylesheet" href="/static/timeline.css">
+  <link rel="stylesheet" href="/static/settings.css">
+  <script src="/static/settings.js" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -25,7 +27,10 @@
         <a class="engine-chip active" href="/timeline" aria-current="page">Timeline</a>
       </span>
     </nav>
-    <span class="badge">Saved cuts · compatibility</span>
+    <div class="header-utilities">
+      <span class="badge">Saved cuts · compatibility</span>
+      <a class="settings-utility" href="/settings" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M22.00,12.00 L21.81,13.95 L19.11,14.95 L18.40,16.28 L19.07,19.07 L17.56,20.31 L14.95,19.11 L13.50,19.55 L12.00,22.00 L10.05,21.81 L9.05,19.11 L7.72,18.40 L4.93,19.07 L3.69,17.56 L4.89,14.95 L4.45,13.50 L2.00,12.00 L2.19,10.05 L4.89,9.05 L5.60,7.72 L4.93,4.93 L6.44,3.69 L9.05,4.89 L10.50,4.45 L12.00,2.00 L13.95,2.19 L14.95,4.89 L16.28,5.60 L19.07,4.93 L20.31,6.44 L19.11,9.05 L19.55,10.50 Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+    </div>
   </header>
   <main class="timeline-shell">
     <span id="save-status" class="badge" role="status" aria-live="polite">Local assembly workspace</span>

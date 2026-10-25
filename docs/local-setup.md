@@ -75,6 +75,46 @@ its shared target. Keep the old environment until the new one is validated.
 `.gitignore` excludes `.venv` as either a directory or symlink, but cannot untrack
 an entry already in Git's index; that must be handled separately by maintainers.
 
+### Prepare fixed Swap weights
+
+Run the model installer **on the ComfyUI executor host**, from this checkout,
+after creating a ComfyUI installation with an existing `models/` directory:
+
+```bash
+# Read-only plan; --engine ltx includes its FLUX first-frame editor.
+env -u PYTHONPATH .venv/bin/python scripts/download_models.py --comfyui /path/to/ComfyUI --engine all --dry-run
+# Explicitly authorize downloads for just H3 (or choose ltx/all):
+env -u PYTHONPATH .venv/bin/python scripts/download_models.py --comfyui /path/to/ComfyUI --engine h3 --download
+```
+
+Without `--download`, this only reads the local manifest. An incomplete manifest
+fails instead of pretending to install a partial engine. The 15 fixed file roles
+are mapped to exact loader filenames in `dependencies.json`, with pinned upstream
+revision, size and published LFS SHA-256. No alternative precision/model is chosen.
+The current complete set declares 102,968,476,145 bytes before vision models,
+Characters, native continuity, Python/GPU environments or caches; plan disk space
+on the executor, not the app host. Nothing downloads on app startup/navigation.
+
+The FLUX Klein diffusion source requires upstream authorized access. Acquire that
+exact pinned file with your own authorized account and put it at the planned
+path before LTX/all installation. This CLI does not take credentials or accept
+agreements for you; the app's Comfy endpoint key is not a Hugging Face credential.
+
+Existing files are verified and skipped only if their Safetensors layout, size and
+SHA-256 match; otherwise installation fails without replacing them. Symlink paths
+are refused. Failed unique `.part` files are retained for inspection; successful
+staging remains as a hardlink to the final file (same storage, not a second weight
+copy). The script never deletes/replaces old weights or partials. It needs POSIX
+filesystem support for no-follow directory traversal and atomic no-clobber links.
+
+Custom nodes remain a separate prerequisite: install the repositories/revisions
+listed in `dependencies.json` in the executor's ComfyUI environment, including
+the standalone capsules pack. Vision-description HF folders may be acquired by
+their upstream vision node and are **not** part of this fixed-file downloader.
+Characters and native continuity likewise require their separate manifest roles.
+Restart your own ComfyUI only when its work is idle, then check its actual node and
+loader inventory; a successful weight download is not a proven GPU render.
+
 ## 3. Launch the proxy explicitly
 
 Start ComfyUI with the required nodes and weights first. In terminal A, from this

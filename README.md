@@ -214,7 +214,33 @@ filenames; historical replay does not consult today's model choices.
 
 ## Models
 
-`env -u PYTHONPATH .venv/bin/python scripts/download_models.py --comfyui /path/to/ComfyUI` downloads the public LTX 2.5 + Ripple components into their ComfyUI folders; use `--dry-run` to inspect the targets first. Run this where the ComfyUI model directories are accessible; a remote HTTP endpoint alone is not a model installation path. The script does not bundle weights in this repository.
+The installer reads `dependencies.json` for **all 15 fixed Swap file roles**:
+LTX/Ripple **including FLUX first-frame editing**, and H3. Each source is pinned
+to an upstream revision, published size and SHA-256. These are upstream LFS
+metadata, not a claim that local installed files have already been measured.
+
+```bash
+# Plan only by default: no network requests or model-directory writes.
+env -u PYTHONPATH .venv/bin/python scripts/download_models.py --comfyui /path/to/ComfyUI
+# Explicit download, on the ComfyUI executor host (choose ltx, h3, or all):
+env -u PYTHONPATH .venv/bin/python scripts/download_models.py --comfyui /path/to/ComfyUI --engine h3 --download
+```
+
+Run this where the executor's existing `models/` directory is accessible; an HTTP
+endpoint is not a filesystem installation path. `--dry-run` always prevents writes,
+even with `--download`. Existing files are never replaced: they are validated
+against exact Safetensors layout, size and SHA-256 before being skipped; incompatible
+files produce a failure and remain untouched. Failed partial files are retained.
+Successful staging is retained as a hardlink, not another copy. The POSIX downloader
+refuses destination symlinks and requires enough free disk space for each file.
+
+**FLUX Klein's upstream repository is gated.** Obtain the exact planned file through
+your authorized upstream account and place it at the printed destination before
+installing LTX/all; the CLI accepts no credentials and bypasses no access controls.
+This fixed-file installer does **not** install custom nodes, optional vision HF
+folders, Characters or native continuity models, and does not infer readiness from
+file presence alone. See [executor preparation](docs/local-setup.md#prepare-fixed-swap-weights)
+and run the dependency checker against your target. No model weights ship in Git.
 
 | File | Folder | Role |
 |---|---|---|
@@ -291,7 +317,7 @@ The CLI in `src/genjutsu.py` is a legacy LTX 2.3 prototype and is not the curren
 - [`src/graphs.py`](src/graphs.py) — FLUX.2 Klein and LTX/Ripple API-format graphs
 - [`src/comfy_transport.py`](src/comfy_transport.py) — official SDK target, execution and downloads
 - [`src/segments.py`](src/segments.py) — per-shot asset transfer, padding and exact frame restoration
-- [`scripts/download_models.py`](scripts/download_models.py) — idempotent LTX/Ripple weight setup
+- [`scripts/download_models.py`](scripts/download_models.py) — manifest-driven, explicit Swap weight installation
 - [ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo)
 - [ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite)
 - [ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes)
@@ -325,7 +351,7 @@ src/
   genjutsu.py     — Legacy LTX 2.3 CLI prototype (not current entry point)
 tests/            — Unit and regression tests (unittest)
 scripts/
-  download_models.py — Idempotent LTX/Ripple weight setup
+  download_models.py — Plan / explicitly install fixed Swap weights
 ```
 
 **Pipeline**: `detect_scenes()` → `edit_segment()` per shot → `merge_segments()` → `upscale_video()`

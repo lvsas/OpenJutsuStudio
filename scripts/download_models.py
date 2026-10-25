@@ -1,98 +1,99 @@
 #!/usr/bin/env python3
-"""Télécharge tous les modèles requis dans une installation ComfyUI.
+"""Plan declared Swap models; only --download permits installation."""
+import argparse
+import json
+from pathlib import Path
+import sys
 
-Idempotent : ignore les fichiers déjà présents.
-Usage: python3 download_models.py --comfyui /path/to/ComfyUI [--dry-run]
-"""
-import argparse, os, sys, urllib.request
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / 'scripts'))
+sys.path.insert(0, str(ROOT / 'src'))
+from model_catalog import roles
+from model_download import fetch, relative_name, source_contract
 
-MODELS = [
-    # URLs are public upstream model files; weights are not redistributed here.
-    ("https://huggingface.co/comfyicu/LTX-2.5/resolve/main/diffusion_models/"
-     "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
-     "diffusion_models", "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors"),
-    ("https://huggingface.co/comfyicu/LTX-2.5/resolve/main/text_encoders/"
-     "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
-     "text_encoders", "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors"),
-    ("https://huggingface.co/comfyicu/LTX-2.5/resolve/main/vae/"
-     "ltx-2.5-video-vae-conv-bf16.safetensors",
-     "vae", "ltx-2.5-video-vae-conv-bf16.safetensors"),
-    ("https://huggingface.co/comfyicu/LTX-2.5/resolve/main/vae/"
-     "ltx-2.5-audio-vae-bf16.safetensors",
-     "vae", "ltx-2.5-audio-vae-bf16.safetensors"),
-    ("https://huggingface.co/WepeNerd/LTX-Ripple/resolve/main/"
-     "LTX25_Ripple_v11.safetensors",
-     "loras", "LTX25_Ripple_v11.safetensors"),
-]
+FOLDERS = {'UNETLoader': 'diffusion_models', 'CLIPLoader': 'text_encoders',
+           'VAELoader': 'vae', 'VAELoaderKJ': 'vae', 'LoraLoaderModelOnly': 'loras',
+           'MinimaxH3LatentUpscaler3D': 'upscale_models'}
 
 
-def human(n):
-    for u in ("B", "KB", "MB", "GB"):
-        if n < 1024:
-            return f"{n:.1f}{u}"
-        n /= 1024
-    return f"{n:.1f}TB"
+def build_plan(manifest, engine='all'):
+    """Return (resolved items, unresolved labels), using declared defaults only."""
+    catalog = {r['key']: r for r in roles()}
+    found, unresolved, plan = {}, [], []
+    if not isinstance(manifest, dict) or engine not in ('all', 'ltx', 'h3'):
+        return [], ['Invalid manifest or engine']
+    for section in ('models', 'loras'):
+        entries = manifest.get(section, [])
+        if not isinstance(entries, list):
+            return [], ['Invalid manifest section']
+        for entry in entries:
+            if not isinstance(entry, dict):
+                unresolved.append('Invalid manifest entry')
+                continue
+            key = entry.get('role_key')
+            if key is None:
+                continue
+            if not isinstance(key, str) or key not in catalog:
+                unresolved.append('Unknown role key')
+                continue
+            found.setdefault(key, []).append(entry)
+    for key, role in catalog.items():
+        if engine != 'all' and role['engine'] != engine:
+            continue
+        try:
+            entries = found.get(key, [])
+            if len(entries) != 1:
+                raise ValueError()
+            entry = entries[0]
+            folder = FOLDERS[role['class_type']]
+            if entry.get('file') != role['default'] or entry.get('folder') != folder:
+                raise ValueError()
+            relative = relative_name(folder + '/' + entry['file'])
+            source_contract(entry.get('download'))
+            plan.append({'role_key': key, 'relative': relative, 'download': dict(entry['download'])})
+        except (ValueError, TypeError, KeyError):
+            unresolved.append(key)
+    return plan, unresolved
 
 
-def fetch(url, dest, dry):
-    if os.path.exists(dest) and os.path.getsize(dest) > 1024:
-        print(f"  skip   {os.path.basename(dest)} (deja present)")
-        return True
-    if dry:
-        print(f"  WOULD  {url}")
-        return True
-    os.makedirs(os.path.dirname(dest), exist_ok=True)
-    tmp = dest + ".part"
-    print(f"  get    {os.path.basename(dest)}")
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--comfyui', required=True, help='Explicit ComfyUI root (models must exist for downloads)')
+    parser.add_argument('--engine', choices=('ltx', 'h3', 'all'), default='all')
+    parser.add_argument('--manifest', type=Path, default=ROOT / 'dependencies.json')
+    parser.add_argument('--download', action='store_true', help='Explicitly permit network and model writes')
+    parser.add_argument('--dry-run', action='store_true', help='Plan only, even with --download')
+    args = parser.parse_args(argv)
     try:
-        with urllib.request.urlopen(url, timeout=60) as r, open(tmp, "wb") as f:
-            total = int(r.headers.get("Content-Length") or 0)
-            done = 0
-            while True:
-                chunk = r.read(1 << 20)
-                if not chunk:
-                    break
-                f.write(chunk)
-                done += len(chunk)
-                if total:
-                    pct = done * 100 // total
-                    print(f"\r         {pct:3d}%  {human(done)}/{human(total)}", end="")
-        print()
-        os.replace(tmp, dest)
-        return True
-    except Exception as e:
-        print(f"\n  FAIL   {e}")
-        if os.path.exists(tmp):
-            os.remove(tmp)
-        return False
+        plan, unresolved = build_plan(json.loads(args.manifest.read_text()), args.engine)
+    except (OSError, ValueError, RecursionError):
+        print('ERROR: Cannot read model manifest.')
+        return 1
+    for item in plan:
+        source = item['download']
+        size = source.get('size_bytes', 'unknown')
+        integrity = 'SHA-256 verified on install' if source.get('sha256') else 'declared provenance only; no upstream hash'
+        print(f"PLAN {item['role_key']} -> models/{item['relative']} | {source['url']} | bytes={size} | {integrity}")
+        if source.get('access') == 'gated':
+            print('ACCESS GATED: obtain this exact file through your authorized upstream account first; '
+                  'place it at the planned destination. This CLI does not accept credentials.')
+    for label in unresolved:
+        print(f'UNRESOLVED {label}: missing, duplicate or invalid installation contract/source')
+    if unresolved:
+        return 1  # Never install a partial plan.
+    if not args.download or args.dry_run:
+        print('Plan only; no network or model writes. Use --download to install.')
+        return 0
+    failed = False
+    for item in plan:
+        try:
+            print(f"{item['role_key']}: {fetch(item, args.comfyui)}")
+        except ValueError as error:
+            print(f"{item['role_key']}: {error}")
+            failed = True
+    return int(failed)
 
 
-def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("--comfyui", required=True, help="chemin racine de ComfyUI")
-    p.add_argument("--dry-run", action="store_true")
-    a = p.parse_args()
-
-    root = os.path.join(a.comfyui, "models")
-    if not os.path.isdir(os.path.join(a.comfyui, "models")) and not a.dry_run:
-        print(f"ERREUR: {root} introuvable. --comfyui doit pointer vers la racine ComfyUI.",
-              file=sys.stderr)
-        sys.exit(1)
-
-    ok = fail = 0
-    for url, folder, name in MODELS:
-        dest = os.path.join(root, folder, name)
-        if fetch(url, dest, a.dry_run):
-            ok += 1
-        else:
-            fail += 1
-
-    print(f"\n{ok} ok, {fail} echecs.")
-    if fail:
-        print("Verifiez votre connexion, ou telechargez les fichiers manuellement "
-              "(voir README > Models).", file=sys.stderr)
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    sys.exit(main())

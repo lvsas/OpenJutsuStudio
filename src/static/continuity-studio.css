@@ -7,16 +7,18 @@
 .sequence-rail-meta{display:flex;align-items:baseline;flex-wrap:wrap;gap:.35rem 1rem;margin-top:.35rem}
 .sequence-rail-actions,.library-tools{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem}
 .sequence-rail-actions .btn,.library-tools .btn{min-height:44px;min-width:44px}
-.sequence-workbench{display:flex;gap:1rem;align-items:start}
+.sequence-workbench{display:flex;gap:1rem;align-items:stretch}
 .sequence-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1rem}
-.sequence-library{flex:0 0 clamp(296px,26vw,320px);min-width:0;padding:1rem;border:1px solid var(--line);border-radius:1rem;background:var(--surface)}
+/* Main content sets the shared height; library length must not enlarge the workbench. */
+.sequence-library{flex:0 0 clamp(296px,26vw,320px);min-width:0;min-height:0;contain:size;display:flex;flex-direction:column;padding:1rem;border:1px solid var(--line);border-radius:1rem;background:var(--surface)}
+.sequence-library>:not(.library-takes){flex-shrink:0}
 .sequence-library h2{font-size:1rem;margin:0}
 .sequence-library>label:not(.sr-only){display:grid;gap:.35rem;margin:.75rem 0 0}
 .sequence-library input,.sequence-library select{width:100%;min-width:0;max-width:100%;min-height:44px;background:var(--surface-soft);border:1px solid var(--line);color:var(--text);border-radius:.6rem;padding:.65rem;font:inherit}
 .sequence-library input{margin:.75rem 0}
 .sequence-library select{font-size:.8rem}
 .sequence-library>.btn{max-width:100%;min-height:44px;white-space:normal}
-.library-takes{list-style:none;padding:0;margin:.75rem 0;display:grid;gap:.6rem;max-height:520px;overflow-y:auto}
+.library-takes{list-style:none;padding:0;margin:.75rem 0;display:grid;gap:.6rem;align-content:start;flex:1 1 auto;min-height:0;max-height:100dvh;overflow-y:auto;overscroll-behavior:contain}
 .library-take{display:flex;align-items:center;gap:.5rem;min-width:0;border:1px solid var(--line);border-radius:.6rem;padding:.5rem}
 .library-preview{display:flex;align-items:center;gap:.6rem;min-width:0;min-height:44px;flex:1;background:none;color:var(--text);border:0;text-align:left;cursor:pointer;padding:0}
 .library-preview[aria-pressed=true]{border-radius:.4rem;box-shadow:0 0 0 1px var(--accent)}
@@ -109,7 +111,7 @@
 .rail-head .eyebrow{margin:0}
 .sequence-rail{order:-1;margin:0;border:1px solid var(--accent-line);border-radius:1rem;padding:.8rem;background:var(--surface)}
 .sequence-rail.is-target{background:var(--accent-soft);outline:2px dashed var(--accent)}
-.board-track{list-style:none;display:flex;align-items:center;gap:.55rem;overflow-x:auto;padding:.65rem 0 .25rem;margin:0;min-height:0}
+.board-track{list-style:none;display:flex;align-items:center;gap:.55rem;overflow-x:auto;padding:.65rem 5px .25rem;margin:0;min-height:0}
 .sequence-empty{font-size:.8rem;color:var(--muted);text-align:center;padding:1.5rem .5rem;line-height:1.6}
 .sequence-slot{flex:0 0 155px;min-width:0}
 .sequence-take{width:100%;display:grid;gap:.3rem;text-align:left;padding:.45rem;border:1px solid var(--line);background:var(--surface-soft);color:var(--text);border-radius:.7rem;cursor:pointer}
@@ -120,11 +122,11 @@
 .poster-unavailable::before{content:'Preview unavailable';display:block;padding:.6rem;font-size:.68rem;color:var(--muted)}
 .sequence-take-tools{display:flex;gap:.1rem;justify-content:space-between;margin-top:.2rem}
 .sequence-take-tools .btn{font-size:.65rem;padding:.3rem;min-height:36px;min-width:36px}
-.sequence-gap{color:var(--muted);font-size:1rem;flex:0 0 138px;text-align:center}
-.position-create{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.35rem;width:100%;min-height:126px;padding:.7rem;border:1px dashed var(--accent-line);border-radius:.8rem;background:var(--surface);color:var(--muted);cursor:pointer;font:inherit}
-.position-create strong{font-size:.8rem;color:var(--text)}
-.position-create small{font-size:.7rem}
-.position-mark{font-size:1.5rem;color:var(--accent)}
+.sequence-gap{color:var(--muted);font-size:1rem;flex:0 0 132px;text-align:center}
+.position-create{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.25rem;width:100%;min-height:112px;padding:.5rem;border:1px dashed var(--accent-line);border-radius:.8rem;background:var(--surface);color:var(--muted);cursor:pointer;font:inherit}
+.position-create strong{font-size:.8rem;line-height:1.35;color:var(--text)}
+.position-create small{font-size:.7rem;line-height:1.35}
+.position-mark{font-size:1.5rem;line-height:1;color:var(--accent)}
 .position-create:hover,.position-create[aria-pressed="true"],.position-slot.is-target .position-create{border-color:var(--accent);background:var(--accent-soft)}
 .position-create:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .position-context{padding:0;margin-bottom:.7rem}
@@ -143,8 +145,8 @@
   .sequence-rail-actions{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}
   .sequence-rail-actions .btn{padding:.45rem .55rem;min-height:44px;min-width:44px;white-space:normal;line-height:1.2}
   .sequence-workbench{flex-direction:column}
-  .sequence-library{flex:none;width:100%;padding:.7rem}
-  .library-takes{max-height:min(30vh,250px);overscroll-behavior:contain}
+  .sequence-library{flex:none;width:100%;padding:.7rem;contain:none}
+  .library-takes{flex:none;max-height:min(30vh,250px);overscroll-behavior:contain}
   .sequence-library>p.microcopy{margin:.4rem 0;font-size:.72rem}
   .sequence-library input{margin:.4rem 0;min-height:44px}
   .sequence-main{display:flex;flex-direction:column;width:100%}
@@ -153,6 +155,8 @@
   .sequence-take .sequence-poster{grid-row:1/3;width:48px;height:48px}
   .sequence-take strong{font-size:.65rem}
   .sequence-take small{font-size:.62rem}
+  .position-create{display:grid;grid-template-columns:20px minmax(0,1fr);gap:.25rem;min-height:96px;align-content:center;text-align:left}
+  .position-mark{grid-row:1/3}
   .sequence-empty{margin:.5rem 0;padding:.35rem;line-height:1.4}
   .native-workspace{display:flex;flex-direction:column;overflow:visible}
   .sequence-composer{order:-1;border-top:0;border-bottom:1px solid var(--line);width:100%;padding:.85rem}

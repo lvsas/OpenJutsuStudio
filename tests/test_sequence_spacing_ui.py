@@ -76,6 +76,49 @@ class SequenceSpacingUITests(unittest.TestCase):
                          '.library-add', '.sequence-library>.btn'):
             self.assertEqual(declarations(BASE, selector)['min-height'], '44px')
 
+    def test_empty_positions_are_modestly_smaller_without_clipping_labels(self):
+        empty = declarations(CSS, '.sequence-gap')
+        full = declarations(CSS, '.sequence-slot')
+        width = float(empty['flex'].split()[-1].removesuffix('px'))
+        full_width = float(full['flex'].split()[-1].removesuffix('px'))
+        self.assertGreaterEqual(width / full_width, .8)
+        self.assertLessEqual(width / full_width, .86)
+        button = declarations(CSS, '.position-create')
+        self.assertEqual(button['min-height'], '112px')
+        for selector in ('.position-create', '.position-create strong', '.position-create small'):
+            rule = declarations(CSS, selector)
+            self.assertNotIn(rule.get('overflow'), ('hidden', 'clip'))
+            self.assertNotEqual(rule.get('white-space'), 'nowrap')
+        self.assertEqual(declarations(CSS, '.position-mark')['line-height'], '1')
+
+    def test_mobile_empty_positions_keep_readable_copy_and_touch_area(self):
+        button = declarations(MOBILE, '.position-create')
+        self.assertEqual(button['display'], 'grid')
+        self.assertEqual(button['min-height'], '96px')
+        self.assertEqual(declarations(MOBILE, '.position-mark')['grid-row'], '1/3')
+        self.assertEqual(declarations(CSS, '.position-create:focus-visible')['outline-offset'], '3px')
+        self.assertEqual(declarations(CSS, '.board-track')['padding'], '.65rem 5px .25rem')
+
+    def test_library_height_follows_main_not_the_number_of_takes(self):
+        self.assertEqual(declarations(BASE, '.sequence-workbench')['align-items'], 'stretch')
+        library = declarations(BASE, '.sequence-library')
+        self.assertEqual(library['contain'], 'size')
+        self.assertEqual(library['display'], 'flex')
+        self.assertEqual(library['flex-direction'], 'column')
+        self.assertEqual(library['min-height'], '0')
+        self.assertEqual(declarations(MOBILE, '.sequence-library')['contain'], 'none')
+
+    def test_library_list_fills_available_height_with_viewport_scroll_bound(self):
+        takes = declarations(BASE, '.library-takes')
+        self.assertEqual(takes['flex'], '1 1 auto')
+        self.assertEqual(takes['min-height'], '0')
+        self.assertEqual(takes['max-height'], '100dvh')
+        self.assertEqual(takes['overflow-y'], 'auto')
+        self.assertEqual(takes['align-content'], 'start')
+        mobile = declarations(MOBILE, '.library-takes')
+        self.assertEqual(mobile['max-height'], 'min(30vh,250px)')
+        self.assertEqual(mobile['flex'], 'none')
+
     def test_mobile_story_order_stays_rail_composer_preview(self):
         self.assertEqual(declarations(CSS, '.sequence-rail')['order'], '-1')
         workspace = declarations(MOBILE, '.native-workspace')

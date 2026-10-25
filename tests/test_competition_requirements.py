@@ -5,7 +5,7 @@ detail, or carrying private network addresses is a rejected submission, and a wo
 that drifts from the code that runs is a false claim in the repository.
 
 Requirement list, from the competition page:
-  - built with the Comfy Developer Platform (Comfy Router and/or Comfy SDK)
+  - built with ComfyUI; entirely local, Cloud, Developer Platform, Router, SDK or a mix
   - the repo includes an open-source licence and enough setup detail to run it elsewhere
   - other tools, models or techniques are allowed and must be explained in the demo video
   - lawful, SFW, no unlicensed IP or likenesses
@@ -56,6 +56,13 @@ class CompetitionRequirementsTests(unittest.TestCase):
                 offenders.append(str(path.relative_to(ROOT)))
         self.assertEqual(offenders, [], f'Private addresses must not ship: {offenders}')
 
+    def test_current_contest_rules_do_not_require_managed_cloud(self):
+        readme = (ROOT / 'README.md').read_text()
+        self.assertIn('Entirely local execution is allowed', readme)
+        self.assertIn('A deployed try-it link is optional', readme)
+        self.assertIn('novel custom node packs', readme)
+        self.assertIn('https://comfy.org/open-source-higgsfield', readme)
+
     def test_an_open_source_licence_ships_with_the_repository(self):
         licence = ROOT / 'LICENSE'
         self.assertTrue(licence.is_file(), 'the repository must carry a licence file')
@@ -69,7 +76,7 @@ class CompetitionRequirementsTests(unittest.TestCase):
         # The requirements say combined techniques must be explained in the demo video.
         self.assertIn('SDK', readme)
 
-    def test_the_platform_is_the_comfy_developer_platform(self):
+    def test_project_keeps_its_chosen_official_sdk_transport(self):
         transport = (ROOT / 'src' / 'comfy_transport.py').read_text()
         self.assertIn('from comfy_sdk import Comfy', transport)
 

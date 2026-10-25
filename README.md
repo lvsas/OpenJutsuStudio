@@ -81,9 +81,18 @@ The repository guardrails below are verified continuously. The actual contest su
 try-it link, social-post link and feature-credit consent are **pending** until they exist as real
 artifacts; this table does not claim an entry has been submitted.
 
+The [current official rules](https://comfy.org/open-source-higgsfield) allow ComfyUI
+"entirely local", Comfy Cloud, the Developer Platform, Router, SDK, or a mix.
+**Entirely local execution is allowed. A deployed try-it link is optional**, though
+strongly encouraged. The official SDK remains our chosen transport, not a claim
+that the contest requires managed hosting. Most Innovative explicitly includes
+"novel custom node packs"; our pack must demonstrate useful original behavior,
+not merely carry a new name. Cloud deployment remains a product goal, with a
+prepared environment and real acceptance required before we claim it works.
+
 | Requirement | Current evidence / submission state |
 | --- | --- |
-| Built on the **Comfy Developer Platform** (Comfy Router and/or Comfy SDK) | every graph is submitted through the official `comfy_sdk`; the local proxy bridges that API to a self-hosted ComfyUI, and an authenticated deployment target is supported |
+| Built with **ComfyUI**, using any allowed hosting option | our chosen transport is the official `comfy_sdk`; the proxy bridges API v2 to self-hosted ComfyUI. Remote target configuration exists; real managed deployment acceptance remains pending |
 | Open-source licence and enough setup detail to run it elsewhere | [Apache-2.0](LICENSE), [local setup guide](docs/local-setup.md), `bash scripts/setup.sh --with-proxy` |
 | Workflow files | [`workflows/`](workflows/README.md) — API-format app graphs plus the pinned vendor FLUX 3 source, checked by tests |
 | Other tools, models and techniques explained in the demo video | script/content: pending; the current list is under *Techniques the demo explains* |

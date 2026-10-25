@@ -25,7 +25,12 @@ You bring footage you already shot and a character reference; the studio returns
 moment with a different character in it, and a **take capsule** that records exactly what was
 consumed so the take can be inspected, exported or re-run.
 
-Two studios share one pipeline, one interface language and one capsule:
+The studios share a consistent interface, project library and official Comfy SDK transport,
+with engine-specific pipelines and receipts—not interchangeable model state:
+
+Both accept up to **15 seconds per Swap** as an application budget, not a VRAM guarantee.
+Longer uploads reveal explicit start/end and preview controls; shorter sources stay uncluttered.
+The app preserves the original and sends the physically extracted video/audio to the worker.
 
 | Studio | Chain | State |
 | --- | --- | --- |
@@ -36,8 +41,8 @@ Connected creative workspaces keep the generated content usable beyond one Swap:
 
 | Workspace | What you can do | Boundary |
 | --- | --- | --- |
-| **Characters** (`/characters`) | generate with FLUX 3 Klein, select one canvas, discard recent attempts, explicitly keep a named character in the server library, download/share its PNG and use it in either Swap studio | saving/removing library membership never deletes generation artifacts; navigation never starts a render |
-| **Generative Timeline — work in progress** (`/timeline`) | recover a genuine native H3 Take, play its protected preview, inspect/download its public capsule, retain MCTX/COND and lineage, restore the selected Take; assembly/export remains a collapsed supporting tool | native creation, seed candidates and GPU continuation are not available in this workspace yet; public capsule JSON alone is not a complete Take backup |
+| **Characters — work in progress** (`/characters`) | generate with FLUX 3 Klein, select one canvas, discard recent attempts, explicitly keep a named character in the server library, download/share its PNG and use it in either Swap studio | saving/removing library membership never deletes generation artifacts; navigation never starts a render |
+| **Generative Timeline — work in progress** (`/timeline`) | recover a genuine native H3 Take, play its protected preview, inspect/download its public capsule, retain MCTX/COND and lineage, restore the selected Take; assembly/export remains a collapsed supporting tool | native creation, seed candidates and continuation remain experimental, with operation-specific acceptance still open; public capsule JSON alone is not a complete Take backup |
 
 The target Timeline is a **generation-first chronology of continuable Takes**: explore seeds,
 choose a candidate, generate after or before it, bridge two boundaries, and recover its frozen
@@ -47,8 +52,8 @@ Those native operations are not presented as delivered by the supporting slice a
 The [visible-product evidence](docs/validation/visible-product-slices.md) separates actual browser,
 persistence and export checks from unit-test fixtures. A saved Character supplies reference context,
 not a generated Timeline clip. The [CPU continuity pack](docs/architecture/continuity-nodes.md)
-publishes/re-stages explicit H3 file families; it is locally validated, **not installed or runtime-proven
-on the generation target**. The [native LTX audit](docs/validation/timeline-ltx-capabilities.md) records
+publishes/re-stages explicit H3 file families and has local H3 runtime evidence; **complete
+cross-target portability is not yet accepted**. The [native LTX audit](docs/validation/timeline-ltx-capabilities.md) records
 engine-specific candidates and unproven operations rather than claiming H3/LTX state interoperability.
 
 ![LTX Studio](docs/readme/ltx-swap.png)

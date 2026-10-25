@@ -1,14 +1,20 @@
 import {byId, validId, request, setStage, loadStageMedia, inspectTakeStage} from './h3-http.js';
 import {H3Take} from './h3-take.js';
+import {SourceClip} from './source-clip.js';
 
 const form = byId('form');
 window.OpenGenjutsuStudio?.mountResultLayout?.();
 let pending = false, ready = false, readinessEpoch = 0;
 const blobs = new Map();
+const files = new Map();
 const H3_STAGES = ['source', 'reference', 'result'];
 // The chain follows both the form and the restored take, so a reopened take shows the
 // references it actually consumed.
 const take = new H3Take(() => { paintChain(); update(); }, checkReadiness, stage => setStage(stage));
+const clip = new SourceClip({root: byId('source-clip'), start: byId('clip-start'), end: byId('clip-end'),
+  preview: byId('clip-preview'), status: byId('clip-status'), summary: byId('clip-summary'),
+  limit: byId('clip-limit'), media: byId('source-preview'), onChange: () => { paintSourceSummary(); update(); },
+  onPreview: () => { previewInputs(); setStage('source'); }});
 
 // One stage state, exactly like the LTX studio: whichever media exists wins.
 function syncStage() {
@@ -18,14 +24,16 @@ function syncStage() {
 
 function update() {
   const locked = pending || take.active;
+  clip.setLocked(locked);
   for (const field of ['video', 'reference', 'seed', 'add-second-reference', 'remove-reference']) byId(field).disabled = locked;
   byId('reference-2').disabled = locked || byId('second-reference').hidden;
   for (const field of ['edit', 'description']) byId(field).disabled = locked || !byId('directions').open;
   const inputs = byId('video').files.length === 1 && byId('reference').files.length === 1;
   // Readiness is advisory here: the server checks the target again and returns the exact reason.
-  byId('submit').disabled = locked || !inputs;
+  byId('submit').disabled = locked || !inputs || !clip.valid;
   byId('replay').disabled = locked || !take.capsule;
   byId('form-help').textContent = locked ? 'A take is being submitted or tracked.'
+    : byId('video').files.length && !clip.valid ? byId('clip-status').textContent
     : !inputs ? 'Add one source video and one character reference. No prompt needed.'
     : ready ? 'Ready to generate.'
     : 'H3 availability is unverified. You can still submit; the server rechecks it and reports the exact reason.';
@@ -44,6 +52,7 @@ async function checkReadiness() {
     const report = await request('/api/h3/readiness', {signal: AbortSignal.timeout(20000)});
     if (epoch !== readinessEpoch) return false;
     ready = report.ready === true;
+    clip.setLimit(report.limits?.max_clip_seconds);
     badge.classList.toggle('live', ready);
     badge.textContent = ready ? 'Studio ready' : (report.issues || ['Studio unavailable']).join(' ');
     notes.textContent = (report.warnings || []).join(' ');
@@ -51,6 +60,7 @@ async function checkReadiness() {
   } catch (error) {
     if (epoch !== readinessEpoch) return false;
     ready = false;
+    clip.setLimit(undefined);
     badge.textContent = 'Studio unavailable';
     notes.hidden = true;
   }
@@ -93,10 +103,16 @@ function previewInputs() {
                                ['reference-2', 'reference-2']]) {
     const old = blobs.get(kind);
     const file = byId(field).files[0];
-    const url = file ? URL.createObjectURL(file) : '';
+    const changed = files.get(kind) !== file;
+    const url = file ? (!changed && old ? old : URL.createObjectURL(file)) : '';
+    if (kind === 'source') {
+      clip.select(file, url);
+      if (changed) byId('source-summary-meta').textContent = '';
+    }
     loadStageMedia(kind, url);
-    if (old) URL.revokeObjectURL(old);
+    if (changed && old) URL.revokeObjectURL(old);
     blobs.set(kind, url);
+    files.set(kind, file);
   }
   paintPickers();
   paintChain();
@@ -119,14 +135,15 @@ function paintSourceSummary() {
   const file = byId('video').files[0];
   byId('source-summary').hidden = !file;
   byId('source-summary-name').textContent = file ? file.name : '';
-  if (!file) return;
-  byId('source-preview').onloadedmetadata = () => {
-    const media = byId('source-preview');
-    const duration = window.OpenGenjutsuStudio?.formatDuration?.(media.duration) ?? '';
-    byId('source-summary-meta').textContent = `${duration}${duration ? ' · ' : ''}${media.videoWidth}×${media.videoHeight}`;
-  };
+  const meta = byId('source-summary-meta');
+  if (!file) { meta.textContent = ''; return; }
+  if (clip.state !== 'ready') { meta.textContent = clip.error; return; }
+  const media = byId('source-preview');
+  const dimensions = clip.matchesMedia() ? ` · ${media.videoWidth}×${media.videoHeight}` : '';
+  meta.textContent = `${clip.needsExcerpt ? 'Original' : 'Whole clip'} · ${clip.duration} s${dimensions}`;
 }
 function submission() {
+  if (!clip.validate()) { update(); return null; }
   byId('edit').disabled = !byId('directions').open;
   const seed = byId('seed');
   seed.setCustomValidity('');
@@ -136,6 +153,7 @@ function submission() {
   }
   if (!form.reportValidity()) return null;
   const data = new FormData(form);
+  clip.appendTo(data);
   if (!byId('directions').open) {
     data.delete('edit_prompt');
     data.delete('character_description');
@@ -160,7 +178,7 @@ async function submit(event) {
     window.OpenGenjutsuProject?.acceptJob(response.job_id, response.project_id, 'minimax-h3');
     take.watch(response.job_id);
     for (const url of blobs.values()) if (url) URL.revokeObjectURL(url);
-    blobs.clear();
+    blobs.clear(); // Next draft recreates URLs from the original Files, not the saved excerpt.
   } catch (error) {
     if (epoch !== take.epoch) return;
     take.returnAffordance();
@@ -201,6 +219,7 @@ window.OpenGenjutsuStudio?.bindFileDropTargets?.(notify);
 byId('seed').addEventListener('input', () => byId('seed').setCustomValidity(''));
 for (const kind of ['source', 'reference', 'result']) {
   byId(`${kind}-preview`).addEventListener('error', () => {
+    if (kind === 'source' && clip.matchesMedia()) return; // The excerpt controller owns local-file failures.
     loadStageMedia(kind, '');
     if (kind === 'result') take.clearResult();
     notify(`${kind} preview unavailable. Retry status.`);

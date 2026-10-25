@@ -126,6 +126,12 @@ def _replay_inputs(parent: core.Job):
         if len(expected) != len(actual) or any(item.get("sha256") != _digest_file(path)
                                            for item, path in zip(expected, actual)):
             raise HTTPException(409, "A local source or reference asset changed after this capsule was frozen.")
+    # A stored receipt stays readable; a new execution obeys the current budget.
+    from source_clip import validate_selection
+    try:
+        validate_selection({"duration": recipe["frames"] / recipe["fps"]}, label="LTX")
+    except (ValueError, KeyError, ZeroDivisionError, TypeError) as exc:
+        raise HTTPException(409, "This take exceeds the current 15-second Swap budget or has no valid timing. Select an excerpt for a new take.") from exc
     return recipe, source, references, shots
 
 

@@ -60,7 +60,7 @@ class VideoStudioOriginTests(IsolatedTimeline):
             ready.reset_mock();uploads.reset_mock()
             r=client.post('/api/jobs',data={'project_id':'f'*32,'edit_prompt':'Change the character'},files={'video':('source.mp4',b'fixture','video/mp4')})
             self.assertEqual(r.status_code,404,r.text);uploads.assert_not_called();ready.assert_not_called()
-        with patch('h3_api.save_video',new=AsyncMock(return_value=info)),patch('h3_api.save_reference',new=AsyncMock()),patch('h3_api._dispatch_options',return_value={}):
+        with patch('h3_api.probe_source', return_value=info),patch('h3_api.save_video',new=AsyncMock(return_value=info)),patch('h3_api.save_reference',new=AsyncMock()),patch('h3_api._dispatch_options',return_value={}):
             r=client.post('/api/h3/jobs',data={'project_id':b['project_id']},files=[('video',('source.mp4',b'fixture','video/mp4')),('reference_images',('reference.png',b'fixture','image/png'))])
             self.assertEqual(r.status_code,202,r.text);job=dispatch.call_args.args[0]
             self.assertEqual(core.Job.load(job.id).meta['origin_project_id'],b['project_id'])

@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
 import config
 import core
@@ -14,6 +14,7 @@ from api_schema import _public_job, _target_size
 from prompt_profiles import PROMPT_POLICY_VERSION, get_prompt_profile
 from project_scope import submission_project
 from uploads import save_video
+from source_clip import extract_excerpt, probe_source, validate_selection
 
 ALLOWED_SUFFIXES = {".mp4", ".mov", ".mkv", ".webm"}
 ALLOWED_REFERENCE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
@@ -125,7 +126,7 @@ def _pipeline_options(recipe: dict[str, Any], reference_paths: list[Path]) -> di
 def _queue_job(job_id: str, engine: str, video: UploadFile, video_path: Path, edit_prompt: str,
               target_description: str, reference_targets: list[str], seed: int,
               strength: float, info: dict[str, Any], reference_paths: list[Path],
-              dispatch_job: Callable, project_id: str) -> core.Job:
+              dispatch_job: Callable, project_id: str, source_selection=None, original_source=None) -> core.Job:
     profile = get_prompt_profile(engine)
     prompt = profile.compose_frame_edit(edit_prompt, target_description, reference_targets,
                                         reference_count=len(reference_paths))
@@ -137,6 +138,9 @@ def _queue_job(job_id: str, engine: str, video: UploadFile, video_path: Path, ed
         meta=_job_meta(video, target_description, reference_targets, reference_paths,
                        info, width, height, strength, recipe),
     )
+    if source_selection is not None:
+        recipe["source_selection"] = source_selection
+        job.meta["original_source"] = str(original_source)
     job.meta["origin_project_id"] = project_id
     job.save()
     dispatch_job(job, video_path, _pipeline_options(recipe, reference_paths))
@@ -154,7 +158,7 @@ class JobAPI:
         self.engine = engine
 
     async def create_job(
-        self, video: UploadFile = File(...),
+        self, request: Request, video: UploadFile = File(...),
         edit_prompt: str = Form(default="", max_length=2000),
         target_description: str = Form(default="", max_length=500),
         seed: int = Form(default=125348341465200, ge=0),
@@ -163,25 +167,49 @@ class JobAPI:
         reference_images: list[UploadFile] = File(default=[]),
         reference_targets: list[str] = Form(default=[]),
         project_id: str | None = Form(default=None),
+        clip_start_seconds: float | None = Form(default=None),
+        clip_end_seconds: float | None = Form(default=None),
     ) -> dict[str, Any]:
         media_dir = self.get_media_dir()
         origin_project_id = submission_project(project_id, media_dir) if project_id is not None else None
+        form = await request.form()
+        if ("clip_start_seconds" in form or "clip_end_seconds" in form) and (clip_start_seconds is None or clip_end_seconds is None):
+            raise HTTPException(422, "Provide both clip_start_seconds and clip_end_seconds")
         suffix, references, ref_suffixes = _validate_uploads(
             video, edit_prompt, reference_image, reference_images, reference_targets,
         )
         report = await asyncio.to_thread(self.readiness_check)
         if not report["ready"]:
             raise HTTPException(503, " ".join(report["issues"]))
-        if origin_project_id is None:
-            origin_project_id = submission_project(None, media_dir)
         media_dir.mkdir(parents=True, exist_ok=True)
         job_id = uuid.uuid4().hex
         info, video_path, ref_paths = await _store_uploads(
             media_dir, job_id, video, suffix, references, ref_suffixes, self.max_upload_bytes,
         )
+        original = video_path
+        excerpt = media_dir / f"{job_id}-excerpt.mp4"
+        selection = None
+        try:
+            if clip_start_seconds is not None:
+                info = await asyncio.to_thread(probe_source, original)
+            start, end = validate_selection(info, clip_start_seconds, clip_end_seconds, label="LTX")
+            if clip_start_seconds is not None:
+                info, selection = await asyncio.to_thread(extract_excerpt, original, excerpt, info, start, end)
+                video_path = excerpt
+                if info["frames"] < 9:
+                    raise ValueError("The selected excerpt must contain at least 9 frames")
+        except Exception as exc:
+            original.unlink(missing_ok=True)
+            for path in ref_paths:
+                path.unlink(missing_ok=True)
+            if isinstance(exc, ValueError):
+                raise HTTPException(422, str(exc)) from exc
+            raise HTTPException(422, "The selected excerpt could not be prepared") from exc
+        if origin_project_id is None:
+            origin_project_id = submission_project(None, media_dir)
         job = _queue_job(job_id, self.engine, video, video_path, edit_prompt, target_description,
                          reference_targets, seed, ripple_strength, info, ref_paths, self.dispatch_job,
-                         origin_project_id)
+                         origin_project_id, selection, original)
         return {"job_id": job.id, "status": "queued", "job": _public_job(job)}
 
 

@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/static/design-system.css">
   <link rel="stylesheet" href="/static/app.css">
   <link rel="stylesheet" href="/static/h3-studio.css">
+  <link rel="stylesheet" href="/static/source-clip.css">
   <link rel="stylesheet" href="/static/completion.css">
   <link rel="stylesheet" href="/static/share-reel.css">
   <link rel="stylesheet" href="/static/project-session.css">
@@ -49,9 +50,21 @@
             <input id="h3-video" name="video" class="visually-hidden" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska" required>
             <label class="media-picker" for="h3-video" id="h3-video-picker" data-drop-kind="video">
               <span class="picker-icon" aria-hidden="true">↗</span>
-              <span><strong id="h3-video-name">Choose a video</strong><small>MP4, MOV, MKV or WebM · up to 500 MB</small></span>
+              <span><strong id="h3-video-name">Choose a video</strong><small>MP4, MOV, MKV or WebM · up to 500 MB · <span id="h3-clip-limit">Max 15 s per swap</span></small></span>
               <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
             </label>
+            <section id="h3-source-clip" class="source-clip" aria-labelledby="h3-clip-title" hidden>
+              <h3 id="h3-clip-title">Selected excerpt</h3>
+              <p id="h3-clip-summary" class="field-help">Original: — · Selected: —</p>
+              <div class="source-clip-fields">
+                <label for="h3-clip-start">Start (seconds)<input id="h3-clip-start" name="clip_start_seconds" class="text-input" type="number" min="0" step="any" required disabled aria-describedby="h3-clip-status h3-clip-limit"></label>
+                <label for="h3-clip-end">End (seconds)<input id="h3-clip-end" name="clip_end_seconds" class="text-input" type="number" min="0" step="any" required disabled aria-describedby="h3-clip-status h3-clip-limit"></label>
+              </div>
+              <button id="h3-clip-preview" class="btn btn-secondary btn-small" type="button" disabled>Preview excerpt</button>
+              <p id="h3-clip-status" class="field-help" role="status" aria-live="polite">Choose a source video to select an excerpt.</p>
+              <p class="field-help">Only this excerpt is swapped. Your original stays unchanged.</p>
+              <p class="field-help">Import and preview stay in your browser. Only Generate swap starts processing.</p>
+            </section>
           </fieldset>
           <fieldset class="recipe-step">
             <legend><span>02</span> Character reference <small>No prompt needed</small></legend>
@@ -127,7 +140,7 @@
         </div>
         <div id="h3-source-summary" class="source-summary" hidden>
           <div><span class="eyebrow">Source</span><strong id="h3-source-summary-name"></strong></div>
-          <span id="h3-source-summary-meta" class="muted"></span>
+          <span id="h3-source-summary-meta" class="muted" role="status" aria-live="polite"></span>
         </div>
         <button id="h3-return-last" class="btn btn-secondary btn-small return-last" type="button" hidden>Return to last swap</button>
         <div id="h3-result-actions" class="result-actions" hidden>

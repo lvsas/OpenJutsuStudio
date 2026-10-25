@@ -23,7 +23,7 @@ class OptionalPromptTests(unittest.TestCase):
 
         async def save_video(upload, destination, _limit):
             destination.write_bytes(await upload.read())
-            return {"width": 1280, "height": 704, "fps": 24.0, "frames": 9}
+            return {"width": 1280, "height": 704, "fps": 24.0, "frames": 9, "duration": 9/24}
 
         def runner(job, video, opts):
             self.observed.update(job=job, video=video, opts=opts)

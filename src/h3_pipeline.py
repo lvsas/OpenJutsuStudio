@@ -20,6 +20,7 @@ from h3_capsule import contained, digest_file, freeze_capsule
 from h3_preserve import describe_character, describe_preserved
 from h3_recipe import ENGINE, bind_frames, validate_recipe, with_preserve_clip, with_reference_description
 from media import ffprobe
+from source_clip import require_short_source
 
 # The node pack publishes the MP4/MCTX/COND triplet on this SDK output node.
 NATIVE_FAMILY_NODE = 'native_swap_family'
@@ -162,6 +163,7 @@ def run_h3_pipeline(job, video_path, opts):
             raise ValueError('H3 runner accepts only minimax-h3 jobs')
         media_dir = Path(opts.get('media_dir', core.WORK / 'media')).resolve()
         source = contained(video_path, media_dir)
+        source_info = require_short_source(source)
         references = [contained(path, media_dir) for path in _reference_paths(opts)]
         recipe = validate_recipe(copy.deepcopy(opts['recipe']))
         if len(references) != recipe['reference_count']:
@@ -201,6 +203,9 @@ def run_h3_pipeline(job, video_path, opts):
         job.video = str(source)
         job.meta.update(h3_references=[str(path) for path in references],
                         h3_recipe=copy.deepcopy(recipe),
+                        source_info=copy.deepcopy(source_info),
+                        source_shot_plan=[{'start': 0, 'end': source_info['frames']-1,
+                                           'fps': source_info['fps']}],
                         source_frames=count, processed_frames=count, fps=24,
                         shot_plan=copy.deepcopy(recipe['shot_plan']),
                         padding_frames=padded-count, single_shot_only=True)

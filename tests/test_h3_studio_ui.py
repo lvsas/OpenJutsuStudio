@@ -37,7 +37,7 @@ class H3StudioUITests(unittest.TestCase):
                          ['/static/project-session.js', '/static/studio-utils.js', '/static/studio-progress.js', '/static/share-reel.js', '/static/h3-studio.js', '/static/project-context-ui.js'])
         self.assertEqual([s.get('type') for s in scripts], [None, None, None, None, 'module', 'module'])
         links = [attrs.get('href') for tag, attrs in self.parser.tags if tag == 'link']
-        self.assertEqual(links, ['/static/design-system.css', '/static/app.css', '/static/h3-studio.css', '/static/completion.css', '/static/share-reel.css', '/static/project-session.css'])
+        self.assertEqual(links, ['/static/design-system.css', '/static/app.css', '/static/h3-studio.css', '/static/source-clip.css', '/static/completion.css', '/static/share-reel.css', '/static/project-session.css'])
         for src in self.scripts.values():
             self.assertNotRegex(src, r'innerHTML|outerHTML|insertAdjacentHTML|eval\(|https?://')
         # H3 must not borrow the LTX pipeline's vocabulary. The progress bar is now a
@@ -83,7 +83,7 @@ class H3StudioUITests(unittest.TestCase):
     def test_readiness_stays_advisory_and_never_blocks_a_valid_input(self):
         main = self.scripts['h3-studio.js']
         # The submit button depends on inputs alone; a false-negative readiness must not lock it.
-        self.assertIn("byId('submit').disabled = locked || !inputs;", main)
+        self.assertIn("byId('submit').disabled = locked || !inputs || !clip.valid;", main)
         self.assertNotIn("byId('submit').disabled = locked || !ready", main)
         # No client-side preflight: the server is the authoritative gate.
         self.assertNotIn("if (!await checkReadiness()) throw", main)

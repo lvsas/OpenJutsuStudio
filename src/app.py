@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import core
 from api_schema import _public_job, _target_size
 from readiness import check_readiness
+from source_clip import MAX_CLIP_SECONDS
 from share_reel_api import ReelService, create_router as create_share_reel_router
 from job_api import create_router as create_job_router
 from take_capsule_api import create_router as create_take_capsule_router
@@ -222,6 +223,7 @@ def health() -> dict[str, str]:
 @app.get("/api/readiness")
 def readiness_status():
     report = check_readiness()
+    report["limits"] = {"max_clip_seconds": MAX_CLIP_SECONDS}
     return JSONResponse(report, status_code=200 if report["ready"] else 503)
 
 

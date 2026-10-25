@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#101014">
   <title>OpenGenjutsu — LTX Creative Studio</title>
   <meta name="description" content="Open-source local video transformation studio. Character Swap is the first active mode, built with LTX 2.5 and FLUX 2 Klein.">
+  <link rel="stylesheet" href="/static/source-clip.css" data-excerpt-style="shared">
   <link rel="stylesheet" href="/static/design-system.css">
   <link rel="stylesheet" href="/static/app.css">
   <link rel="stylesheet" href="/static/ltx-studio.css">
@@ -55,11 +56,22 @@
             <input id="video" name="video" class="visually-hidden" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-matroska" required>
             <label class="media-picker" for="video" id="video-picker" data-drop-kind="video">
               <span class="picker-icon" aria-hidden="true">↗</span>
-              <span><strong id="video-file-name">Choose a video</strong><small id="video-file-meta">MP4, MOV, MKV, or WebM · up to 500 MB</small></span>
+              <span><strong id="video-file-name">Choose a video</strong><small id="video-file-meta">MP4, MOV, MKV, or WebM · up to 500 MB</small><small id="clip-limit">Max 15 s per swap</small></span>
               <span class="picker-action"><span class="picker-drop-hint">Drop or </span>browse</span>
             </label>
+            <section id="source-clip" class="source-clip" aria-labelledby="clip-title" hidden>
+              <h3 id="clip-title">Selected excerpt</h3>
+              <p id="clip-summary" class="field-help">Original: — · Selected: —</p>
+              <div class="source-clip-fields">
+                <label for="clip-start">Start (seconds)<input id="clip-start" name="clip_start_seconds" class="text-input" type="number" min="0" step="any" required disabled aria-describedby="clip-status clip-limit"></label>
+                <label for="clip-end">End (seconds)<input id="clip-end" name="clip_end_seconds" class="text-input" type="number" min="0" step="any" required disabled aria-describedby="clip-status clip-limit"></label>
+              </div>
+              <button id="clip-preview" class="btn btn-secondary btn-small" type="button" disabled>Preview excerpt</button>
+              <p id="clip-status" class="field-help" role="status" aria-live="polite">Choose a source video to select an excerpt.</p>
+              <p class="field-help">Only this excerpt is swapped. Your original stays unchanged.</p>
+              <p class="field-help">Import and preview stay in your browser. Only Generate swap starts processing.</p>
+            </section>
           </fieldset>
-
           <fieldset class="recipe-step">
             <legend><span>02</span> Character reference <small>No prompt needed</small></legend>
             <input id="reference" name="reference_images" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp">
@@ -216,6 +228,7 @@
   <script src="/static/studio-utils.js" defer></script>
   <script src="/static/reference-controls.js" defer></script>
   <script src="/static/studio-submission.js" defer></script>
+  <script type="module" src="/static/ltx-source-clip.js"></script>
   <script src="/static/studio-progress.js" defer></script>
   <script src="/static/share-reel.js" defer></script>
   <script src="/static/app.js" defer></script>

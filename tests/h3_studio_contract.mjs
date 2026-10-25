@@ -1,4 +1,3 @@
-// Dependency-free DOM/HTTP fakes: contract tests, not real backend/GPU evidence.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {File} from 'node:buffer';
@@ -6,21 +5,25 @@ const html = readFileSync(new URL('../src/templates/h3.html', import.meta.url), 
 class Element {
   constructor(tag = 'DIV') {
     Object.assign(this, {tagName: tag, hidden: false, disabled: false, open: false,
-      textContent: '', value: '', files: [], events: {}, attrs: {}, children: [], validity: '', style: {},
+      textContent: '', value: '', files: [], events: {}, listeners: new Map(), attrs: {}, children: [], validity: '', style: {}, plays: 0, pauses: 0,
       classList: {add() {}, remove() {}, toggle() {}, contains() { return false; }}});
   }
-  addEventListener(name, fn) { this.events[name] = fn; }
+  addEventListener(name, fn) {
+    this.listeners.set(name, [...(this.listeners.get(name) || []), fn]);
+    this.events[name] = (...args) => { let result = this[`on${name}`]?.(...args); for (const f of [...this.listeners.get(name)]) result = f(...args); return result; };
+  }
+  removeEventListener(name, fn) { this.listeners.set(name, this.listeners.get(name).filter(f => f !== fn)); }
   setAttribute(name, value) { this.attrs[name] = value; }
   getAttribute(name) { return name === 'src' ? this.src || null : this.attrs[name] || null; }
   removeAttribute(name) { if (name === 'src') this.src = ''; else delete this.attrs[name]; }
   append(node) { this.children.push(node); }
   replaceChildren() { this.children = []; }
-  // The studio writes through these when it shows the second reference.
   querySelector() { return new Element('SPAN'); }
   get firstElementChild() { return new Element('SPAN'); }
   get lastElementChild() { return new Element('SPAN'); }
   get childElementCount() { return this.children.length; }
-  pause() {}
+  pause() { this.pauses++; }
+  play() { this.plays++; return Promise.resolve(); }
   load() {}
   scrollIntoView() { this.scrolled=true; }
   focus() { this.focused=true; }
@@ -43,9 +46,7 @@ for (const match of html.matchAll(/<([\w-]+)\b([^>]*\bid="([^"]+)"[^>]*)>/g)) {
   elements.set(match[3], element);
 }
 elements.set('h3-advanced', new Element('DETAILS'));
-// Structural parity with LTX: the source summary follows the frame, and the
-// capsule lives inside the result actions rather than beside them.
-// The capsule cards carry the media, exactly as the LTX cards do.
+// LTX parity: source summary after frame, capsule media inside result actions.
 for (const kind of ['source', 'reference', 'result']) {
   assert.ok(html.includes(`id="h3-take-${kind}-preview"`), `capsule card ${kind} needs media`);
 }
@@ -60,7 +61,6 @@ const toasts = [];
 const modalOpens = [];
 globalThis.window = {addEventListener() {}, OpenGenjutsuShare: {open: options => modalOpens.push(options)}};
 globalThis.window.OpenGenjutsuStudio = {showToast: (region, message, type) => toasts.push([region && region.id, message, type])};
-// The real shared progress renderer, exercised with the H3 id prefix.
 await import('../src/static/studio-progress.js');
 const store = new Map();
 globalThis.localStorage = {getItem: key => store.get(key), setItem: (key, value) => store.set(key, value), removeItem: key => store.delete(key)};
@@ -70,7 +70,7 @@ globalThis.setTimeout = (fn, ms) => { tasks.set(++taskId, {fn, ms}); return task
 globalThis.clearTimeout = id => tasks.delete(id);
 globalThis.setInterval = () => 0;
 const settle = async () => { for (let i = 0; i < 8; i++) await new Promise(resolve => setImmediate(resolve)); };
-const response = (data, status = 200) => ({ok: status < 400, status, json: async () => data});
+const response = (data, status = 200) => ({ok: status < 400, status, json: async () => data?.ready !== undefined ? {limits:{max_clip_seconds:15},...data} : data});
 const calls = [];
 let handler = () => response({});
 globalThis.fetch = async (url, opts = {}) => { calls.push([url, opts]); return handler(url, opts); };
@@ -97,7 +97,6 @@ take.ready = true;
 take.watch(id);
 await settle();
 assert.equal(take.active, true);
-// The shared renderer drives the overlay through the H3 id prefix.
 assert.match(el('run-title').textContent, /Queued for the H3 studio/);
 assert.equal(el('run-overlay').hidden, false);
 assert.equal(el('progress-fill').style.width, '4%');
@@ -112,7 +111,6 @@ job = {...base, status: 'done', step: 'done', progress: 1};
 await take.poll(take.epoch);
 assert.equal(take.active, false);
 assert.equal(el('run-overlay').hidden, true);
-// Active tracking ends, but a separate completed key preserves the last success.
 assert.equal(store.has('opengenjutsu.h3.current-job'), false);
 assert.equal(store.get('opengenjutsu.h3.completed-job'), id);
 assert.match(el('run-title').textContent, /Your swap is ready/);
@@ -137,7 +135,6 @@ assert.equal(el('return-last').hidden, false, 'reset preserves an obvious route 
 assert.equal(store.get('opengenjutsu.h3.completed-job'), id);
 await restored.restoreCompleted();
 assert.equal(el('result-actions').hidden, false);
-
 handler = url => response(url.endsWith('/replay') ? {job_id: child} : {...base, id: child, status: 'queued'});
 await take.replay();
 await settle();
@@ -192,7 +189,7 @@ privateTake.watch(id); await settle();
 assert.equal(el('result-actions').hidden, false, 'storage denial must not break generation');
 privateTake.reset(); globalThis.localStorage = storage;
 
-// Import the actual form controller and test exact multipart values and fail-closed readiness.
+// Actual controller, template-derived multipart and advisory readiness.
 const NativeFormData = globalThis.FormData;
 globalThis.FormData = class extends NativeFormData {
   constructor(form) {
@@ -222,12 +219,14 @@ el('take-reference-2-card').click();
 assert.equal(el('reference-preview').src, 'second-reference.png', 'inspection must select reference 2, not reference 1');
 el('take-reference-card').click();
 assert.equal(el('reference-preview').src, 'first-reference.png');
-// Warnings land in the panel notice line, exactly as in the LTX studio.
 assert.match(el('notices').textContent, /Queue is busy/);
 assert.equal(el('notices').hidden, false);
 el('video').files = [new File(['video bytes'], 'source.webm')];
 el('reference').files = [new File(['image bytes'], 'character.png')];
 el('video').events.change();
+// Explicit metadata: no fake production duration default.
+Object.assign(el('source-preview'), {currentSrc: el('source-preview').src, duration: 8, videoWidth: 1280, videoHeight: 720});
+el('source-preview').events.loadedmetadata();
 el('add-second-reference').click();
 el('reference-2').files = [new File(['second image bytes'], 'second.png')];
 el('reference-2').events.change();
@@ -254,6 +253,7 @@ assertFrozenReferences();
 assert.equal(submitted.has('edit_prompt'), false);
 assert.equal(submitted.has(el('description').name), false);
 assert.equal(submitted.get('seed'), '302929098223082');
+assert.equal(submitted.has('clip_start_seconds'), false); assert.equal(submitted.has('clip_end_seconds'), false);
 assert.deepEqual(submitted.getAll('reference_images').map(file => file.name), ['character.png', 'second.png']);
 releaseSubmit(response({job_id: id}, 202)); await inFlight; await settle();
 assert.equal(store.get('opengenjutsu.h3.current-job'), id);
@@ -278,7 +278,6 @@ handler = (url, opts) => {
 await el('form').events.submit({preventDefault() {}});
 await settle();
 assert.equal(submitted.get('edit_prompt'), '  original\n directions  ');
-// The multipart snapshot retains user text verbatim, untrimmed.
 assert.equal(submitted.get(el('description').name), '  a tall woman  ');
 assert.equal(submitted.getAll('reference_images').length, 1); assert.equal(el('reference-2').disabled, true);
 el('add-second-reference').click(); assert.equal(el('reference-2').disabled, false, 'error unlocks second-reference editing');
@@ -296,4 +295,6 @@ await el('form').events.submit({preventDefault() {}});
 await settle();
 assert.equal(calls.filter(([url]) => url === '/api/h3/jobs').length, count + 1);
 assert.match(toasts.at(-1)[1], /timed out/);
-console.log('H3 UI contract checks passed: multipart reference order, verbatim description, pending/queued/running input freeze, done/error editing, advisory readiness, resume, replay, HTTP failures.');
+const {checkSourceClipStudio} = await import('./h3_source_clip_studio.mjs');
+await checkSourceClipStudio({el, calls, response, settle, File, id, child, base, capsule, setHandler: fn => { handler = fn; }, getTake: () => controllerTake});
+console.log('H3 UI contract checks passed: exact multipart, source clip validation/preview, input freeze, done/error editing, advisory readiness, resume, replay, HTTP failures.');

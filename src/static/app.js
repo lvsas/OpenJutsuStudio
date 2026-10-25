@@ -106,6 +106,7 @@ function renderSourceMetadata() {
 }
 
 function previewSource() {
+  if (activeJob || videoInput.disabled) return;
   const file = videoInput.files[0];
   if (!file) return;
   detachTracking();
@@ -185,6 +186,7 @@ function renderJob(job) {
 async function poll(id, current = epoch) {
   if (current !== epoch) return;
   activeJob = id;
+  submission?.refresh();
   jobHistory('current', id);
   returnAffordance();
   try {
@@ -228,6 +230,7 @@ function buildComparisonReel() {
 videoInput.addEventListener('change', previewSource);
 $('#return-last').addEventListener('click', restoreCompleted);
 $('#form').addEventListener('change', () => {
+  if (activeJob || videoInput.disabled) return;
   detachTracking();
   resultActions.hidden = true;
   returnAffordance();

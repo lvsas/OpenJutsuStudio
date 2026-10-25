@@ -17,6 +17,9 @@
     let ready = false;
     let submitting = false;
     let timer = null;
+    let wasLocked = false;
+    const disabledBefore = new Map();
+    const hasClip = Boolean(document.querySelector("#source-clip"));
 
     function selectedReferences() {
       const primary = document.querySelector('#reference');
@@ -26,11 +29,24 @@
     }
 
     function refresh() {
-      edit.disabled = !directions.open;
+      const locked = submitting || isBusy();
+      if (locked && !wasLocked) {
+        for (const field of form.querySelectorAll?.('input, button, select, textarea') || []) {
+          disabledBefore.set(field, field.disabled); field.disabled = true;
+        }
+      } else if (!locked && wasLocked) {
+        for (const [field, disabled] of disabledBefore) field.disabled = disabled;
+        disabledBefore.clear();
+      }
+      wasLocked = locked;
+      const clip = window.OpenGenjutsuClip;
+      clip?.setLocked(locked);
+      edit.disabled = locked || !directions.open;
       const hasIntent = selectedReferences().length > 0 || (!edit.disabled && Boolean(edit.value.trim()));
-      button.disabled = !ready || submitting || isBusy() || !video.files[0] || !hasIntent;
+      button.disabled = !ready || submitting || isBusy() || !video.files[0] || !hasIntent || (hasClip && (!clip || !clip.valid));
       if (submitting || isBusy()) help.textContent = 'Your swap is in progress.';
       else if (!video.files[0]) help.textContent = 'Add your source video to start.';
+      else if (hasClip && (!clip || !clip.valid)) help.textContent = clip?.error || 'Loading video controls…';
       else if (!hasIntent) help.textContent = 'Add a character reference, or open Add directions for a text-only swap.';
       else if (!ready) help.textContent = 'Waiting for the local studio to be ready.';
       else help.textContent = selectedReferences().length ? 'Ready to swap. Directions are optional.' : 'Ready to apply your directions.';
@@ -39,6 +55,7 @@
     function payload() {
       refresh();
       const data = new FormData(form);
+      window.OpenGenjutsuClip?.appendTo(data);
       data.delete('reference_images');
       data.delete('reference_targets');
       selectedReferences().forEach((input) => {
@@ -54,6 +71,8 @@
         const response = await fetch('/api/readiness');
         const report = await response.json();
         ready = response.ok && report.ready;
+        studio.clipLimit = report.limits?.max_clip_seconds;
+        window.OpenGenjutsuClip?.setLimit(studio.clipLimit);
         indicator.classList.toggle('live', ready);
         indicator.textContent = ready ? 'Studio ready' : (report.issues || ['Studio unavailable']).join(' ');
         notices.textContent = (report.warnings || []).join(' ');
@@ -104,6 +123,7 @@
       refresh();
     });
     window.addEventListener('opengenjutsu:references-changed', refresh);
+    window.addEventListener('opengenjutsu:clip-change', refresh);
     window.addEventListener('beforeunload', () => { if (timer) window.clearTimeout(timer); });
     checkConnection();
     return { refresh };

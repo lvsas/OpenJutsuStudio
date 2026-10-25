@@ -39,6 +39,7 @@ class BackendTests(unittest.TestCase):
         video.to_file.side_effect = lambda p: Path(p).write_bytes(b'movie')
         self.client.run.return_value.get_outputs.return_value = [image, video]
         self.video = video
+        patch.object(pipeline, 'require_short_source', return_value={'frames': 23, 'fps': 24, 'duration': 23/24, 'width': 640, 'height': 360}).start()
         patch.object(pipeline, 'make_client', return_value=self.client).start()
         patch.object(pipeline, 'prepare_source', return_value=(self.source, 23, 39)).start()
         patch.object(pipeline, 'has_audio', return_value=False).start()

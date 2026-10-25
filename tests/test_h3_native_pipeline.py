@@ -60,6 +60,7 @@ class NativePipelineTests(unittest.TestCase):
         self.import_family = patch.object(pipeline, 'import_family').start()
         self.import_family.return_value = MagicMock(take_id='c' * 32)
 
+        patch.object(pipeline, 'require_short_source', return_value={'frames': 23, 'fps': 24, 'duration': 23/24, 'width': 640, 'height': 360}).start()
         patch.object(pipeline, 'make_client', return_value=self.client).start()
         patch.object(pipeline, 'prepare_source', return_value=(self.source, 23, 39)).start()
         patch.object(pipeline, 'has_audio', return_value=False).start()

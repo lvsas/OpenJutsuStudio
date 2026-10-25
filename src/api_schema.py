@@ -22,7 +22,8 @@ def _public_job(job: core.Job) -> dict[str, Any]:
         "created": job.created,
         "started": job.started,
         "finished": job.finished,
-        "meta": job.meta,
+        "meta": {key: value for key, value in job.meta.items()
+                 if key not in {"h3_original_source", "original_source"}},
         "result_url": f"/api/jobs/{job.id}/result" if job.status == "done" else None,
         "source_url": f"/api/jobs/{job.id}/source" if job.video else None,
         "anchor_frames": public_anchor_frames(job),

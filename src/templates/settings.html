@@ -40,7 +40,7 @@
           <div>
             <label class="field-label" for="compute-url">API v2 URL</label>
             <input id="compute-url" class="text-input" type="url" required spellcheck="false" autocapitalize="none" autocomplete="off" aria-describedby="url-help">
-            <p id="url-help" class="settings-help">Use the API v2 base URL, not a raw ComfyUI address. A different URL never inherits the previous target’s key.</p>
+            <p id="url-help" class="settings-help">Use the API v2 base URL, not a raw ComfyUI address. A different URL never inherits the previous target’s key or model filename overrides: new targets may use different filenames.</p>
           </div>
           <div>
             <label class="field-label" for="compute-key">API key</label>
@@ -50,6 +50,16 @@
           </div>
           <label class="settings-checkbox" for="clear-key"><input id="clear-key" type="checkbox"> <span>Remove saved key</span></label>
           <p class="settings-help">Removal takes priority over a replacement key. Test checks these proposed settings without saving them; Save applies the removal.</p>
+          <details id="models-settings" class="settings-models">
+            <summary>Models</summary>
+            <p id="models-help" class="settings-help">Advanced: use the same compatible weights under the filenames on your target, including relative subfolders and exact spelling. This changes filenames only, not the loader, model family or precision; compatibility is your responsibility.</p>
+            <p class="settings-help">A different URL clears model overrides so filenames from the previous target are not silently reused. Enter new names explicitly, or keep the declared defaults. Use default removes that role’s override; Use all defaults resets every override.</p>
+            <p id="models-status" class="settings-help" role="status" aria-live="polite">Loading model roles…</p>
+            <p id="model-inventory-status" class="settings-help" role="status" aria-live="polite">Inventory unknown. Only Test connection checks the target; opening Models or typing does not.</p>
+            <div id="model-fields"></div>
+            <button id="reset-models" class="btn btn-secondary" type="button" disabled>Use all defaults</button>
+            <p class="settings-help">Suggestions come only from an explicit Test connection and never select a filename for you. If inventory is unknown, enter a compatible filename manually. This page never installs models or selects alternative weights.</p>
+          </details>
           <div class="settings-actions">
             <button id="test-connection" class="btn btn-secondary" type="button" disabled>Test connection</button>
             <button id="save-settings" class="btn btn-primary" type="submit" disabled>Save settings</button>

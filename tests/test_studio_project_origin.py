@@ -77,7 +77,7 @@ class ReplayProjectOriginTests(IsolatedTimeline):
         before=parent.path.read_bytes();dispatch=MagicMock()
         app=FastAPI();app.include_router(take_capsule_api.create_router(dispatch,lambda:{'ready':True}))
         client=self.enterContext(TestClient(app))
-        with patch('take_capsule_api._replay_inputs',return_value=({},self.media/'source.mp4',[],[])),patch('take_capsule_api._replay_options',return_value={}):
+        with patch('take_capsule_api._replay_inputs',return_value=({'model_files':{}},self.media/'source.mp4',[],[])),patch('take_capsule_api._replay_options',return_value={}):
             result=client.post('/api/jobs/'+parent.id+'/replay',json={'project_id':b['project_id']})
         self.assertEqual(result.status_code,202,result.text)
         child=dispatch.call_args.args[0]

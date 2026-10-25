@@ -44,6 +44,23 @@ class SettingsUIContracts(unittest.TestCase):
         for asset in ['design-system.css', 'app.css', 'settings.css', 'settings.js']:
             self.assertIn('/static/' + asset, text)
 
+    def test_models_are_one_collapsed_advanced_section(self):
+        text = (ROOT / 'src/templates/settings.html').read_text()
+        doc = Document(text)
+        details = [attrs for tag, attrs in doc.elements if tag == 'details']
+        self.assertEqual(len(details), 1)
+        self.assertEqual(details[0].get('id'), 'models-settings')
+        self.assertNotIn('open', details[0])
+        self.assertRegex(text, r'<summary[^>]*>Models</summary>')
+        ids = {attrs['id']: (tag, attrs) for tag, attrs in doc.elements if 'id' in attrs}
+        for name in ['model-fields', 'models-status', 'model-inventory-status', 'reset-models']:
+            self.assertIn(name, ids)
+        self.assertEqual(ids['reset-models'][1].get('type'), 'button')
+        self.assertEqual(ids['model-inventory-status'][1].get('aria-live'), 'polite')
+        for explanation in ['compatible weights', 'precision', 'family', 'different URL', 'filenames']:
+            self.assertIn(explanation, text)
+        self.assertIn('models-settings', text.split('<form', 1)[1].split('</form>', 1)[0])
+
     def test_settings_reachable_from_every_existing_header(self):
         for name in ['index', 'h3', 'character', 'timeline', 'assembly', 'settings']:
             with self.subTest(name=name):

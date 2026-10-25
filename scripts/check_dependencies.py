@@ -19,6 +19,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from comfy_schema import loader_choices
+
 MANIFEST = Path(__file__).resolve().parents[1] / "dependencies.json"
 
 # Which loader field holds the file for each ComfyUI model folder.
@@ -46,21 +49,8 @@ def loader_options(object_info, node, field):
     element is that list, and now `["COMBO", {"options": [...]}]`. Reading only the old shapes
     reports a file as missing when it is present, so all three are handled and each is tested.
     """
-    node_info = object_info.get(node) or {}
-    for section in ("required", "optional"):
-        spec = (node_info.get("input") or {}).get(section, {}).get(field)
-        if not isinstance(spec, list) or not spec:
-            continue
-        first = spec[0]
-        if isinstance(first, list):
-            return [value for value in first if isinstance(value, str)]
-        if isinstance(first, str) and first.upper() == "COMBO":
-            second = spec[1] if len(spec) > 1 else {}
-            if isinstance(second, dict) and isinstance(second.get("options"), list):
-                return [value for value in second["options"] if isinstance(value, str)]
-        if isinstance(first, dict) and isinstance(first.get("options"), list):
-            return [value for value in first["options"] if isinstance(value, str)]
-    return []
+    # Share the runtime parser; unknown inventory remains unmet for this install gate.
+    return loader_choices(object_info, node, field) or []
 
 
 def all_model_files(object_info):

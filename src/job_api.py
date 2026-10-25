@@ -8,8 +8,8 @@ from typing import Any, Callable
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
-import config
 import core
+from model_catalog import LTX_ROLES, effective_bindings, validate_bindings
 from api_schema import _public_job, _target_size
 from prompt_profiles import PROMPT_POLICY_VERSION, get_prompt_profile
 from project_scope import submission_project
@@ -63,12 +63,8 @@ async def _store_uploads(media_dir: Path, job_id: str, video: UploadFile, suffix
 
 
 def _model_files() -> dict[str, str]:
-    return {
-        "flux_unet": config.F_UNET_KLEIN, "flux_clip": config.F_CLIP_KLEIN,
-        "flux_vae": config.F_VAE_KLEIN, "ltx_unet": config.F_UNET_LTX,
-        "ltx_clip": config.F_CLIP_LTX, "video_vae": config.F_VAE_VID,
-        "audio_vae": config.F_VAE_AUD, "ripple_lora": config.F_LORA_RIPPLE,
-    }
+    bindings = effective_bindings()
+    return {key: bindings[key] for key in LTX_ROLES}
 
 
 def _build_recipe(edit_prompt: str, target_description: str, reference_targets: list[str],
@@ -107,18 +103,24 @@ def _job_meta(video: UploadFile, target_description: str, reference_targets: lis
 
 
 def _pipeline_options(recipe: dict[str, Any], reference_paths: list[Path]) -> dict[str, Any]:
+    # Explicit snapshots never consult today's settings. Older partial snapshots
+    # retain their recorded names and use declared defaults for absent roles.
+    bindings = effective_bindings(validate_bindings(recipe['model_files']))
+    model_files = {key: bindings[key] for key in LTX_ROLES}
     return {
         "preserve_audio": recipe["preserve_audio"],
         "reference_image": reference_paths[0] if reference_paths else None,
         "reference_images": reference_paths,
         "edit": {"steps": recipe["edit_steps"], "seed": recipe["edit_seed"],
-                 "cfg": recipe["edit_cfg"], "megapixels": recipe["edit_megapixels"]},
+                 "cfg": recipe["edit_cfg"], "megapixels": recipe["edit_megapixels"],
+                 "model_files": dict(model_files)},
         "ripple_prompt": recipe["propagation_prompt"],
         "propagate": {
             "frames": recipe["frames"], "seed": recipe["ripple_seed"],
             "fps": recipe["fps"], "width": recipe["width"], "height": recipe["height"],
             "steps": recipe["ripple_steps"], "strength": recipe["ripple_strength"],
             "cfg": recipe["ripple_cfg"], "guide_strength": recipe["guide_strength"],
+            "model_files": dict(model_files),
         },
     }
 

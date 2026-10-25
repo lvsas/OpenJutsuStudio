@@ -39,7 +39,7 @@ async def _payload(request, saving=False):
         data = json.loads(body, object_pairs_hook=unique)
     except (ValueError, UnicodeError):
         raise HTTPException(422, 'Invalid settings JSON.') from None
-    allowed = {'base_url', 'api_key', 'clear_api_key'} | ({'revision'} if saving else set())
+    allowed = {'base_url', 'api_key', 'clear_api_key', 'model_bindings'} | ({'revision'} if saving else set())
     if not isinstance(data, dict) or set(data)-allowed or 'base_url' not in data:
         raise HTTPException(422, 'Invalid settings fields.')
     if saving and (type(data.get('revision')) is not int or data['revision'] < 0):
@@ -48,6 +48,8 @@ async def _payload(request, saving=False):
         raise HTTPException(422, 'Invalid API key format.')
     if type(data.get('clear_api_key', False)) is not bool:
         raise HTTPException(422, 'Invalid credential removal flag.')
+    if 'model_bindings' in data and not isinstance(data['model_bindings'], dict):
+        raise HTTPException(422, 'Invalid model bindings.')
     return data
 
 
@@ -56,6 +58,10 @@ def create_router(get_work, activity, probe):
     def store():
         return Store(get_work())
 
+    def public(target):
+        from model_catalog import roles
+        return target.public() | {'model_roles': roles()}
+
     @router.get('/settings', response_class=HTMLResponse)
     def page():
         return (Path(__file__).parent/'templates'/'settings.html').read_text()
@@ -63,7 +69,7 @@ def create_router(get_work, activity, probe):
     @router.get('/api/settings/compute')
     def current():
         try:
-            return _public_response(store().current().public())
+            return _public_response(public(store().current()))
         except SettingsError as exc:
             raise HTTPException(exc.status, str(exc)) from None
 
@@ -72,8 +78,9 @@ def create_router(get_work, activity, probe):
         data = await _payload(request, saving=True)
         def apply():
             with activity.guard():
-                return store().save(data['revision'], data['base_url'],
-                                    data.get('api_key'), data.get('clear_api_key', False)).public()
+                target = store().save(data['revision'], data['base_url'],
+                                      data.get('api_key'), data.get('clear_api_key', False), data.get('model_bindings'))
+                return public(target)
         try:
             return _public_response(await asyncio.to_thread(apply))
         except SettingsError as exc:
@@ -85,7 +92,7 @@ def create_router(get_work, activity, probe):
     async def test(request: Request):
         data = await _payload(request)
         try:
-            candidate = store().candidate(data['base_url'], data.get('api_key'), data.get('clear_api_key', False))
+            candidate = store().candidate(data['base_url'], data.get('api_key'), data.get('clear_api_key', False), data.get('model_bindings'))
             return _public_response(await asyncio.to_thread(probe, candidate))
         except SettingsError as exc:
             raise HTTPException(exc.status, str(exc)) from None

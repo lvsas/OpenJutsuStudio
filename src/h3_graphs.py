@@ -5,6 +5,10 @@ are explicit target configuration; node/model availability must be checked.
 Optional generic references and timestamped guides are separate test arms.
 """
 from dataclasses import dataclass
+from types import MappingProxyType
+from model_catalog import effective_bindings
+
+_DEFAULT_MODELS = MappingProxyType(effective_bindings({}))
 
 # Product capacity, matching the LTX studio's two visible people. The node's own
 # collection is dynamic and larger; that is not a licence to promise more.
@@ -15,13 +19,19 @@ GUIDE_NODE = "201"
 
 @dataclass(frozen=True)
 class H3Models:
-    unet: str = "minimax_h3_fl2va_pruned_int8_convrot.safetensors"
-    clip: str = "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"
-    video_vae: str = "minimax_h3_video_vae_fp16.safetensors"
-    audio_vae: str = "minimax_h3_audio_vae_fp32.safetensors"
-    turbo_lora: str = "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors"
-    swap_lora: str = "H3/h3_character_swap_v1.5.safetensors"
-    upscaler: str = "minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors"
+    unet: str = _DEFAULT_MODELS['h3_unet']
+    clip: str = _DEFAULT_MODELS['h3_clip']
+    video_vae: str = _DEFAULT_MODELS['h3_video_vae']
+    audio_vae: str = _DEFAULT_MODELS['h3_audio_vae']
+    turbo_lora: str = _DEFAULT_MODELS['h3_turbo_lora']
+    swap_lora: str = _DEFAULT_MODELS['h3_swap_lora']
+    upscaler: str = _DEFAULT_MODELS['h3_upscaler']
+
+    @classmethod
+    def configured(cls, overrides=None):
+        """Resolve once for a new graph/recipe; explicit instances stay literal."""
+        bindings = effective_bindings(overrides)
+        return cls(**{key: bindings['h3_' + key] for key in cls.__dataclass_fields__})
 
 
 def _integer(value, name, minimum, maximum):
@@ -106,7 +116,7 @@ def build_h3_recast(video, reference, prompt, *, source_frames, width=512, heigh
     length = h3_frames(source_frames)
     if reference_size not in {"match", "max"}:
         raise ValueError("reference_size must be match or max")
-    m = models or H3Models()
+    m = models if models is not None else H3Models.configured()
     g = {}
 
     def node(key, kind, **inputs):

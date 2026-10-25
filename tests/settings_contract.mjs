@@ -7,7 +7,7 @@ const source = readFileSync(new URL('../src/static/settings.js', import.meta.url
 class Element {
   value = ''; checked = false; disabled = false; hidden = false; textContent = ''; children = []; listeners = {};
   addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
-  async fire(type) { await Promise.all((this.listeners[type] || []).map(fn => fn({preventDefault() {}}))); }
+  async fire(type) { await Promise.all((this.listeners[type] || []).map(fn => fn({target: this, preventDefault() {}}))); }
   setAttribute(name, value) { this[name] = value; }
   append(...items) { this.children.push(...items); }
   replaceChildren(...items) { this.children = items; }
@@ -18,13 +18,13 @@ const engine = status => ({status, missing_nodes: [], missing_models: [], issues
 const result = {connected: true, ready: true, mode: 'api-v2', issues: [], warnings: [], engines: {ltx: engine('ready'), h3: engine('ready')}};
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function harness({form = true, search = ''} = {}) {
-  const ids = ['settings-form', 'compute-url', 'compute-key', 'clear-key', 'key-status', 'settings-source', 'settings-status', 'test-status', 'test-results', 'test-connection', 'save-settings'];
+  const ids = ['settings-form', 'compute-url', 'compute-key', 'clear-key', 'key-status', 'settings-source', 'settings-status', 'test-status', 'test-results', 'test-connection', 'save-settings', 'models-settings', 'model-fields', 'models-status', 'model-inventory-status', 'reset-models'];
   const nodes = Object.fromEntries(ids.map(id => [id, new Element()]));
   if (!form) delete nodes['settings-form'];
   const links = ['/', '/h3', '/characters', '/timeline', '/settings'].map(href => Object.assign(new Element(), {href}));
-  const requests = [], events = {};
-  const document = {readyState: 'complete', getElementById: id => nodes[id] || null,
-    querySelectorAll: () => links, createElement: () => new Element()};
+  const requests = [], events = {}, created = [];
+  const document = {readyState: 'complete', getElementById: id => nodes[id] || created.find(node => node.id === id) || null,
+    querySelectorAll: () => links, createElement: tag => { const node = new Element(); node.tagName = tag; created.push(node); return node; }};
   const location = {href: 'https://studio.example/settings' + search, search, origin: 'https://studio.example', pathname: '/settings'};
   const window = {addEventListener: (name, fn) => { events[name] = fn; }};
   const fetch = (url, options = {}) => new Promise((resolve, reject) => {
@@ -33,7 +33,12 @@ function harness({form = true, search = ''} = {}) {
   const storage = new Proxy({}, {get() { throw Error('Settings must not access storage'); }});
   vm.runInNewContext(source, {document, window, location, URL, URLSearchParams, fetch, localStorage: storage, sessionStorage: storage, console: {log() { throw Error('No logging'); }}});
   const text = node => node.textContent + node.children.map(text).join('');
-  return {nodes, links, requests, window, events, text, async load() { requests[0].reply(saved); await tick(); },
+  const descendants = node => node.children.flatMap(child => [child, ...descendants(child)]);
+  const model = role => descendants(nodes['model-fields']).find(node => node.tagName === 'input' && node['data-model-role'] === role);
+  const choices = role => { const field = model(role); return descendants(nodes['model-fields']).find(node => node.id === field.list).children.map(node => node.value); };
+  return {nodes, links, requests, window, events, text, model, choices, descendants,
+    async load(data = saved) { requests[0].reply(data); await tick(); },
+    async editModel(role, value) { const field = model(role); assert.ok(field, 'model input exists: ' + role); field.value = value; await field.fire('input'); },
     async edit(id, value) { nodes[id].value = value; await nodes[id].fire('input'); },
     test() { return nodes['test-connection'].fire('click'); }, save() { return nodes['settings-form'].fire('submit'); }};
 }
@@ -120,4 +125,188 @@ test('navigation preserves valid project context without creating a project or l
   h.window.OpenGenjutsuProject = {id: () => 'b'.repeat(32)}; h.events['opengenjutsu:project-context']();
   assert.ok(h.links.every(link => new URL(link.href, 'https://studio.example').searchParams.get('project_id') === 'b'.repeat(32)));
   const invalid = harness({form: false, search: '?project_id=bad'}); assert.ok(invalid.links.every(link => !link.href.includes('project_id')));
+});
+
+const roles = [
+  {key: 'ltx_unet', label: 'LTX diffusion model', engine: 'ltx', class_type: 'UNETLoader', input: 'unet_name', default: 'LTX/default.safetensors'},
+  {key: 'h3_unet', label: 'H3 diffusion model', engine: 'h3', class_type: 'UNETLoader', input: 'unet_name', default: 'H3/default.safetensors'},
+  {key: 'shared_vae', label: 'Shared VAE', engine: 'shared', class_type: 'VAELoader', input: 'vae_name', default: 'shared.safetensors'},
+];
+const modelsSaved = {...saved, model_roles: roles, model_bindings: {h3_unet: 'H3/Renamed Model.SAFETENSORS'}};
+const inventory = {status: 'verified', choices: {ltx_unet: ['Target/LTX renamed.safetensors'], h3_unet: ['H3/a.safetensors', 'H3/b.safetensors']}};
+
+test('accepting a save may blur replaced model controls without inventing newer edits', async () => {
+  const h = harness(); await h.load(modelsSaved);
+  await h.editModel('h3_unet', 'H3/changed.safetensors');
+  const focused = h.model('h3_unet');
+  const replace = h.nodes['model-fields'].replaceChildren.bind(h.nodes['model-fields']);
+  h.nodes['model-fields'].replaceChildren = (...items) => {
+    // Chromium emits change when rebuilding removes the still-focused input.
+    focused.fire('change'); replace(...items);
+  };
+  const pending = h.save();
+  h.requests[1].reply({...modelsSaved, revision: 4, model_bindings: {h3_unet: 'H3/changed.safetensors'}});
+  await pending;
+  assert.match(h.nodes['settings-status'].textContent, /^Settings saved and activated/);
+  assert.equal(h.model('h3_unet').value, 'H3/changed.safetensors');
+});
+
+test('model defaults and overrides are effective values, grouped and safely labelled without fetching on opening', async () => {
+  const h = harness(); await h.load(modelsSaved);
+  assert.equal(h.model('ltx_unet').value, roles[0].default);
+  assert.equal(h.model('h3_unet').value, modelsSaved.model_bindings.h3_unet);
+  const text = h.text(h.nodes['model-fields']);
+  for (const label of ['LTX', 'H3', 'Shared', 'UNETLoader', 'unet_name', 'Shared VAE']) assert.ok(text.includes(label));
+  const descendants = h.descendants(h.nodes['model-fields']);
+  for (const role of roles) {
+    const field = h.model(role.key);
+    assert.equal(field.type, 'text');
+    assert.ok(descendants.some(node => node.tagName === 'label' && node.htmlFor === field.id));
+    assert.ok(field['aria-describedby']);
+  }
+  await h.nodes['models-settings'].fire('toggle');
+  assert.equal(h.requests.length, 1);
+  assert.match(h.nodes['model-inventory-status'].textContent, /unknown|not checked/i);
+  const pending = h.test();
+  assert.deepEqual(body(h.requests[1]).model_bindings, modelsSaved.model_bindings);
+  h.requests[1].reply(result); await pending;
+});
+
+test('literal renamed filenames keep case, separators and spaces in Test and Save; defaults are omitted', async () => {
+  const h = harness(); await h.load(modelsSaved);
+  const literal = 'Sub Folder\\Renamed MODEL.SAFETENSORS ';
+  await h.editModel('ltx_unet', literal); await h.editModel('h3_unet', roles[1].default);
+  assert.equal(h.requests.length, 1);
+  const probe = h.test(); assert.deepEqual(body(h.requests[1]).model_bindings, {ltx_unet: literal});
+  h.requests[1].reply(result); await probe;
+  const pending = h.save(); assert.deepEqual(body(h.requests[2]), {revision: 3, base_url: saved.base_url, model_bindings: {ltx_unet: literal}});
+  h.requests[2].reply({...modelsSaved, revision: 4, model_bindings: {ltx_unet: literal}}); await pending;
+  assert.equal(h.model('ltx_unet').value, literal); assert.equal(h.model('h3_unet').value, roles[1].default);
+  assert.equal(h.requests.length, 3);
+});
+
+test('reset controls explicitly send an empty override object and never save or test by themselves', async () => {
+  const h = harness(); await h.load(modelsSaved);
+  const reset = h.descendants(h.nodes['model-fields']).find(node => node['data-reset-role'] === 'h3_unet');
+  assert.equal(reset.type, 'button'); await reset.fire('click');
+  assert.equal(h.model('h3_unet').value, roles[1].default);
+  await h.editModel('ltx_unet', 'custom.safetensors'); await h.nodes['reset-models'].fire('click');
+  assert.equal(h.requests.length, 1);
+  const pending = h.save(); assert.deepEqual(body(h.requests[1]).model_bindings, {});
+  h.requests[1].reply({...modelsSaved, revision: 4, model_bindings: {}}); await pending;
+});
+
+test('changing URL clears previous target overrides and suggestions, never restores them silently, permits new explicit names', async () => {
+  const h = harness(); await h.load(modelsSaved);
+  let pending = h.test(); h.requests[1].reply({...result, model_inventory: inventory}); await pending;
+  await h.edit('compute-url', 'https://new.example/api');
+  assert.equal(h.model('h3_unet').value, roles[1].default); assert.deepEqual(h.choices('h3_unet'), []);
+  assert.match(h.nodes['models-status'].textContent, /different|changed/i);
+  assert.match(h.nodes['models-status'].textContent, /clear|reset/i);
+  await h.editModel('h3_unet', 'New Target/H3 renamed.safetensors');
+  await h.nodes['compute-url'].fire('change');  // duplicate DOM event is not another target change
+  pending = h.test(); assert.deepEqual(body(h.requests[2]), {base_url: 'https://new.example/api', model_bindings: {h3_unet: 'New Target/H3 renamed.safetensors'}});
+  h.requests[2].reply(result); await pending;
+  await h.edit('compute-url', saved.base_url);
+  pending = h.save(); assert.deepEqual(body(h.requests[3]).model_bindings, {});
+  h.requests[3].reply({...modelsSaved, revision: 4, model_bindings: {}}); await pending;
+});
+
+test('verified Test inventory only suggests exact literals, never selects or mutates the draft', async () => {
+  const h = harness(); await h.load({...modelsSaved, model_inventory: inventory});
+  assert.deepEqual(h.choices('h3_unet'), []); // GET cannot establish target inventory
+  const pending = h.test(); h.requests[1].reply({...result, model_inventory: inventory}); await pending;
+  assert.deepEqual(h.choices('h3_unet'), inventory.choices.h3_unet);
+  assert.equal(h.model('h3_unet').value, modelsSaved.model_bindings.h3_unet);
+  assert.match(h.nodes['model-inventory-status'].textContent, /verified/i);
+  await h.editModel('h3_unet', 'Manual compatible name.safetensors');
+  assert.equal(h.requests.length, 2);
+  const next = h.test(); assert.equal(body(h.requests[2]).model_bindings.h3_unet, 'Manual compatible name.safetensors');
+  h.requests[2].reply({...result, model_inventory: {status: 'unknown', choices: inventory.choices}}); await next;
+  assert.equal(h.model('h3_unet').value, 'Manual compatible name.safetensors');
+  assert.match(h.nodes['model-inventory-status'].textContent, /unknown/i);
+  assert.deepEqual(h.choices('h3_unet'), []);
+});
+
+test('older response without model fields or inventory remains usable and omits optional bindings', async () => {
+  const h = harness(); await h.load();
+  assert.equal(h.nodes['model-fields'].children.length, 0);
+  assert.match(h.nodes['models-status'].textContent, /unavailable|not available/i);
+  const pending = h.test(); assert.ok(!Object.hasOwn(body(h.requests[1]), 'model_bindings'));
+  h.requests[1].reply(result); await pending;
+  assert.match(h.nodes['model-inventory-status'].textContent, /unknown/i);
+});
+
+test('model edits invalidate probe readiness and stale inventory cannot update suggestions', async () => {
+  const h = harness(); await h.load(modelsSaved);
+  const pending = h.test(); await h.editModel('h3_unet', 'newer.safetensors');
+  h.requests[1].reply({...result, model_inventory: inventory}); await pending;
+  assert.equal(h.model('h3_unet').value, 'newer.safetensors');
+  assert.match(h.nodes['test-status'].textContent, /obsolete/i); assert.ok(h.nodes['test-results'].hidden);
+  assert.deepEqual(h.choices('h3_unet'), []);
+  const current = h.test(); h.requests[2].reply({...result, model_inventory: inventory}); await current;
+  await h.editModel('h3_unet', 'still newer.safetensors');
+  assert.match(h.nodes['test-status'].textContent, /obsolete/i); assert.ok(h.nodes['test-results'].hidden);
+});
+
+test('stale Save preserves model edits and URL reset while adopting committed revision, without retry', async () => {
+  const h = harness(); await h.load(modelsSaved);
+  await h.editModel('h3_unet', 'submitted.safetensors'); const pending = h.save();
+  await h.edit('compute-url', 'https://other.example/api'); await h.editModel('ltx_unet', 'new target.safetensors');
+  h.requests[1].reply({...modelsSaved, revision: 4, model_bindings: {h3_unet: 'submitted.safetensors'}}); await pending;
+  assert.equal(h.model('h3_unet').value, roles[1].default); assert.equal(h.model('ltx_unet').value, 'new target.safetensors');
+  assert.equal(h.nodes['compute-url'].value, 'https://other.example/api'); assert.equal(h.requests.length, 2);
+  const next = h.save(); assert.deepEqual(body(h.requests[2]), {revision: 4, base_url: 'https://other.example/api', model_bindings: {ltx_unet: 'new target.safetensors'}});
+  h.requests[2].reply({detail: 'secret should not display'}, 409); await next;
+  assert.equal(h.requests.length, 3); assert.equal(h.model('ltx_unet').value, 'new target.safetensors');
+});
+
+test('model-only newer edit is not replaced by a stale Save and remains on next explicit save', async () => {
+  const h = harness(); await h.load(modelsSaved);
+  const pending = h.save(); await h.editModel('h3_unet', 'newer model.safetensors');
+  h.requests[1].reply({...modelsSaved, revision: 4}); await pending;
+  assert.equal(h.model('h3_unet').value, 'newer model.safetensors');
+  const next = h.save(); assert.equal(body(h.requests[2]).model_bindings.h3_unet, 'newer model.safetensors');
+  assert.equal(body(h.requests[2]).revision, 4); h.requests[2].reply({...modelsSaved, revision: 5, model_bindings: {h3_unet: 'newer model.safetensors'}}); await next;
+});
+
+test('inventory and model labels are text-only, with no credential echo in Test suggestions', async () => {
+  const h = harness(); await h.load({...modelsSaved, model_roles: roles.map(role => ({...role, label: '<img onerror=bad>'}))});
+  assert.match(h.text(h.nodes['model-fields']), /<img onerror=bad>/);
+  await h.edit('compute-key', 'never-echo'); const pending = h.test();
+  h.requests[1].reply({...result, model_inventory: {status: 'verified', choices: {h3_unet: ['never-echo', '<img onerror=bad>.safetensors']}}}); await pending;
+  assert.deepEqual(h.choices('h3_unet'), ['<img onerror=bad>.safetensors']);
+  assert.ok(!h.text(h.nodes['model-fields']).includes('never-echo'));
+});
+
+test('all declared defaults send explicit empty bindings, including defaults returned redundantly as overrides', async () => {
+  const h = harness(); await h.load({...modelsSaved, model_bindings: Object.fromEntries(roles.map(role => [role.key, role.default]))});
+  const pending = h.test(); assert.deepEqual(body(h.requests[1]).model_bindings, {});
+  h.requests[1].reply(result); await pending;
+});
+
+test('editing URL before initial GET finishes never imports previous target filenames', async () => {
+  const h = harness(); await h.edit('compute-url', 'https://early-new.example/api'); await h.load(modelsSaved);
+  assert.equal(h.nodes['compute-url'].value, 'https://early-new.example/api');
+  assert.equal(h.model('h3_unet').value, roles[1].default);
+  const pending = h.save(); assert.deepEqual(body(h.requests[1]).model_bindings, {});
+  h.requests[1].reply({...modelsSaved, revision: 4, base_url: 'https://early-new.example/api', model_bindings: {}}); await pending;
+});
+
+test('missing optional model fields on Save preserves known metadata and the current draft', async () => {
+  const h = harness(); await h.load(modelsSaved); await h.editModel('h3_unet', 'manual.safetensors');
+  const pending = h.save(); h.requests[1].reply({...saved, revision: 4}); await pending;
+  assert.equal(h.model('h3_unet').value, 'manual.safetensors');
+  const next = h.test(); assert.deepEqual(body(h.requests[2]).model_bindings, {h3_unet: 'manual.safetensors'});
+  h.requests[2].reply(result); await next;
+});
+
+test('failed repeat Test leaves inventory unknown without mutating model draft or echoing server errors', async () => {
+  const h = harness(); await h.load(modelsSaved);
+  const first = h.test(); h.requests[1].reply({...result, model_inventory: inventory}); await first;
+  const pending = h.test(); h.requests[2].reply({detail: 'private response'}, 500); await pending;
+  assert.match(h.nodes['model-inventory-status'].textContent, /unknown/i);
+  assert.deepEqual(h.choices('h3_unet'), []);
+  assert.equal(h.model('h3_unet').value, modelsSaved.model_bindings.h3_unet);
+  assert.doesNotMatch(h.nodes['settings-status'].textContent, /private response/);
 });

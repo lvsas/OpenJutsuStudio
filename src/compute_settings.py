@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import tempfile
 import threading
+from types import MappingProxyType
 from urllib.parse import urlsplit
 
 DEFAULT_URL = 'http://127.0.0.1:8189'
@@ -46,17 +47,29 @@ def target_mode(url):
     return 'remote-self-hosted'
 
 
+def _bindings(value):
+    from model_catalog import validate_bindings
+    try:
+        return validate_bindings(value)
+    except ValueError:
+        raise SettingsError('Invalid model bindings. Use compatible relative filenames for known roles.') from None
+
+
 @dataclass(frozen=True)
 class Target:
     base_url: str
     api_key: str = field(default='', repr=False)
     revision: int = 0
     source: str = 'default'
+    model_bindings: dict = field(default_factory=dict)
+
+    def __post_init__(self):
+        object.__setattr__(self, 'model_bindings', MappingProxyType(_bindings(dict(self.model_bindings))))
 
     def public(self):
         return {'revision': self.revision, 'base_url': self.base_url,
                 'api_key_configured': bool(self.api_key), 'source': self.source,
-                'mode': target_mode(self.base_url)}
+                'mode': target_mode(self.base_url), 'model_bindings': dict(self.model_bindings)}
 
 
 class Store:
@@ -74,11 +87,11 @@ class Store:
             if self.path.stat().st_size > 16384:
                 raise ValueError()
             data = json.loads(self.path.read_text())
-            if (set(data) != {'revision', 'base_url', 'api_key'} or
+            if (set(data) not in ({'revision', 'base_url', 'api_key'}, {'revision', 'base_url', 'api_key', 'model_bindings'}) or
                     type(data['revision']) is not int or data['revision'] < 1):
                 raise ValueError()
             key = self._key(data['api_key'])
-            return Target(validated_url(data['base_url']), key, data['revision'], 'saved')
+            return Target(validated_url(data['base_url']), key, data['revision'], 'saved', _bindings(data.get('model_bindings', {})))
         except (OSError, ValueError, TypeError, KeyError):
             raise SettingsError('Saved compute settings are unreadable; no fallback target was selected.', 503) from None
 
@@ -88,7 +101,7 @@ class Store:
             raise SettingsError('Invalid API key format.')
         return value.strip()
 
-    def candidate(self, base_url, api_key=None, clear=False):
+    def candidate(self, base_url, api_key=None, clear=False, model_bindings=None):
         base = validated_url(base_url)
         if type(clear) is not bool:
             raise SettingsError('Invalid credential removal flag.')
@@ -98,13 +111,14 @@ class Store:
             raise SettingsError('Choose either a new API key or credential removal.')
         if not key and not clear and base == current.base_url:
             key = current.api_key
-        return Target(base, '' if clear else key, current.revision, 'saved')
+        models = (dict(current.model_bindings) if base == current.base_url else {}) if model_bindings is None else _bindings(model_bindings)
+        return Target(base, '' if clear else key, current.revision, 'saved', models)
 
-    def save(self, revision, base_url, api_key=None, clear=False):
+    def save(self, revision, base_url, api_key=None, clear=False, model_bindings=None):
         with CONFIG_LOCK:
-            return self._save(revision, base_url, api_key, clear)
+            return self._save(revision, base_url, api_key, clear, model_bindings)
 
-    def _save(self, revision, base_url, api_key=None, clear=False):
+    def _save(self, revision, base_url, api_key=None, clear=False, model_bindings=None):
         if type(revision) is not int or revision < 0:
             raise SettingsError('A valid settings revision is required.')
         folder = self.path.parent
@@ -122,8 +136,8 @@ class Store:
             current = self.current()
             if current.revision != revision:
                 raise SettingsError('Settings changed elsewhere. Reload before saving.', 409)
-            chosen = self.candidate(base_url, api_key, clear)
-            record = {'revision': revision+1, 'base_url': chosen.base_url, 'api_key': chosen.api_key}
+            chosen = self.candidate(base_url, api_key, clear, model_bindings)
+            record = {'revision': revision+1, 'base_url': chosen.base_url, 'api_key': chosen.api_key, 'model_bindings': dict(chosen.model_bindings)}
             fd, name = tempfile.mkstemp(prefix='.compute-', dir=folder)
             try:
                 with os.fdopen(fd, 'w', encoding='utf-8') as output:
@@ -134,7 +148,7 @@ class Store:
                 finally: os.close(directory)
             finally:
                 Path(name).unlink(missing_ok=True)
-        return Target(chosen.base_url, chosen.api_key, revision+1, 'saved')
+        return Target(chosen.base_url, chosen.api_key, revision+1, 'saved', dict(chosen.model_bindings))
 
 
 @contextmanager

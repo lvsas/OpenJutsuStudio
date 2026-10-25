@@ -39,3 +39,36 @@ def autogrow_member_spec(spec, member):
     if not isinstance(value, (list, tuple)) or not value:
         raise ValueError(invalid)
     return value
+
+
+def combo_options(spec):
+    """Literal COMBO options, or None when the inventory shape is unknown.
+
+    An explicitly empty COMBO is known empty; an unrecognized input is not.
+    """
+    if not isinstance(spec, (list, tuple)) or not spec:
+        return None
+    first = spec[0]
+    if isinstance(first, (list, tuple)):
+        options = first
+    elif isinstance(first, dict):
+        options = first.get('options')
+    elif first == 'COMBO' and len(spec) > 1 and isinstance(spec[1], dict):
+        options = spec[1].get('options')
+    elif all(isinstance(item, str) for item in spec) and first not in {'STRING','INT','FLOAT','BOOLEAN','COMBO'}:
+        options = spec
+    else:
+        return None
+    if not isinstance(options, (list, tuple)) or any(not isinstance(item, str) for item in options):
+        return None
+    return list(dict.fromkeys(options))
+
+
+def loader_choices(object_info, node, field):
+    """Options for this exact loader/input, never the union of model folders."""
+    inputs = (object_info.get(node) or {}).get('input') or {}
+    for section in ('required', 'optional'):
+        fields = inputs.get(section) or {}
+        if field in fields:
+            return combo_options(fields[field])
+    return None

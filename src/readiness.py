@@ -9,7 +9,7 @@ import time
 from contextvars import ContextVar
 from urllib.parse import urlsplit, quote
 from urllib.request import Request, urlopen, HTTPRedirectHandler, build_opener
-from comfy_schema import autogrow_member_spec
+from comfy_schema import autogrow_member_spec, loader_choices
 from config import LOCAL_COMFY_PROXY_URL, comfy_base_url, compute_target
 from compute_settings import CONFIG_LOCK
 from graphs import build_frame_edit, build_ripple
@@ -84,6 +84,16 @@ def _target_mode(base):
     return "remote-self-hosted"
 
 
+def ltx_required_graph(model_files):
+    """Inventory projection of a frozen LTX receipt, never today's model profile."""
+    from model_catalog import effective_bindings
+    models = effective_bindings(model_files)
+    edit = build_frame_edit('placeholder.png', 'edit', model_files=models)
+    ripple = build_ripple('placeholder.mp4', 'placeholder.png', model_files=models)
+    return {**{'edit_' + key: node for key, node in edit.items()},
+            **{'ripple_' + key: node for key, node in ripple.items()}}
+
+
 def _required_nodes(required_graph=None):
     return (list(required_graph.values()) if required_graph is not None else
             [*build_frame_edit("placeholder.png", "edit").values(),
@@ -121,9 +131,9 @@ def _inventory(info, required_graph=None):
             if not isinstance(value, str):
                 continue
             if key in {"unet_name", "clip_name", "vae_name", "lora_name", "model_name"}:
-                spec = specs.get(key, [])
-                choices = (spec[0] if spec and isinstance(spec[0], list) else
-                           spec[1].get("options", []) if len(spec) > 1 else [])
+                choices = loader_choices(info, name, key)
+                if choices is None:
+                    raise ValueError('The required loader inventory shape is unknown.')
                 if value not in choices:
                     models.add(value)
     return sorted(nodes), sorted(models)

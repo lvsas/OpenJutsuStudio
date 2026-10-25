@@ -194,6 +194,12 @@ Open `http://127.0.0.1:8000`. Both services bind to loopback only. The launcher 
 
 Open **Settings** (`/settings`) to configure the shared API-v2 target and a write-only API key, explicitly test connectivity, and save when no processing is in flight. Saved settings take precedence; otherwise `OPENGENJUTSU_COMFY_BASE_URL` and `COMFY_API_KEY` bootstrap the app, with a local proxy default. Ambient SDK targets never silently select Cloud. The SDK environment is scoped to client construction, then restored. Test and Save do not submit generation. Remote connection success is distinct from verified node/model inventory and a real Cloud render. See the [setup guide](docs/local-setup.md).
 
+The collapsed **Models** section maps LTX/H3 Swap loader roles to compatible files
+under your target's own names. Test explicitly for loader-specific suggestions,
+then Save. No files are renamed or installed; family/precision compatibility is
+your responsibility. Aliases are target-scoped and new recipes freeze their
+filenames; historical replay does not consult today's model choices.
+
 
 ---
 

@@ -18,6 +18,7 @@ import hashlib
 import json
 import math
 from h3_graphs import H3Models, REFERENCE_NODE, REFERENCE_SLOTS, build_h3_recast, h3_frames
+from model_catalog import validate_bindings
 
 ENGINE = 'minimax-h3'
 POLICY = 'h3-recast-v3'
@@ -128,7 +129,8 @@ def digest_json(value):
 
 
 def make_recipe(preserve_clip='', seed=302929098223082, *, reference_descriptions=('',),
-                reference_sources=None, preserve_clip_source=None, source_width, source_height):
+                reference_sources=None, preserve_clip_source=None, source_width, source_height,
+                models=None):
     width, height = h3_dimensions(source_width, source_height)
     preserved = _text(preserve_clip, 'Preserved clip description')
     descriptions = _descriptions(reference_descriptions)
@@ -149,7 +151,8 @@ def make_recipe(preserve_clip='', seed=302929098223082, *, reference_description
         'reference_size': 'match',
         'width': width, 'height': height,
         'output_width': width * OUTPUT_SCALE, 'output_height': height * OUTPUT_SCALE,
-        'steps': 6, 'split_step': 3, 'model_files': asdict(H3Models()),
+        'steps': 6, 'split_step': 3,
+        'model_files': asdict(models if models is not None else H3Models.configured()),
         'source_width': source_width, 'source_height': source_height,
         'source_frames_24fps': None, 'inference_frames': None,
     }
@@ -245,11 +248,10 @@ def validate_recipe(recipe):
         raise ValueError('Preserved clip text and provenance disagree')
     if recipe.get('effective_prompt') != compose_prompt(descriptions, recipe.get('preserve_clip', '')):
         raise ValueError('H3 effective prompt does not match the frozen policy text')
-    models = recipe['model_files']
-    if set(models) != set(asdict(H3Models())) or any(
-            not isinstance(v, str) or not v or v.startswith(('/', '\\'))
-            or '..' in v.replace('\\', '/').split('/') or '://' in v for v in models.values()):
+    models = recipe.get('model_files')
+    if not isinstance(models, dict) or set(models) != set(asdict(H3Models())):
         raise ValueError('Invalid H3 model filenames')
+    validate_bindings({'h3_' + key: value for key, value in models.items()})
     try:
         expected_size = h3_dimensions(recipe['source_width'], recipe['source_height'])
     except (KeyError, ValueError) as exc:
@@ -269,6 +271,22 @@ def validate_recipe(recipe):
         if recipe.get('shot_plan') != [{'start': 0, 'end': count-1, 'fps': 24}]:
             raise ValueError('H3 Studio supports exactly one full continuous shot')
         graph = recipe.get('graph_template', {})
+        expected_graph = build_h3_recast(
+            'h3-source-placeholder', reference_placeholders(len(descriptions)),
+            recipe['effective_prompt'], source_frames=h3_frames(count),
+            source_audio=recipe.get('source_audio', True), **graph_options(recipe))
+        # Check every declared loader binding against the frozen recipe, not the
+        # current target. Keep historical optional graph fields readable.
+        for node_id in ('127', '128', '119', '120', '157', '159', '169'):
+            expected_node = expected_graph[node_id]
+            model_input = next(key for key in ('unet_name', 'clip_name', 'vae_name',
+                                                'lora_name', 'model_name')
+                               if key in expected_node['inputs'])
+            actual_node = graph.get(node_id, {})
+            if (actual_node.get('class_type') != expected_node['class_type']
+                    or actual_node.get('inputs', {}).get(model_input)
+                    != expected_node['inputs'][model_input]):
+                raise ValueError('Frozen H3 model bindings do not match the recipe')
         node_inputs = {key: value.get('inputs', {}) for key, value in graph.items()}
         if (node_inputs.get('155', {}).get('frame_load_cap') != h3_frames(count)
                 or node_inputs.get('136', {}).get('length') != h3_frames(count)

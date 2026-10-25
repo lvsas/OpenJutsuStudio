@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import core
 from compute_activity import Activity, ActivityMiddleware, LeasedExecutor
 from api_schema import _public_job, _target_size
-from readiness import check_readiness
+from readiness import check_readiness, ltx_required_graph
 from source_clip import MAX_CLIP_SECONDS
 from share_reel_api import ReelService, create_router as create_share_reel_router
 from job_api import create_router as create_job_router
@@ -223,7 +223,9 @@ _job_router = create_job_router(
 app.include_router(_job_router)
 create_job = next(route.endpoint for route in _job_router.routes
                   if isinstance(route, APIRoute) and route.path == "/api/jobs")
-app.include_router(create_take_capsule_router(_dispatch_job, lambda: check_readiness()))
+app.include_router(create_take_capsule_router(
+    _dispatch_job, lambda: check_readiness(),
+    model_readiness_check=lambda models: check_readiness(required_graph=ltx_required_graph(models))))
 register_optional_h3(app, _EXECUTOR, lambda: MEDIA_DIR, MAX_UPLOAD_BYTES)
 register_optional_characters(app, _EXECUTOR, lambda: MEDIA_DIR)
 

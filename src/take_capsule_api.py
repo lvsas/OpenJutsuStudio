@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 import core
+from model_catalog import validate_bindings
 from take_artifacts import anchor_entries, anchor_path
 
 
@@ -67,8 +68,9 @@ def build_take_capsule(job: core.Job, result_path: Path) -> dict[str, Any]:
     manifest: dict[str, Any] = {
         "format": "opengenjutsu-take-capsule", "schema_version": 1,
         "job_id": job.id, "parent_job_id": job.meta.get("parent_job_id"),
-        "created": job.created, "engine": job.engine, "recipe": job.meta.get("take_recipe"),
-        "shot_boundaries": shots, "assets": assets,
+        "created": job.created, "engine": job.engine,
+        "recipe": copy.deepcopy(job.meta.get("take_recipe")),
+        "shot_boundaries": copy.deepcopy(shots), "assets": assets,
         "replay": {
             "available_on_this_machine": replayable, "missing_local_assets": missing,
             "contract": "Replays the recorded recipe with verified local source and reference bytes; pixel-identical output is not guaranteed.",
@@ -92,19 +94,10 @@ def _frozen_capsule(job: core.Job) -> dict[str, Any] | None:
 
 def _replay_options(recipe: dict[str, Any], references: list[dict[str, Any]],
                     shots: list[dict[str, Any]]) -> dict[str, Any]:
+    from job_api import _pipeline_options
     paths = [Path(item["image"]) for item in references]
-    return {
-        "preserve_audio": recipe["preserve_audio"], "upscale": recipe["upscale"],
-        "reference_image": paths[0] if paths else None, "reference_images": paths,
-        "edit": {"steps": recipe["edit_steps"], "seed": recipe["edit_seed"],
-                 "cfg": recipe["edit_cfg"], "megapixels": recipe["edit_megapixels"]},
-        "ripple_prompt": recipe["propagation_prompt"],
-        "propagate": {
-            "frames": recipe["frames"], "seed": recipe["ripple_seed"],
-            "fps": recipe["fps"], "width": recipe["width"], "height": recipe["height"],
-            "steps": recipe["ripple_steps"], "strength": recipe["ripple_strength"],
-            "cfg": recipe["ripple_cfg"], "guide_strength": recipe["guide_strength"],
-        },
+    return _pipeline_options(recipe, paths) | {
+        "upscale": recipe["upscale"],
         "shots": [{"start": shot["start"], "end": shot["end"]} for shot in shots],
     }
 
@@ -114,6 +107,10 @@ def _replay_inputs(parent: core.Job):
     recipe = (capsule or {}).get("recipe", parent.meta.get("take_recipe"))
     if not isinstance(recipe, dict) or recipe.get("schema_version") != 1:
         raise HTTPException(409, "This older take has no replayable recipe.")
+    try:
+        validate_bindings(recipe.get('model_files'))
+    except ValueError as exc:
+        raise HTTPException(409, "This take has no valid frozen model bindings.") from exc
     source, references = Path(parent.video), parent.meta.get("references", [])
     shots = (capsule or {}).get("shot_boundaries", parent.meta.get("shots", []))
     if not shots:
@@ -135,21 +132,27 @@ def _replay_inputs(parent: core.Job):
     return recipe, source, references, shots
 
 
-def _create_child(parent: core.Job, project_id: str | None = None) -> core.Job:
+def _create_child(parent: core.Job, project_id: str | None = None,
+                  recipe: dict[str, Any] | None = None) -> core.Job:
     meta = copy.deepcopy(parent.meta)
+    if recipe is not None:
+        # The frozen capsule, not mutable parent metadata, is replay authority.
+        meta['take_recipe'] = copy.deepcopy(recipe)
     meta["parent_job_id"] = parent.id
     if project_id is not None:
         meta["origin_project_id"] = project_id
-    child = core.Job(id=uuid.uuid4().hex, engine=parent.engine, prompt=parent.prompt,
+    prompt = recipe.get('effective_edit_prompt', parent.prompt) if recipe is not None else parent.prompt
+    child = core.Job(id=uuid.uuid4().hex, engine=parent.engine, prompt=prompt,
                      video=parent.video, meta=meta)
     child.save()
     return child
 
 
 class TakeCapsuleAPI:
-    def __init__(self, dispatch_job: Callable, readiness_check: Callable):
+    def __init__(self, dispatch_job: Callable, readiness_check: Callable, model_readiness_check=None):
         self.dispatch_job = dispatch_job
         self.readiness_check = readiness_check
+        self.model_readiness_check = model_readiness_check or (lambda models: readiness_check())
 
     def get_source(self, job_id: str):
         try:
@@ -200,10 +203,10 @@ class TakeCapsuleAPI:
         if parent.status != "done" or not parent.result:
             raise HTTPException(409, "Only a completed take can be replayed.")
         recipe, source, references, shots = _replay_inputs(parent)
-        readiness = self.readiness_check()
+        readiness = self.model_readiness_check(recipe["model_files"])
         if not readiness.get("ready"):
             raise HTTPException(503, detail=" ".join(readiness.get("issues", [])))
-        child = _create_child(parent, project_id)
+        child = _create_child(parent, project_id, recipe)
         self.dispatch_job(child, source, _replay_options(recipe, references, shots))
         return {"job_id": child.id, "project_id": project_id, "parent_job_id": parent.id, "status": "queued",
                 "job": {"id": child.id, "status": child.status,
@@ -211,8 +214,8 @@ class TakeCapsuleAPI:
 
 
 def create_router(dispatch_job: Callable[[core.Job, Path, dict[str, Any]], Any],
-                  readiness_check: Callable[[], dict[str, Any]]) -> APIRouter:
-    api, router = TakeCapsuleAPI(dispatch_job, readiness_check), APIRouter()
+                  readiness_check: Callable[[], dict[str, Any]], *, model_readiness_check=None) -> APIRouter:
+    api, router = TakeCapsuleAPI(dispatch_job, readiness_check, model_readiness_check), APIRouter()
     router.add_api_route("/api/jobs/{job_id}/source", api.get_source, methods=["GET"])
     router.add_api_route("/api/jobs/{job_id}/anchors/{segment}", api.get_anchor, methods=["GET"])
     router.add_api_route("/api/jobs/{job_id}/capsule", api.get_capsule, methods=["GET"])

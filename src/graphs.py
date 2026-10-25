@@ -1,18 +1,19 @@
 """API-format graph builders for the current FLUX/LTX workflow."""
-from config import (F_UNET_KLEIN, F_CLIP_KLEIN, F_VAE_KLEIN, F_UNET_LTX,
-                    F_CLIP_LTX, F_VAE_VID, F_VAE_AUD, F_LORA_RIPPLE,
-                    RIPPLE_PROMPT, NEG_VIDEO)
+from config import RIPPLE_PROMPT, NEG_VIDEO
+from model_catalog import effective_bindings
 
 def build_frame_edit(image: str | dict, prompt: str, seed: int = 26416064315367,
                      steps: int = 4, cfg: float = 1.0,
                      megapixels: float = 1.0, prefix: str = "og_frame",
                      reference_image: str | dict | None = None,
-                     reference_images: list[str | dict] | None = None) -> dict:
+                     reference_images: list[str | dict] | None = None,
+                     model_files: dict[str, str] | None = None) -> dict:
     """FLUX.2 Klein 9B image edit (distilled, 4 steps).
 
     If reference_image is provided, injects it as a second reference via
     LoadImage + VAEEncode + ReferenceLatent for character/persona consistency.
     """
+    models = effective_bindings(model_files)
     graph = {
         "76":  {"class_type": "LoadImage", "inputs": {"image": image}},
         "80":  {"class_type": "ImageScaleToTotalPixels",
@@ -20,10 +21,10 @@ def build_frame_edit(image: str | dict, prompt: str, seed: int = 26416064315367,
                            "megapixels": megapixels, "resolution_steps": 1}},
         "99":  {"class_type": "GetImageSize", "inputs": {"image": ["80", 0]}},
         "70":  {"class_type": "UNETLoader",
-                "inputs": {"unet_name": F_UNET_KLEIN, "weight_dtype": "default"}},
+                "inputs": {"unet_name": models['flux_unet'], "weight_dtype": "default"}},
         "71":  {"class_type": "CLIPLoader",
-                "inputs": {"clip_name": F_CLIP_KLEIN, "type": "flux2", "device": "default"}},
-        "72":  {"class_type": "VAELoader", "inputs": {"vae_name": F_VAE_KLEIN}},
+                "inputs": {"clip_name": models['flux_clip'], "type": "flux2", "device": "default"}},
+        "72":  {"class_type": "VAELoader", "inputs": {"vae_name": models['flux_vae']}},
         "74":  {"class_type": "CLIPTextEncode",
                 "inputs": {"clip": ["71", 0], "text": prompt}},
         "82":  {"class_type": "ConditioningZeroOut", "inputs": {"conditioning": ["74", 0]}},
@@ -73,24 +74,26 @@ def build_ripple(video: str | dict, edited_frame: str | dict, prompt: str = RIPP
                  frames: int = 121, seed: int = 125348341465200, fps: int = 24,
                  width: int = 1280, height: int = 704, steps: int = 16,
                  cfg: float = 1.0, strength: float = 1.35,
-                 guide_strength: float = 1.0, prefix: str = "og_ripple") -> dict:
+                 guide_strength: float = 1.0, prefix: str = "og_ripple",
+                 model_files: dict[str, str] | None = None) -> dict:
     """LTX 2.5 + Ripple FFAF IC-LoRA.
 
     `strength` is the key knob:
       1.35 = default; increase if the edit doesn't carry, DECREASE if the
       edit bleeds into content that should stay unchanged.
     """
+    models = effective_bindings(model_files)
     return {
         "821": {"class_type": "UNETLoader",
-                "inputs": {"unet_name": F_UNET_LTX, "weight_dtype": "default"}},
+                "inputs": {"unet_name": models['ltx_unet'], "weight_dtype": "default"}},
         "1318": {"class_type": "CLIPLoader",
-                 "inputs": {"clip_name": F_CLIP_LTX, "type": "ltxv", "device": "default"}},
-        "822": {"class_type": "VAELoader", "inputs": {"vae_name": F_VAE_VID}},
+                 "inputs": {"clip_name": models['ltx_clip'], "type": "ltxv", "device": "default"}},
+        "822": {"class_type": "VAELoader", "inputs": {"vae_name": models['video_vae']}},
         "448": {"class_type": "VAELoaderKJ",
-                "inputs": {"vae_name": F_VAE_AUD, "device": "main_device",
+                "inputs": {"vae_name": models['audio_vae'], "device": "main_device",
                            "weight_dtype": "bf16"}},
         "1312": {"class_type": "LoraLoaderModelOnly",
-                 "inputs": {"model": ["821", 0], "lora_name": F_LORA_RIPPLE,
+                 "inputs": {"model": ["821", 0], "lora_name": models['ripple_lora'],
                             "strength_model": strength}},
         "1320": {"class_type": "PathchSageAttentionKJ",
                  "inputs": {"model": ["1312", 0], "sage_attention": "auto",

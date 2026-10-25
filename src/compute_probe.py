@@ -6,13 +6,35 @@ from compute_settings import target_mode
 import readiness
 
 
-def _graphs():
+def _graphs(target=None):
     from graphs import build_frame_edit, build_ripple
-    from h3_graphs import build_h3_recast
-    ltx = {f'edit_{key}':node for key,node in build_frame_edit('check.png','Connection diagnostic').items()}
-    ltx.update({f'video_{key}':node for key,node in build_ripple('check.mp4','check.png').items()})
-    h3 = build_h3_recast('check.mp4','check.png','Connection diagnostic',source_frames=5)
+    from h3_graphs import build_h3_recast, H3Models
+    from model_catalog import effective_bindings
+    models = effective_bindings(dict(target.model_bindings) if target is not None else {})
+    ltx = {f'edit_{key}':node for key,node in build_frame_edit('check.png','Connection diagnostic', model_files=models).items()}
+    ltx.update({f'video_{key}':node for key,node in build_ripple('check.mp4','check.png', model_files=models).items()})
+    h3 = build_h3_recast('check.mp4','check.png','Connection diagnostic',source_frames=5, models=H3Models.configured(models))
     return {'ltx':ltx,'h3':h3}
+
+
+def _model_inventory(info):
+    from comfy_schema import loader_choices
+    from model_catalog import roles, validate_bindings
+    result = {'status': 'verified', 'choices': {}}
+    for role in roles():
+        choices = [] if role['class_type'] not in info else loader_choices(info, role['class_type'], role['input'])
+        if choices is None:
+            result['status'] = 'unknown'
+            continue
+        accepted = []
+        for name in choices:
+            try:
+                validate_bindings({role['key']: name})
+            except ValueError:
+                continue
+            accepted.append(name)
+        result['choices'][role['key']] = accepted
+    return result
 
 
 def diagnose_target(target):
@@ -25,8 +47,8 @@ def diagnose_target(target):
 
 def _diagnose_target(target):
     mode = target_mode(target.base_url)
-    result = {'connected':False,'ready':False,'mode':mode,'issues':[], 'warnings':[], 'engines':{}}
-    graphs = _graphs()
+    result = {'connected':False,'ready':False,'mode':mode,'issues':[], 'warnings':[], 'engines':{}, 'model_inventory':{'status':'unknown', 'choices':{}}}
+    graphs = _graphs(target)
     for name in graphs:
         result['engines'][name] = {'status':'unreachable','missing_nodes':[], 'missing_models':[],
                                   'issues':[], 'warnings':[]}
@@ -45,6 +67,8 @@ def _diagnose_target(target):
                 union = {f'{name}_{key}':node for name,graph in graphs.items() for key,node in graph.items()}
                 info = readiness._target_object_info(union, target=target)
         result['connected'] = True
+        if info is not None:
+            result['model_inventory'] = _model_inventory(info)
         tools = [tool for tool in ('ffmpeg','ffprobe') if not shutil.which(tool)]
         if tools:
             result['issues'].append('Install local media tools: '+', '.join(tools))
@@ -54,7 +78,12 @@ def _diagnose_target(target):
                 engine['status'] = 'unknown'
                 engine['warnings'].append('API v2 connection verified; node/model inventory is not exposed by this target contract. No render was submitted.')
             else:
-                nodes, models = readiness._inventory(info, graph)
+                try:
+                    nodes, models = readiness._inventory(info, graph)
+                except ValueError:
+                    engine['status'] = 'unknown'
+                    engine['warnings'].append('A loader inventory could not be interpreted. Check compatible filenames manually; dependencies remain unverified.')
+                    continue
                 engine.update(status='missing' if nodes or models or tools else 'ready',
                               missing_nodes=nodes, missing_models=models)
                 if nodes or models:

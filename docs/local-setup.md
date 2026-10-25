@@ -152,8 +152,29 @@ The private `work/settings/compute.json` is excluded from Git, mode0600 inside a
 Opening Settings only reads this configuration. Local/Cloud inventory checks can
 list missing nodes/models; remote API-v2 connection with unavailable inventory is
 reported **unknown**, not falsely ready or missing. Install the required files on
-the actual ComfyUI host. Model binding editing and live Cloud acceptance remain
-separate gates; no automatic model/node download or paid render occurs here.
+the actual ComfyUI host. Live Cloud acceptance is a separate gate; no automatic
+model/node download or paid render occurs here.
+
+Expand **Models** only when your compatible weights use different filenames.
+The LTX and H3 groups identify each fixed loader/input role. Keep its default or
+enter the exact compatible filename (including relative subfolders and case).
+An explicit **Test connection** can supply suggestions from that loader's own
+inventory; suggestions do not select weights or guarantee architecture, precision
+or format compatibility. When inventory is unavailable, manual entry remains
+possible and dependencies remain **unknown**. Opening the section does not probe.
+
+**Save settings** stores these overrides with the selected target and revision.
+Changing the URL clears the old target's aliases; changing only its key preserves
+them. **Use default** and **Reset model overrides** change only the draft until
+Save. New Swap recipes freeze their effective filenames. A replay checks and uses
+its recorded files, not today's Settings; installing an alias does not migrate
+past capsules or make missing historical files interchangeable. The experimental
+native continuity profiles and optional vision-description model are separate
+contracts, not automatically remapped by the Swap loader roles.
+
+The manifest command-line checker describes the declared installation defaults
+and supported alternatives. For your configured Swap aliases, **Test connection**
+and the operation's graph-based preflight are the target-aware checks.
 
 ## 5. Verify without submitting a render
 

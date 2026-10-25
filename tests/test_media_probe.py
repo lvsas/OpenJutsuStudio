@@ -351,13 +351,13 @@ class MediaProbeTests(unittest.TestCase):
             "band_mask": 3, "band_outline": 4, "passport_ticket": 7,
         }, fps=24, timeline=timeline)
         self.assertIn("[0:v]scale=1080:1920", graph)
-        self.assertIn("[1:v]trim=start_frame=16,scale=1080:1920", graph)
+        self.assertIn(f"[1:v]trim=start_frame={timeline['capture_end_frame']},scale=1080:1920", graph)
         self.assertIn("[source_ambient][result_ambient]xfade=transition=smoothleft", graph)
         self.assertIn("gblur=sigma=48", graph)
         self.assertIn("[0:v]scale=992:558", graph)
         self.assertIn("[src][resmarked]blend=", graph)
         self.assertIn("overlay=120:y=", graph)
-        self.assertIn("enable='gte(t,1.125000)'", graph)
+        self.assertIn(f"enable='gte(t,{timeline['recast_end']:.6f})'", graph)
         self.assertIn(r"text=REALITY\,", graph)
         self.assertIn("text=SWAP.", graph)
         self.assertIn(EYEBROW, graph)
@@ -431,16 +431,29 @@ class MediaProbeTests(unittest.TestCase):
                 self.assertLess(timeline["recast_end_frame"], frames)
                 self.assertEqual(timeline["collect_start_frame"], timeline["recast_end_frame"])
                 self.assertGreaterEqual(frames - timeline["collect_start_frame"], 1)
-        # The accepted V2 reveal cadence is an anchor, not a fixed timer: interpolate by actual
-        # duration for intermediate and longer takes while retaining frame alignment.
+        # The standard reveal must be readable at 1x, not the old ~0.46s flash.
+        # These are narrative bounds, independent of the interpolation formula.
         ltx = reel_timeline(73 / 24, 24, 73)
         h3 = reel_timeline(8.0, 24, 192)
-        self.assertEqual((ltx["capture_end_frame"], ltx["recast_end_frame"]), (16, 27))
-        self.assertEqual((h3["capture_end_frame"], h3["recast_end_frame"]), (18, 29))
+        self.assertTrue(0.7 <= ltx["capture_end"] <= 0.9)
+        self.assertTrue(0.8 <= ltx["recast_duration"] <= 0.95)
+        self.assertAlmostEqual(h3["capture_end"], 1.0, delta=1 / 24)
+        self.assertTrue(1.1 <= h3["recast_duration"] <= 1.3)
         medium = reel_timeline(5.0, 30, 150)
         self.assertGreater(medium["capture_end"], ltx["capture_end"])
         self.assertLess(medium["capture_end"], h3["capture_end"])
-        self.assertAlmostEqual(medium["recast_duration"], 0.45, delta=1 / 30)
+        self.assertAlmostEqual(medium["recast_duration"], 1.0, delta=1 / 30)
+        for fps, frames in ((24, 60), (24, 73), (24, 120), (24, 192),
+                            (30, 150), (30000 / 1001, 150), (24, 360)):
+            with self.subTest(fps=fps, frames=frames):
+                t = reel_timeline(frames / fps, fps, frames)
+                self.assertEqual(t["frame_count"], frames)
+                self.assertEqual(t["fps"], fps)
+                self.assertGreaterEqual(t["recast_duration"], 0.8 - 1 / fps)
+                self.assertLessEqual(t["recast_duration"], 1.5 + 1 / fps)
+                self.assertGreaterEqual(frames - t["collect_start_frame"], frames * 0.35)
+                for beat in ("capture_end", "recast_end"):
+                    self.assertAlmostEqual(t[beat] * fps, t[beat + "_frame"], places=8)
 
     def test_reel_media_validation_rejects_unsynchronised_source(self):
         source, result = self.root / "source.mp4", self.root / "result.mp4"

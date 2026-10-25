@@ -64,18 +64,17 @@ def reel_timeline(duration, fps, frames):
     if real_duration < 2.5:
         mode, capture_s, recast_s = "compact", max(0.25 * real_duration, 0.35), max(0.30 * real_duration, 0.40)
     elif real_duration <= 8.0:
-        # Match the approved V2 motion at its two real reference takes (LTX 3.0417 s:
-        # 0.65 s Capture; H3 8 s: 0.75 s Capture; both use a 0.45 s Recast), then
-        # interpolate by actual take duration rather than hardcoding engine-specific timers.
+        # Give the source a recognizable beat and the transformation time to read
+        # at 1x. All layers share this duration policy, independent of the engine.
         mode = "standard"
-        progress = (real_duration - (73 / 24)) / (8.0 - (73 / 24))
-        capture_s = 0.65 + max(0.0, min(1.0, progress)) * 0.10
-        recast_s = 0.45
+        progress = (real_duration - 2.5) / 5.5
+        capture_s = 0.75 + progress * 0.25
+        recast_s = 0.8 + progress * 0.4
     else:
         mode = "extended"
         progress = min(1.0, (real_duration - 8.0) / 12.0)
-        capture_s = 0.75 + progress * 0.50
-        recast_s = 0.45 + progress * 0.75
+        capture_s = 1.0 + progress * 0.25
+        recast_s = 1.2 + progress * 0.3
     capture_end = max(1, min(frames - 2, round(capture_s * fps)))
     recast_end = max(capture_end + 1, min(frames - 1, capture_end + round(recast_s * fps)))
     return {"mode": mode, "frame_count": frames, "fps": fps,

@@ -2,6 +2,8 @@
 (() => {
   'use strict';
   const CAPTION = 'Same moment. New character. Made with OpenGenjutsu. #OpenGenjutsu #CharacterSwap';
+  const CONTEST_CAPTION = 'My character swap, made with OpenGenjutsu and @ComfyUI. https://comfy.org/open-source-higgsfield';
+  const X_HELP = 'Open X prefills text only. Attach downloaded MP4 in X. Nothing is published automatically.';
   const MAX_SHARE_BYTES = 100 * 1024 * 1024;
   const cache = new Map();
   let dialog, ui, epoch = 0, opener = null, current = null, shareFile = null;
@@ -33,10 +35,12 @@
           <div class="share-reel-actions" hidden>
             <button type="button" class="btn btn-primary share-reel-native" hidden>Share reel</button>
             <a class="btn btn-primary share-reel-download" download>Download reel</a>
+            <a class="btn btn-secondary share-reel-x" target="_blank" rel="noopener noreferrer">Open X</a>
           </div>
-          <p class="share-reel-help">Download the reel, then add it to your social app. No post is published automatically.</p>
+          <p class="share-reel-help">Download the MP4 and copy your caption. ${X_HELP}</p>
           <label class="field-label" for="share-reel-caption">A caption to make it yours</label>
           <textarea id="share-reel-caption" class="text-input share-reel-caption" rows="3" maxlength="1000"></textarea>
+          <button type="button" class="btn btn-secondary share-reel-contest">Use contest caption</button>
           <button type="button" class="btn btn-secondary share-reel-copy">Copy caption</button>
           <a class="share-reel-original" download>Download full result instead</a>
           <button type="button" class="btn btn-ghost share-reel-done">Back to my swap</button>
@@ -45,9 +49,20 @@
     document.body.append(dialog);
     const q = name => dialog.querySelector(`.share-reel-${name}`);
     ui = Object.fromEntries(['close', 'screen', 'video', 'placeholder', 'build-copy', 'status', 'retry',
-      'actions', 'native', 'download', 'help', 'caption', 'copy', 'original', 'done'].map(name => [name, q(name)]));
+      'actions', 'native', 'download', 'x', 'help', 'caption', 'contest', 'copy', 'original', 'done'].map(name => [name, q(name)]));
     ui.close.addEventListener('click', () => dialog.close());
     ui.done.addEventListener('click', () => dialog.close());
+    ui.caption.addEventListener('input', updateXIntent);
+    ui.contest.addEventListener('click', () => {
+      ui.caption.value = CONTEST_CAPTION;
+      updateXIntent();
+      ui.caption.focus();
+    });
+    ui.x.addEventListener('click', event => {
+      // Navigation remains a normal, explicit link gesture; no upload or publication.
+      updateXIntent();
+      if (!dialog.open || ui.actions.hidden) event.preventDefault();
+    });
     ui.retry.addEventListener('click', () => {
       if (!current) return;
       cache.delete(current.jobId);
@@ -97,9 +112,19 @@
       ui.video.removeAttribute('src');
       ui.video.load();
       shareFile = null;
+      ui.x.removeAttribute('href');
       document.body.classList.remove('share-reel-open');
       if (opener?.isConnected) opener.focus({preventScroll: true});
     });
+  }
+
+  function updateXIntent() {
+    if (!dialog.open || ui.actions.hidden) {
+      ui.x.removeAttribute('href');
+      return;
+    }
+    // The intent carries only the edited caption, never a private result/media URL.
+    ui.x.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(ui.caption.value)}`;
   }
 
   function safeURL(value, jobId, artifactId, kind, attachment = false) {
@@ -166,7 +191,7 @@
       ui.native.hidden = false;
       ui.native.disabled = false;
       ui.download.classList.replace('btn-primary', 'btn-secondary');
-      ui.help.textContent = 'Share opens your device’s share sheet. Or download the MP4 and post it yourself.';
+      ui.help.textContent = 'Share reel opens your device’s share sheet. ' + X_HELP;
     } catch { /* A download remains available even if native file sharing is unsupported. */ }
   }
 
@@ -180,11 +205,12 @@
     ui.retry.hidden = true;
     shareFile = null;
     ui.download.removeAttribute('href');
+    ui.x.removeAttribute('href');
     ui.download.classList.replace('btn-secondary', 'btn-primary');
     ui.screen.setAttribute('aria-busy', 'true');
     ui['build-copy'].textContent = 'Preparing your share reel…';
     ui.status.textContent = 'Making your before-and-after reel. Your full result is safe.';
-    ui.help.textContent = 'Download the reel, then add it to your social app. No post is published automatically.';
+    ui.help.textContent = 'Download the MP4 and copy your caption. ' + X_HELP;
     try {
       const data = await manifest(options.jobId, retry);
       if (token !== epoch || !dialog.open) return;
@@ -194,6 +220,7 @@
       ui.download.href = data.download_url;
       ui.download.download = data.filename;
       ui.actions.hidden = false;
+      updateXIntent();
       ui.status.textContent = 'Watch your swap, then make it yours.';
       ui.screen.setAttribute('aria-busy', 'false');
       ui.video.load();

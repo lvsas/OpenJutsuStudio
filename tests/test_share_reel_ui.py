@@ -13,3 +13,4 @@ class ShareReelUITests(unittest.TestCase):
                              capture_output=True, text=True, timeout=30)
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
         self.assertIn("URL validation PASS", run.stdout)
+        self.assertIn("explicit X intent, opt-in contest caption", run.stdout)

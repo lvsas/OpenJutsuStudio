@@ -138,6 +138,20 @@
       "warning": "Native state/pin/saver contracts are separate from core MiniMax H3 support. The app's generation path is still work in progress."
     },
     {
+      "name": "ComfyUI-OpenJutsu-Capsules",
+      "source": "https://github.com/lvsas/ComfyUI-OpenJutsu-Capsules",
+      "pin": "7288a04bbdde5cd793d0ec38c4de3c49a33840d0",
+      "nodes": [
+        "OpenGenjutsuH3PublishClip",
+        "OpenGenjutsuH3RestageFamily"
+      ],
+      "used_by": [
+        "h3-native-continuity-experimental"
+      ],
+      "required": false,
+      "note": "Required for native family publication/restaging, not the baseline Swap renderer. Pin documented in docs/validation/2026-10-22-restage-suffix-regression.md; /object_info verifies node availability, not installed commit or rendering."
+    },
+    {
       "name": "MiniMaxH3-joint-extras",
       "nodes": [
         "BlockSparseAttention",
@@ -378,6 +392,9 @@
     }
   ],
   "character_generator": {
+    "used_by": [
+      "characters"
+    ],
     "note": "Target for the character reference generator. Checked against a live instance on 2026-10-18: every role is installed, so the graph can be built and measured now. The repository on Hugging Face is access-gated, so downloads of anything else need an authenticated client.",
     "status": "installed",
     "gated_repository": "black-forest-labs/flux-3-image-klein-comfy",

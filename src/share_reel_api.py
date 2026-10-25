@@ -30,8 +30,8 @@ from output_media import build_comparison_reel, build_social_reel, validate_reel
 LOG = logging.getLogger(__name__)
 # A renderer version is part of an artifact's identity but the design tokens are not in the digest,
 # so any visual change to a layout must bump its version. Otherwise a reel already marked ready
-# keeps being served with the previous colours. social-v3: LTX accent moved to electric cyan.
-RENDERER_VERSIONS = {"social": "social-v3", "wipe": "wipe-v2", "stacked": "stacked-v2"}
+# keeps being served with the previous design. social-v4 / wipe-v3: slower shared reveal timing.
+RENDERER_VERSIONS = {"social": "social-v4", "wipe": "wipe-v3", "stacked": "stacked-v2"}
 IDENTIFIER = re.compile(r"[A-Za-z0-9_-]{1,128}")
 ARTIFACT = re.compile(r"[0-9a-f]{64}")
 

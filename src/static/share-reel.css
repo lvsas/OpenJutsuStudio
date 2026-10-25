@@ -21,6 +21,7 @@ body.share-reel-open { overflow: hidden; }
 .share-reel-status { min-height: 2.8em; font-size: .85rem; line-height: 1.4; margin: 4px 0; overflow-wrap: anywhere; }
 .share-reel-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .share-reel-actions > * { flex: 1; text-align: center; justify-content: center; }
+.share-reel-x { white-space: nowrap; }
 .share-reel-caption { font: inherit; font-size: .82rem; line-height: 1.5; resize: vertical; min-height: 96px; width: 100%; }
 .share-reel-original { color: var(--muted, #aaaab5); text-decoration: underline; font-size: .8rem; align-self: center; padding: 10px 0; text-underline-offset: 3px; }
 .share-reel-tools .field-label { margin: 6px 0 -8px; }
@@ -36,7 +37,7 @@ body.share-reel-open { overflow: hidden; }
   .share-reel-help { order: 4; }
   .share-reel-tools .field-label { order: 5; }
   .share-reel-caption { order: 6; }
-  .share-reel-copy { order: 7; }
+  .share-reel-contest, .share-reel-copy { order: 7; }
   .share-reel-original { order: 8; }
   .share-reel-done { order: 9; }
   .share-reel-header { gap: 10px; margin-bottom: 16px; }

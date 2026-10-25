@@ -102,7 +102,9 @@ class H3API:
         Automatic cut rejection is deliberately absent (fog/flashes can produce
         false positives). Optional per-reference descriptions are user-owned text injected
         into the frozen prompt scaffold; an empty one is completed by the local vision
-        model from that reference image and recorded as generated. Original audio is
+        model from that reference image and recorded as generated. Use ordered
+        character_descriptions fields, or the single character_description field
+        from the studio for the first reference; do not mix both forms. Original audio is
         preserved and conditioned on; output timing is 24fps.
         """
         media_dir = Path(self.get_media_dir()).resolve()
@@ -110,7 +112,15 @@ class H3API:
         form = await request.form()
         if not 1 <= len(form.getlist('reference_images')) <= REFERENCE_SLOTS:
             raise HTTPException(422, f'H3 accepts between 1 and {REFERENCE_SLOTS} reference images')
-        descriptions = [str(item) for item in form.getlist('character_descriptions')][:REFERENCE_SLOTS]
+        # The ordered plural field is canonical. The shipped single-description
+        # form (and cached clients) uses the singular alias for reference 1.
+        descriptions = form.getlist('character_descriptions')
+        legacy_descriptions = form.getlist('character_description')
+        if descriptions and legacy_descriptions:
+            raise HTTPException(422, 'Use character_descriptions or character_description, not both')
+        descriptions = [str(item) for item in (descriptions or legacy_descriptions)]
+        if len(descriptions) > len(reference_images):
+            raise HTTPException(422, 'H3 reference descriptions must match the ordered reference images')
         if any(len(item) > MAX_TEXT for item in descriptions):
             raise HTTPException(422, 'H3 reference descriptions must be at most 2000 characters')
         suffix = Path(video.filename or '').suffix.lower()

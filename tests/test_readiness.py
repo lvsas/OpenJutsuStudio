@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import quote, unquote, urlsplit
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 
@@ -25,13 +26,49 @@ def node_info():
     return info
 
 
+def self_hosted_response(url, info, queue=None):
+    path = urlsplit(url).path
+    if path == '/api/v2/health':
+        return {"status": "healthy", "upstream": "http://127.0.0.1:8188"}
+    if path == '/queue':
+        return queue or {"queue_running": [], "queue_pending": []}
+    if path.startswith('/object_info/'):
+        name = unquote(path.removeprefix('/object_info/'))
+        return {name: info[name]} if name in info else {}
+    raise AssertionError(url)
+
+
 class ReadinessTests(unittest.TestCase):
     def setUp(self):
         with readiness._OBJECT_INFO_LOCK:
             readiness._OBJECT_INFO_CACHE.clear()
 
     def responses(self, url, headers=None, timeout=None):
-        return {"status": "healthy", "upstream": "http://127.0.0.1:8188"} if url.endswith("health") else node_info()
+        return self_hosted_response(url, node_info())
+
+    def test_default_readiness_queries_exact_ltx_classes_not_full_registry_or_h3(self):
+        seen = []
+        info = node_info()
+        expected_classes = {node['class_type'] for node in [
+            *build_frame_edit('x.png', 'edit').values(),
+            *build_ripple('x.mp4', 'x.png').values()]}
+
+        def get(url, headers=None, timeout=None):
+            seen.append(url)
+            if url.endswith('/object_info'):
+                raise TimeoutError('full registry must not be requested')
+            return self_hosted_response(url, info)
+
+        with patch.object(readiness, 'comfy_base_url', return_value='http://127.0.0.1:8189'), \
+             patch.object(readiness, '_json_get', side_effect=get), \
+             patch.object(readiness.shutil, 'which', return_value='/bin/tool'):
+            report = readiness.check_readiness()
+            self.assertEqual(readiness._target_object_info(), info)
+        self.assertTrue(report['ready'], report)
+        self.assertEqual(seen[2:-1], ['http://127.0.0.1:8188/object_info/' + quote(name, safe='')
+                                   for name in sorted(expected_classes)])
+        self.assertTrue(seen[-1].endswith('/api/v2/health'))
+        self.assertFalse(any('H3' in url for url in seen))
 
     def test_ready_with_models_and_nodes(self):
         with patch.object(readiness, "_json_get", side_effect=self.responses), \
@@ -55,7 +92,8 @@ class ReadinessTests(unittest.TestCase):
 
     def test_self_hosted_caches_object_info_but_checks_queue_each_time(self):
         readiness._OBJECT_INFO_CACHE.clear()
-        counts = {"health": 0, "queue": 0, "object_info": 0}
+        counts = {"health": 0, "queue": 0}
+        class_counts = {}
         def get(url, headers=None, timeout=None):
             if url.endswith('/api/v2/health'):
                 counts['health'] += 1
@@ -63,9 +101,10 @@ class ReadinessTests(unittest.TestCase):
             if url.endswith('/queue'):
                 counts['queue'] += 1
                 return {"queue_running": [[1]], "queue_pending": []} if counts['queue'] == 1 else {"queue_running": [], "queue_pending": []}
-            if url.endswith('/object_info'):
-                counts['object_info'] += 1
-                return node_info()
+            if '/object_info/' in url:
+                name = unquote(url.rsplit('/', 1)[1])
+                class_counts[name] = class_counts.get(name, 0) + 1
+                return self_hosted_response(url, node_info())
             raise AssertionError(url)
         try:
             with patch.object(readiness, "comfy_base_url", return_value="http://127.0.0.1:8189"), \
@@ -77,25 +116,68 @@ class ReadinessTests(unittest.TestCase):
             self.assertTrue(second['ready'], second)
             self.assertTrue(first['warnings'])
             self.assertFalse(second['warnings'])
-            self.assertEqual(counts, {"health": 2, "queue": 2, "object_info": 1})
+            self.assertEqual(counts, {"health": 2, "queue": 2})
+            self.assertEqual(class_counts, dict.fromkeys(node_info(), 1))
         finally:
             readiness._OBJECT_INFO_CACHE.clear()
 
     def test_busy_queue_warns_but_allows_sequential_submission(self):
-        with patch.object(readiness, "_json_get", side_effect=[
-            self.responses("health"), {"queue_running": [[1]], "queue_pending": []}, node_info()
-        ]), patch.object(readiness.shutil, "which", return_value="/bin/tool"):
+        def get(url, headers=None, timeout=None):
+            return self_hosted_response(url, node_info(), {"queue_running": [[1]], "queue_pending": []})
+        with patch.object(readiness, "_json_get", side_effect=get), \
+             patch.object(readiness.shutil, "which", return_value="/bin/tool"):
             report = readiness.check_readiness()
         self.assertTrue(report["ready"], report)
         self.assertEqual(report["issues"], [])
         self.assertIn("queue", " ".join(report["warnings"]).lower())
 
+    def test_class_cache_expires_after_fifteen_seconds_and_never_hides_timeout(self):
+        url = 'http://127.0.0.1:8188/object_info/SomeNode'
+        info = {'SomeNode': {}}
+        with patch.object(readiness.time, 'monotonic', side_effect=[100, 114.9, 115]), \
+             patch.object(readiness, '_json_get', side_effect=[info, TimeoutError('private')]) as get:
+            self.assertEqual(readiness._object_info(url, cache=True), info)
+            self.assertEqual(readiness._object_info(url, cache=True), info)
+            with self.assertRaises(TimeoutError):
+                readiness._object_info(url, cache=True)
+        self.assertEqual(readiness.OBJECT_INFO_CACHE_TTL_SECONDS, 15)
+        self.assertEqual(get.call_count, 2)
+        self.assertNotIn(url, readiness._OBJECT_INFO_CACHE)
+
+    def test_cached_inventory_does_not_hide_fresh_queue_failure(self):
+        queue_calls = 0
+        def get(url, headers=None, timeout=None):
+            nonlocal queue_calls
+            if url.endswith('/queue'):
+                queue_calls += 1
+                if queue_calls == 2:
+                    raise TimeoutError('private queue detail')
+            return self_hosted_response(url, node_info())
+        with patch.object(readiness, 'comfy_base_url', return_value='http://127.0.0.1:8189'), \
+             patch.object(readiness, '_json_get', side_effect=get), \
+             patch.object(readiness.shutil, 'which', return_value='/bin/tool'):
+            first = readiness.check_readiness()
+            second = readiness.check_readiness()
+        self.assertTrue(first['ready'], first)
+        self.assertFalse(second['ready'], second)
+        self.assertIn('timed out', ' '.join(second['issues']))
+        self.assertNotIn('private queue detail', str(second))
+
+    def test_authenticated_inventory_bypasses_local_cache(self):
+        url = 'https://cloud.comfy.org/api/object_info'
+        with patch.object(readiness, '_json_get', side_effect=[{'first': {}}, {'second': {}}]) as get:
+            self.assertEqual(readiness._object_info(url, {'X-API-Key': 'key-a'}, cache=True), {'first': {}})
+            self.assertEqual(readiness._object_info(url, {'X-API-Key': 'key-b'}, cache=True), {'second': {}})
+        self.assertEqual(get.call_count, 2)
+        self.assertNotIn(url, readiness._OBJECT_INFO_CACHE)
+
     def test_pending_queue_does_not_skip_missing_model_checks(self):
         info = node_info()
         info["UNETLoader"]["input"]["required"]["unet_name"][0] = []
-        with patch.object(readiness, "_json_get", side_effect=[
-            self.responses("health"), {"queue_running": [], "queue_pending": [[1]]}, info
-        ]), patch.object(readiness.shutil, "which", return_value="/bin/tool"):
+        def get(url, headers=None, timeout=None):
+            return self_hosted_response(url, info, {"queue_running": [], "queue_pending": [[1]]})
+        with patch.object(readiness, "_json_get", side_effect=get), \
+             patch.object(readiness.shutil, "which", return_value="/bin/tool"):
             report = readiness.check_readiness()
         self.assertFalse(report["ready"])
         self.assertTrue(report["missing_models"])
@@ -104,7 +186,9 @@ class ReadinessTests(unittest.TestCase):
     def test_missing_model_is_not_ready(self):
         info = node_info()
         info["UNETLoader"]["input"]["required"]["unet_name"][0] = []
-        with patch.object(readiness, "_json_get", side_effect=[self.responses("health"), {}, info]), \
+        def get(url, headers=None, timeout=None):
+            return self_hosted_response(url, info)
+        with patch.object(readiness, "_json_get", side_effect=get), \
              patch.object(readiness.shutil, "which", return_value="/bin/tool"):
             report = readiness.check_readiness()
         self.assertFalse(report["ready"])
@@ -187,7 +271,7 @@ class ReadinessTests(unittest.TestCase):
     def test_remote_health_success_cannot_hide_auth_failure(self):
         with patch.object(readiness, "comfy_base_url", return_value="https://studio.example.invalid"), \
              patch.object(readiness, "_json_get", side_effect=[
-                 self.responses("health"), RuntimeError("401 secret-key")]), \
+                 {"status": "healthy", "upstream": "http://127.0.0.1:8188"}, RuntimeError("401 secret-key")]), \
              patch.object(readiness.shutil, "which", return_value="/bin/tool"):
             report = readiness.check_readiness()
         self.assertFalse(report["ready"])

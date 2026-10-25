@@ -24,7 +24,9 @@ class Element {
   load() {}
   scrollIntoView() { this.scrolled=true; }
   focus() { this.focused=true; }
-  click() { return this.events.click?.(); }
+  set value(value) { this._value = value; if (value === '' && this.type === 'file') this.files = []; }
+  get value() { return this._value; }
+  click() { if (!this.disabled) return this.events.click?.(); }
   setCustomValidity(value) { this.validity = value; }
   closest() { return elements.get('h3-advanced'); }
 }
@@ -32,6 +34,8 @@ const elements = new Map();
 for (const match of html.matchAll(/<([\w-]+)\b([^>]*\bid="([^"]+)"[^>]*)>/g)) {
   const element = new Element(match[1].toUpperCase());
   element.id = match[3];
+  element.name = match[2].match(/\bname="([^"]+)"/)?.[1];
+  element.type = match[2].match(/\btype="([^"]+)"/)?.[1];
   element.dataset = {h3Stage: match[2].match(/data-h3-stage="([^"]+)"/)?.[1]};
   element.hidden = /\bhidden\b/.test(match[2]);
   element.disabled = /\bdisabled\b/.test(match[2]);
@@ -193,16 +197,19 @@ const NativeFormData = globalThis.FormData;
 globalThis.FormData = class extends NativeFormData {
   constructor(form) {
     super();
-    if (form) for (const [field, name] of [['video', 'video'], ['reference', 'reference_images'], ['edit', 'edit_prompt'], ['description', 'character_description'], ['seed', 'seed']]) {
-      if (!el(field).disabled) this.append(name, el(field).files[0] || el(field).value);
+    if (form) for (const field of elements.values()) {
+      if (field.name && !field.disabled) this.append(field.name,
+        field.type === 'file' ? field.files[0] || new File([], '') : field.value);
     }
   }
 };
 el('form').reportValidity = () => !el('seed').validity && !!el('video').files[0] && !!el('reference').files[0];
-let ready = true, submitted;
+let ready = true, submitted, releaseSubmit, controllerTake;
+const watch = H3Take.prototype.watch;
+H3Take.prototype.watch = function(id) { controllerTake = this; return watch.call(this, id); };
 handler = (url, opts) => {
   if (url === '/api/h3/readiness') return response({ready, warnings: ['Queue is busy; waiting is not inference.']});
-  if (url === '/api/h3/jobs') { submitted = opts.body; return response({job_id: id}, 202); }
+  if (url === '/api/h3/jobs') { submitted = opts.body; return new Promise(resolve => { releaseSubmit = resolve; }); }
   return response({...base, status: 'queued'});
 };
 await import('../src/static/h3-studio.js');
@@ -221,13 +228,44 @@ assert.equal(el('notices').hidden, false);
 el('video').files = [new File(['video bytes'], 'source.webm')];
 el('reference').files = [new File(['image bytes'], 'character.png')];
 el('video').events.change();
+el('add-second-reference').click();
+el('reference-2').files = [new File(['second image bytes'], 'second.png')];
+el('reference-2').events.change();
 el('edit').value = '  original\n directions  ';
-await el('form').events.submit({preventDefault() {}});
+el('description').value = 'closed description must not be sent';
+const inFlight = el('form').events.submit({preventDefault() {}});
 await settle();
+const assertFrozenReferences = () => {
+  const epoch = controllerTake?.epoch, timer = controllerTake?.pollTimer;
+  for (const field of ['video', 'reference', 'reference-2', 'seed', 'add-second-reference', 'remove-reference'])
+    assert.equal(el(field).disabled, true, `${field} must be frozen while submitting/tracking`);
+  el('reference-2').events.change();
+  if (controllerTake) assert.equal(store.get('opengenjutsu.h3.current-job'), id, 'changing reference 2 cannot abandon queued/running tracking');
+  for (const button of ['add-second-reference', 'remove-reference']) el(button).events.click();
+  for (const field of ['video', 'reference']) el(field).events.change();
+  assert.equal(el('second-reference').hidden, false);
+  assert.equal(el('take-reference-2-card').hidden, false, 'locking a field must not hide the second chain card');
+  assert.equal(el('reference').files[0].name, 'character.png');
+  assert.equal(el('reference-2').files[0].name, 'second.png');
+  assert.equal(el('run-overlay').hidden, false, 'reference events cannot reset an active take');
+  assert.equal(controllerTake?.epoch, epoch); assert.equal(controllerTake?.pollTimer, timer);
+};
+assertFrozenReferences();
 assert.equal(submitted.has('edit_prompt'), false);
+assert.equal(submitted.has(el('description').name), false);
 assert.equal(submitted.get('seed'), '302929098223082');
-assert.equal(submitted.get('reference_images').name, 'character.png');
-handler = url => response(url === '/api/h3/readiness' ? {ready} : {...base, status: 'done'});
+assert.deepEqual(submitted.getAll('reference_images').map(file => file.name), ['character.png', 'second.png']);
+releaseSubmit(response({job_id: id}, 202)); await inFlight; await settle();
+assert.equal(store.get('opengenjutsu.h3.current-job'), id);
+assertFrozenReferences();
+handler = () => response({...base, status: 'running', finished: null});
+await controllerTake.poll(controllerTake.epoch); assertFrozenReferences();
+handler = url => response(url.endsWith('/capsule') ? capsule : url === '/api/h3/readiness' ? {ready} : {...base, status: 'done'});
+await controllerTake.poll(controllerTake.epoch);
+assert.equal(el('reference-2').disabled, false, 'done unlocks the visible second reference');
+el('add-second-reference').click();
+assert.equal(el('second-reference').hidden, true); assert.equal(el('reference-2').disabled, true);
+assert.equal(el('reference-2').files.length, 0); assert.equal(el('take-reference-2-card').hidden, true);
 el('video').events.change();
 el('directions').open = true;
 el('directions').events.toggle();
@@ -240,10 +278,13 @@ handler = (url, opts) => {
 await el('form').events.submit({preventDefault() {}});
 await settle();
 assert.equal(submitted.get('edit_prompt'), '  original\n directions  ');
-// The user's character description reaches the frozen prompt verbatim, untrimmed.
-assert.equal(submitted.get('character_description'), '  a tall woman  ');
-// A false-negative readiness must never lock a valid submission: readiness is
-// advisory and the server is the authoritative gate.
+// The multipart snapshot retains user text verbatim, untrimmed.
+assert.equal(submitted.get(el('description').name), '  a tall woman  ');
+assert.equal(submitted.getAll('reference_images').length, 1); assert.equal(el('reference-2').disabled, true);
+el('add-second-reference').click(); assert.equal(el('reference-2').disabled, false, 'error unlocks second-reference editing');
+el('remove-reference').click();
+assert.equal(el('reference').files.length, 0); assert.equal(el('second-reference').hidden, true); assert.equal(el('reference-2').disabled, true);
+el('reference').files = [new File(['image bytes'], 'character.png')]; el('reference').events.change();
 assert.equal(el('submit').disabled, false);
 handler = (url, opts) => {
   if (url === '/api/h3/readiness') return response({ready});
@@ -255,4 +296,4 @@ await el('form').events.submit({preventDefault() {}});
 await settle();
 assert.equal(calls.filter(([url]) => url === '/api/h3/jobs').length, count + 1);
 assert.match(toasts.at(-1)[1], /timed out/);
-console.log('H3 UI contract checks passed: form, exact prompt, description, advisory readiness, queue, terminal states, resume, replay, HTTP failures.');
+console.log('H3 UI contract checks passed: multipart reference order, verbatim description, pending/queued/running input freeze, done/error editing, advisory readiness, resume, replay, HTTP failures.');

@@ -1,5 +1,7 @@
 """H3 HTTP contracts without GPU, external services, or app.py integration."""
 
+import copy
+import re
 import sys
 import tempfile
 import unittest
@@ -68,6 +70,66 @@ class APITests(unittest.TestCase):
         self.assertNotIn(str(self.root), response.text)
         self.assertEqual(self.client.get(f'/api/h3/jobs/{job.id}/capsule').status_code, 409)
 
+    def test_shipped_form_description_reaches_dispatch_verbatim(self):
+        # Use the production field name, not an independently invented API payload.
+        html = (Path(__file__).resolve().parents[1] / 'src/templates/h3.html').read_text()
+        field = re.search(r'id="h3-description" name="([^"]+)"', html)
+        self.assertIsNotNone(field, 'The shipped description control must have a public name')
+        assert field is not None
+        name = field[1]
+        text = '  cheveux bruns\n veste orange  '
+        response = self.submit(data={name: text, 'edit_prompt': '  keep jacket\n'})
+        self.assertEqual(response.status_code, 202, response.text)
+        job, _, opts = self.dispatch.call_args.args
+        self.assertEqual(opts['recipe']['reference_descriptions'], [text])
+        self.assertEqual(opts['recipe']['reference_description_sources'], ['user'])
+        self.assertEqual(opts['recipe']['preserve_clip'], '  keep jacket\n')
+        self.assertIn(text.strip(), opts['recipe']['effective_prompt'])
+        self.assertEqual(core.Job.load(job.id).meta['h3_recipe'], opts['recipe'])
+
+    def test_ordered_descriptions_match_two_public_reference_uploads(self):
+        texts = ['  first character\n', '\nsecond character  ']
+        files = [('video', ('source.mp4', b'video', 'video/mp4')),
+                 ('reference_images', ('first.png', b'first image', 'image/png')),
+                 ('reference_images', ('second.png', b'second image', 'image/png'))]
+        response = self.client.post('/api/h3/jobs', files=files,
+                                    data={'character_descriptions': texts})
+        self.assertEqual(response.status_code, 202, response.text)
+        job, _, opts = self.dispatch.call_args.args
+        self.assertEqual(opts['recipe']['reference_count'], 2)
+        self.assertEqual(opts['recipe']['reference_descriptions'], texts)
+        self.assertEqual(opts['recipe']['reference_description_sources'], ['user', 'user'])
+        self.assertEqual([Path(path).read_bytes() for path in opts['reference_images']],
+                         [b'first image', b'second image'])
+        self.assertLess(job.prompt.index('first character'), job.prompt.index('second character'))
+        self.assertEqual(core.Job.load(job.id).meta['h3_recipe'], opts['recipe'])
+        # The existing UI has one description: it belongs to reference 1 only.
+        response = self.client.post('/api/h3/jobs', files=files,
+                                    data={'character_description': texts[0]})
+        self.assertEqual(response.status_code, 202, response.text)
+        self.assertEqual(self.dispatch.call_args.args[2]['recipe']['reference_descriptions'],
+                         [texts[0], ''])
+
+    def test_absent_descriptions_leave_reference_completion_to_worker(self):
+        self.assertEqual(self.submit().status_code, 202)
+        self.assertEqual(self.dispatch.call_args.args[2]['recipe']['reference_descriptions'], [''])
+
+    def test_description_alias_and_invalid_payloads_never_silently_drop_text(self):
+        response = self.submit(data={'character_description': '  legacy text  '})
+        self.assertEqual(response.status_code, 202, response.text)
+        self.assertEqual(self.dispatch.call_args.args[2]['recipe']['reference_descriptions'],
+                         ['  legacy text  '])
+        for data in ({'character_descriptions': ['first', 'orphan']},
+                     {'character_descriptions': ['first', 'second', 'third']},
+                     {'character_description': 'legacy', 'character_descriptions': 'canonical'},
+                     {'character_description': 'x' * 2001},
+                     {'character_descriptions': 'x' * 2001}):
+            with self.subTest(fields=list(data)):
+                self.dispatch.reset_mock()
+                response = self.submit(data=data)
+                self.assertEqual(response.status_code, 422, response.text)
+                self.dispatch.assert_not_called()
+
     def test_reference_capacity_and_seed_bounds_are_rejected(self):
         files = [('video', ('source.mp4', b'video', 'video/mp4'))]
         files += [('reference_images', (f'{index}.png', b'image', 'image/png'))
@@ -94,7 +156,7 @@ class APITests(unittest.TestCase):
         self.assertIn('Multi-cut editing is not', schema['paths']['/api/h3/jobs']['post']['description'])
 
     def test_replay_uses_frozen_recipe_and_no_inherited_success(self):
-        self.submit()
+        self.submit(data={'character_descriptions': '  frozen character\n'})
         job, source, opts = self.dispatch.call_args.args
         recipe = bind_frames(opts['recipe'], 24)
         result = self.media / 'result.mp4'
@@ -105,6 +167,9 @@ class APITests(unittest.TestCase):
         response = self.client.get(f'/api/h3/jobs/{job.id}/capsule')
         self.assertEqual(response.status_code, 200, response.text)
         self.assertNotIn(str(self.root), response.text)
+        frozen = copy.deepcopy(core.Job.load(job.id).meta)
+        self.assertEqual(self.submit(data={'character_description': 'new draft'}).status_code, 202)
+        self.assertEqual(core.Job.load(job.id).meta, frozen, 'A new draft cannot rewrite a frozen take')
         self.dispatch.reset_mock()
         replay = self.client.post(f'/api/h3/jobs/{job.id}/replay')
         self.assertEqual(replay.status_code, 202, replay.text)

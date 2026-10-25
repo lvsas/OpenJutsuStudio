@@ -69,12 +69,27 @@ def _target_mode(base):
     return "remote-self-hosted"
 
 
+def _required_nodes(required_graph=None):
+    return (list(required_graph.values()) if required_graph is not None else
+            [*build_frame_edit("placeholder.png", "edit").values(),
+             *build_ripple("placeholder.mp4", "placeholder.png").values()])
+
+
+def _graph_object_info(upstream, required_graph=None):
+    """Read only graph classes; unrelated plugins need not be enumerated."""
+    info = {}
+    for name in sorted({node['class_type'] for node in _required_nodes(required_graph)}):
+        result = _object_info(upstream + '/object_info/' + quote(name, safe=''), cache=True)
+        if not isinstance(result, dict):
+            raise ValueError('The required node inventory could not be read.')
+        if name in result:
+            info[name] = result[name]
+    return info
+
+
 def _inventory(info, required_graph=None):
     nodes, models = set(), set()
-    graph = (list(required_graph.values()) if required_graph is not None else
-             [*build_frame_edit("placeholder.png", "edit").values(),
-              *build_ripple("placeholder.mp4", "placeholder.png").values()])
-    for node in graph:
+    for node in _required_nodes(required_graph):
         name = node["class_type"]
         if name not in info:
             nodes.add(name)
@@ -116,18 +131,7 @@ def _target_object_info(required_graph=None):
         if health.get("status") != "healthy" or not health.get("upstream"):
             raise ValueError("The configured self-hosted Comfy API Proxy is not healthy or has no upstream.")
         upstream = _valid_url(health['upstream'])
-        if required_graph is not None:
-            # Large installations can time out enumerating every unrelated
-            # plugin. Query exactly the classes this compiled graph consumes.
-            info = {}
-            for name in sorted({node['class_type'] for node in required_graph.values()}):
-                result = _object_info(upstream + '/object_info/' + quote(name, safe=''), cache=True)
-                if not isinstance(result, dict):
-                    raise ValueError('The required node inventory could not be read.')
-                if name in result:
-                    info[name] = result[name]
-            return info
-        return _object_info(upstream + '/object_info', cache=True)
+        return _graph_object_info(upstream, required_graph)
     if mode == 'comfy-cloud':
         api_key = os.environ.get("COMFY_API_KEY", "").strip()
         if not api_key:
@@ -169,7 +173,7 @@ def check_readiness(required_graph=None):
                 queue = _json_get(upstream + "/queue")
                 if queue.get("queue_running") or queue.get("queue_pending"):
                     warnings.append("ComfyUI is busy. Your workflow can join its queue and will run after earlier jobs; waiting time is not inference time.")
-                nodes, models = _inventory(_object_info(upstream + "/object_info", cache=True), required_graph)
+                nodes, models = _inventory(_graph_object_info(upstream, required_graph), required_graph)
                 report.update(missing_nodes=nodes, missing_models=models)
                 if nodes:
                     issues.append("Install missing ComfyUI nodes: " + ", ".join(nodes))

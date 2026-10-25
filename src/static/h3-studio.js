@@ -18,7 +18,8 @@ function syncStage() {
 
 function update() {
   const locked = pending || take.active;
-  for (const field of ['video', 'reference', 'seed']) byId(field).disabled = locked;
+  for (const field of ['video', 'reference', 'seed', 'add-second-reference', 'remove-reference']) byId(field).disabled = locked;
+  byId('reference-2').disabled = locked || byId('second-reference').hidden;
   for (const field of ['edit', 'description']) byId(field).disabled = locked || !byId('directions').open;
   const inputs = byId('video').files.length === 1 && byId('reference').files.length === 1;
   // Readiness is advisory here: the server checks the target again and returns the exact reason.
@@ -74,8 +75,9 @@ function paintPickers() {
   byId('add-second-reference').hidden = !byId('reference').files[0];
 }
 function setSecondReference(visible) {
+  if (pending || take.active) return;
   byId('second-reference').hidden = !visible;
-  byId('reference-2').disabled = !visible;
+  update();
   const toggle = byId('add-second-reference');
   toggle.setAttribute('aria-expanded', String(visible));
   toggle.lastElementChild.textContent = visible ? 'Remove second character' : 'Add a second character';
@@ -85,6 +87,7 @@ function setSecondReference(visible) {
   previewInputs();
 }
 function previewInputs() {
+  if (pending || take.active) return;
   take.reset();
   for (const [kind, field] of [['source', 'video'], ['reference', 'reference'],
                                ['reference-2', 'reference-2']]) {
@@ -103,7 +106,7 @@ function previewInputs() {
 }
 // One reference or two: the chain shows a card per reference and renumbers itself.
 function paintChain() {
-  const fromForm = byId('reference-2').files.length === 1 && !byId('reference-2').disabled;
+  const fromForm = byId('reference-2').files.length === 1 && !byId('second-reference').hidden;
   const fromTake = (take.capsule?.recipe?.reference_count || 0) > 1;
   const second = take.capsule ? fromTake : fromForm;
   byId('take-reference-2-card').hidden = !second;
@@ -172,7 +175,10 @@ form.addEventListener('submit', submit);
 byId('directions').addEventListener('toggle', update);
 for (const [field, kind] of [['video', 'source'], ['reference', 'reference'],
                              ['reference-2', 'reference']]) {
-  byId(field).addEventListener('change', () => { previewInputs(); setStage(kind); });
+  byId(field).addEventListener('change', () => {
+    if (pending || take.active) return;
+    previewInputs(); setStage(kind);
+  });
 }
 byId('add-second-reference').addEventListener('click', () => {
   setSecondReference(byId('second-reference').hidden);
@@ -184,6 +190,7 @@ for (const card of document.querySelectorAll?.('[data-h3-stage]') || []) {
   });
 }
 byId('remove-reference').addEventListener('click', () => {
+  if (pending || take.active) return;
   byId('reference').value = '';
   if (!byId('second-reference').hidden) setSecondReference(false);
   byId('reference').value = '';

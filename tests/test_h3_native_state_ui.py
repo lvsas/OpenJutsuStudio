@@ -8,6 +8,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class H3NativeStateUITests(unittest.TestCase):
+    def test_native_capture_has_h3_scoped_touch_target(self):
+        css = (ROOT / 'src/static/h3-studio.css').read_text()
+        self.assertRegex(css, r'\[data-engine="h3"\] label\[for="h3-native-capture"\][^{]*\{[^}]*min-height:\s*44px')
+        self.assertRegex(css, r'\[data-engine="h3"\] #h3-native-capture[^\{]*\{[^}]*width:\s*20px')
+
     @unittest.skipUnless(shutil.which('node'), 'Node is required')
     def test_native_state_and_distinct_version_contract(self):
         result = subprocess.run(

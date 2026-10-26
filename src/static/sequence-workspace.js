@@ -121,13 +121,10 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     change({...next,selected_position:null},{select:true});
   }
   function poster(entry) {
-    if(isSwap(entry)) {
-      const video=document.createElement('video');video.preload='none';video.autoplay=false;
-      video.muted=true;video.playsInline=true;video.tabIndex=-1;video.setAttribute('aria-hidden','true');
-      video.className='sequence-poster';video.src=entry.media_url;return video;
-    }
     const image=document.createElement('img');image.alt='';image.loading='lazy';
-    image.className='sequence-poster';image.src=`/api/continuity/takes/${entry.take.take_id}/poster`;
+    image.className='sequence-poster';image.src=isSwap(entry)
+      ? `/api/jobs/${sourceId(entry)}/poster`
+      : `/api/continuity/takes/${entry.take.take_id}/poster`;
     image.addEventListener('error',()=>{image.hidden=true;image.parentElement?.classList.add('poster-unavailable');});
     return image;
   }

@@ -215,6 +215,38 @@ class JobAPI:
         return {"job_id": job.id, "status": "queued", "job": _public_job(job)}
 
 
+def create_poster_router(resolve_result: Callable, get_store: Callable) -> APIRouter:
+    """Wire with the original get_result endpoint, preserving its access checks.
+
+    Registration belongs in the app after get_result is defined. A resolver must
+    return the original validated FileResponse, never a client-supplied path.
+    """
+    from fastapi.responses import FileResponse
+    from swap_preview import prepare_poster, PreviewUnavailable
+    from timeline_swap_sources import swap_source
+    from timeline_store import TimelineError
+
+    router = APIRouter()
+
+    @router.get('/api/jobs/{job_id}/poster')
+    def poster(job_id: str):
+        result = resolve_result(job_id)  # Preserve the original result access gate.
+        try:
+            store = get_store()
+            source, _ = swap_source(store, job_id)  # Existing done/media-safe validator.
+            if source != Path(result.path).absolute():
+                raise HTTPException(409, 'The Swap result changed. Try again.')
+            path = prepare_poster(store.work, source)
+        except TimelineError as exc:
+            raise HTTPException(exc.status_code, exc.detail) from exc
+        except PreviewUnavailable as exc:
+            raise HTTPException(503, str(exc), headers={'Retry-After': '2'}) from exc
+        return FileResponse(path, media_type='image/jpeg',
+                            headers={'Cache-Control': 'private, no-cache'})
+
+    return router
+
+
 def create_router(get_media_dir: Callable[[], Path], max_upload_bytes: int,
                   readiness_check: Callable[[], dict[str, Any]], dispatch_job: Callable,
                   engine: str) -> APIRouter:

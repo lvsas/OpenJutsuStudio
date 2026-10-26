@@ -22,7 +22,7 @@ from api_schema import _public_job, _target_size
 from readiness import check_readiness, ltx_required_graph
 from source_clip import MAX_CLIP_SECONDS
 from share_reel_api import ReelService, create_router as create_share_reel_router
-from job_api import create_router as create_job_router
+from job_api import create_router as create_job_router, create_poster_router
 from take_capsule_api import create_router as create_take_capsule_router
 from runtime_inventory import declared_runtime_inventory
 from h3_studio_app import register_optional_h3
@@ -377,5 +377,10 @@ def get_result(job_id: str, download: bool = False) -> FileResponse:
     return FileResponse(path, media_type="video/mp4", filename=f"opengenjutsu-{job_id}.mp4",
                         content_disposition_type="attachment" if download else "inline")
 
+
+from timeline_store import TimelineStore
+app.include_router(create_poster_router(
+    get_result, lambda: TimelineStore(core.WORK, MEDIA_DIR, MAX_UPLOAD_BYTES),
+))
 
 # Templates are read per change rather than once at import: see `_page`.

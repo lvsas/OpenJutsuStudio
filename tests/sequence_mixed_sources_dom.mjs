@@ -52,12 +52,16 @@ export async function runMixedSequenceDOMTests(){
     seq.preview(A,'swap');equal(previews.at(-1),entries[1],'typed preview resolves UUID collision');
     equal(row(`native:${A}`).children[0].getAttribute('aria-pressed'),'false','native collision is not highlighted');
     equal(row(`swap:${A}`).children[0].getAttribute('aria-pressed'),'true','typed preview is highlighted');
-    const media=row(`swap:${A}`).querySelector('video');assert(media&&media.preload==='none'&&!media.autoplay,'Swap videos are non-autoplay and preload none');
+    const media=row(`swap:${A}`).querySelector('img');assert(media&&media.loading==='lazy'&&media.getAttribute('src')===`/api/jobs/${A}/poster`,'Swap library uses a lazy server JPEG poster');
+    assert(!row(`swap:${A}`).querySelector('video'),'Swap discovery never loads full videos');
     assert(row(`native:${A}`).querySelector('img').getAttribute('src').includes(`/takes/${A}/poster`),'native poster endpoint retained');
     assert(row(`swap:${A}`).textContent.includes('Video only'),'Swap capability is honest');passed.push('read-only typed preview and safe media');
     row(`swap:${A}`).children[1].focus();row(`swap:${A}`).children[1].click();
     equal(seq.state().placements[0].source_kind,'swap','explicit plus places Swap');
     assert(document.activeElement===row(`swap:${A}`).children[1],'plus focus survives rerender');
+    const railPoster=el('board-track').querySelector('img.sequence-poster');
+    assert(railPoster&&railPoster.loading==='lazy'&&railPoster.getAttribute('src')===`/api/jobs/${A}/poster`,'Swap rail uses the same lazy server JPEG');
+    assert(!el('board-track').querySelector('video'),'rail never fetches full videos');
     seq.setDraft({prompt:'Keep my direction',seed:'18446744073709551615'});
     const first=seq.selected().placement_id;
     seq.place(A,null,{prompt:'Native draft'});seq.place(A,null,null,'swap');

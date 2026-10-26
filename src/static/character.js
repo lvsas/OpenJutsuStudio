@@ -10,44 +10,52 @@
   // Complete tuples stay coherent and prop-free; rendering and framing belong to the server.
   const LOOKS = [
     {
-      role: "fastidious train announcer", build: "a broad-shouldered but realistically proportioned adult body",
-      hair: "a jaw-length dense copper bob sculpted into a broad trapezoid, a completely flat horizontal top, straight heavy fringe at eyebrow level, and thick sides covering the ears and flaring outward at the jaw; a long face with a bushy dark walrus moustache drooping over the upper lip", outfit: "a pale mint short-sleeved shirt buttoned to the collar, very high-waisted chocolate-brown trousers with sharp front creases and a slightly short hem, white socks and glossy black loafers",
+      being: "man", role: "fastidious train announcer",
+      build: "a broad-shouldered but realistically proportioned adult body",
+      hair: "a jaw-length dense copper bob sculpted into a broad trapezoid, a completely flat top, straight heavy fringe and thick sides covering the ears and flaring outward at the jaw",
+      face: "a long face with a bushy dark walrus moustache drooping over the upper lip",
+      outfit: "a pale mint short-sleeved shirt buttoned to the collar, very high-waisted chocolate-brown trousers with sharp front creases and a slightly short hem, white socks and glossy black loafers",
       attitude: "standing with shy tucked-in elbows, raised eyebrows and a bashful closed-mouth smile",
     },
     {
-      role: "self-appointed neighbourhood expert", build: "a stocky adult build with ordinary head and limb proportions",
-      hair: "a precisely geometric silver crest widening into a horizontal shelf, and a broad moustache", outfit: "a plain rust cardigan, navy trousers and brown loafers",
-      attitude: "chin lifted with a smug half-smile and one sceptically raised eyebrow",
+      being: "woman", role: "unyielding boules referee",
+      build: "a short sturdy adult build with powerful forearms and natural head proportions",
+      hair: "a low geometric silver crest with closely shaved temples",
+      face: "an aquiline nose, straight emphatic eyebrows and tightly pursed lips",
+      outfit: "a plum jumpsuit with an unusually broad collar and billowing legs gathered at the ankles, with simple black shoes",
+      attitude: "feet firmly planted, chin forward and a defiant smirk",
     },
     {
-      role: "unflappable cafe owner", build: "a short broad realistically proportioned adult body",
-      hair: "a single smooth auburn loop rising sharply from the forehead then folding sideways like a sculptural comma", outfit: "a plain teal T-shirt, dark jeans and simple white shoes",
-      attitude: "hands at the sides, stern pursed lips and intensely unimpressed eyes",
+      being: "woman", role: "ceremonious karaoke organiser",
+      build: "a tall rounded adult build with narrow shoulders and ordinary limb lengths",
+      hair: "two smooth horizontal black rolls above the ears and a short neat nape",
+      face: "full cheeks, slightly spaced front teeth and an emphatic knowing smile",
+      outfit: "a burnt-orange suit with a short square jacket, a long pleated skirt and low cream shoes",
+      attitude: "chin raised, elbows poised and a triumphant closed-mouth smile",
     },
     {
-      role: "overconfident dance teacher", build: "a very lean adult build with a long neck and ordinary-length legs",
-      hair: "a rigid triangular black fringe sweeping sideways over a narrow angular face", outfit: "a fitted burgundy knit, simple black trousers and flat shoes",
-      attitude: "chest proudly lifted, a theatrical arched eyebrow and a knowing crooked smile",
+      being: "woman", role: "dreamy lift technician",
+      build: "a slender long-limbed adult build with long arms and a normal-sized head",
+      hair: "pale blonde hair cut short at the front with a long wavy cascade down the back",
+      face: "an angular face with heavy upper eyelids and a narrow softly crooked nose",
+      outfit: "loose cobalt overalls over a lemon shirt with exaggerated balloon sleeves, and plain brown boots",
+      attitude: "relaxed shoulders, a tilted head and a distracted gentle smile",
     },
     {
-      role: "soft-spoken book club organiser", build: "a tall narrow adult build with ordinary head size and a long angular face",
-      hair: "a precise flat silver crop with two pointed sideburns", outfit: "a plain pale-blue sweater, charcoal trousers and low trainers",
-      attitude: "shoulders drawn inward, wide attentive eyes and a sweet tentative smile",
+      being: "man", role: "reserved dance teacher",
+      build: "a compact adult build with a round belly and strong natural-length legs",
+      hair: "brown curls combed into three precise sculptural waves across the forehead",
+      face: "a clean-shaven face with a short nose and deep smiling creases",
+      outfit: "a rose satin blouse with bottle-green flared trousers and plain black dance shoes",
+      attitude: "open hands, an earnest upright stance and a slightly worried expression",
     },
     {
-      role: "fiercely competitive amateur gardener", build: "a heavyset adult build with narrow shoulders and rounded hips",
-      hair: "a tall tightly coiled copper spiral pinned upright above a small determined face", outfit: "a plain mustard sweatshirt, dark green trousers and tan shoes",
-      attitude: "feet planted, chin forward and a tight triumphant smirk beneath sharply raised brows",
-    },
-    {
-      role: "cheerful local choir leader", build: "a broad-chested adult build with normal head size and ordinary feet",
-      hair: "a sculptural cloud of silver curls and an emphatic curled moustache", outfit: "a simple coral pullover, navy chinos and black shoes",
-      attitude: "an exuberant open smile, lifted cheeks and a proudly upright stance",
-    },
-    {
-      role: "deadpan weekend sprinter", build: "a strongly built adult with wide shoulders, ordinary waist and natural-length legs",
-      hair: "a small circular black fringe cut into a perfectly sharp rim above a wide rectangular jaw", outfit: "a plain cobalt T-shirt, grey jogging trousers and white running shoes",
-      attitude: "arms hanging loosely, narrowed sceptical eyes and a completely serious pout",
+      being: "non-binary person", role: "enthusiastic apartment-block coordinator",
+      build: "a tall athletic adult build with broad shoulders and ordinary proportions",
+      hair: "white hair shaped into an asymmetric sculptural fan sweeping to one side",
+      face: "a wide angular jaw, a cleft chin and expressive arched eyebrows",
+      outfit: "a very short lilac quilted jacket, red carrot-cut trousers and simple white shoes",
+      attitude: "leaning slightly forward with a conspiratorial smile and an inviting open posture",
     },
   ];
 
@@ -56,7 +64,7 @@
     ["build", "Silhouette", LOOKS.map((look) => look.build)],
     ["skin_tone", "Skin tone", ["fair skin", "olive skin", "warm brown skin", "deep brown skin", "very dark brown skin"]],
     ["hair", "Signature hair", LOOKS.map((look) => look.hair)],
-    ["face", "Face and expression", ["an emphatic square jaw and a bashful smile", "a broad moustache and a smug half-smile", "stern pursed lips and unimpressed eyes", "an arched eyebrow and a crooked smile", "wide attentive eyes and a tentative smile", "lifted cheeks and an exuberant open smile"]],
+    ["face", "Face and expression", LOOKS.map((look) => look.face)],
     ["outfit", "Clothes", LOOKS.map((look) => look.outfit)],
     ["role", "Personality", LOOKS.map((look) => `a ${look.role}`)],
     ["era", "Era", ["present-day everyday clothing", "simple 1970s casual clothing", "simple 1990s casual clothing"]],
@@ -67,7 +75,7 @@
     ["identity", "Silhouette", ["build"], "From the idea"],
     ["appearance", "Signature hair and face", ["hair", "face"], "From the idea"],
     ["story", "Expression and personality", ["role", "attitude"], "From the idea"],
-    ["style", "Simple clothes", ["outfit", "era"], "From the idea"],
+    ["style", "Clothes and style", ["outfit", "era"], "From the idea"],
   ];
 
   const MODE_HINTS = {
@@ -253,7 +261,8 @@
 
   function buildDirection() {
     const look = pick(LOOKS);
-    return `An original adult, a ${look.role}: ${look.build}, ${look.hair}, wearing ${look.outfit}, ${look.attitude}.`;
+    const article = /^[aeiou]/i.test(look.role) ? "an" : "a";
+    return `An original adult ${look.being}, ${article} ${look.role}: ${look.build}, ${look.hair}, ${look.face}, wearing ${look.outfit}, ${look.attitude}.`;
   }
 
   function shuffle() {

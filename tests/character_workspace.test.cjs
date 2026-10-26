@@ -90,9 +90,9 @@ test('editable idea and early submit precede refinements; shuffle is local perso
   for (let i = 0; i < 30; i++) {
     await app.elements.get('shuffle').click();
     const idea = app.elements.get('direction').value;
-    assert.match(idea, /^An original adult,/);
+    assert.match(idea, /^An original adult (?:man|woman|non-binary person),/);
     assert.doesNotMatch(idea, /caricature|outsized head|tiny waist|spindly legs|tiny neat feet/i);
-    assert.match(idea, /flat|geometric|sculptural|triangular|precise|spiral|silver|sharp/);
+    assert.match(idea, /flat|geometric|sculptural|rolls|cascade|waves/);
     assert.doesNotMatch(idea, /editorial|street.style|photograph|studio|portrait|holding|carrying/i);
   }
   assert.equal(app.calls.length, before, 'shuffle must perform zero fetches');

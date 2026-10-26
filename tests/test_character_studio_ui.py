@@ -82,7 +82,7 @@ class CharacterStudioUITests(unittest.TestCase):
             with self.subTest(element_id=element_id):
                 self.assertIn(f'id="{element_id}"', self.page)
         for label in ("Silhouette", "Signature hair and face", "Expression and personality",
-                      "Simple clothes"):
+                      "Clothes and style"):
             with self.subTest(label=label):
                 self.assertIn(f'"{label}"', self.js)
         self.assertIn("const REFINEMENTS = [", self.js)
@@ -120,7 +120,8 @@ class CharacterStudioUITests(unittest.TestCase):
     def test_repeated_submissions_stay_independent_and_unlocked(self):
         # Execute the shipped script: queued work must not clear the selected canvas,
         # writes must be verified, and discarded in-flight responses must stay discarded.
-        result = subprocess.run(["node", "--test", "tests/character_workspace.test.cjs"],
+        result = subprocess.run(["node", "--test", "tests/character_workspace.test.cjs",
+                                 "tests/character_variety.test.cjs"],
                                 cwd=ROOT, text=True, capture_output=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.page.count('id="active-result"'), 1)
@@ -177,13 +178,13 @@ class CharacterStudioUITests(unittest.TestCase):
         direction_end = self.js.index("function shuffle()", direction_start)
         direction_builder = self.js[direction_start:direction_end]
         self.assertIn("const look = pick(LOOKS)", direction_builder)
-        for field in ("role", "build", "hair", "outfit", "attitude"):
+        for field in ("being", "role", "build", "hair", "face", "outfit", "attitude"):
             with self.subTest(field=field):
                 self.assertIn(f"look.{field}", direction_builder)
-        for signal in ("realistically proportioned", "jaw-length dense copper bob", "geometric silver", "triangular black", "sculptural", "moustache", "smirk"):
+        for signal in ("realistically proportioned", "jaw-length dense copper bob", "geometric silver", "horizontal black rolls", "sculptural", "moustache", "smirk"):
             with self.subTest(signal=signal):
                 self.assertIn(signal, self.js.lower(), f"default looks lost physical/personality hook: {signal!r}")
-        self.assertIn("An original adult,", direction_builder)
+        self.assertIn("An original adult ${look.being},", direction_builder)
         self.assertNotIn("caricature", direction_builder)
         self.assertNotRegex(self.js, r"outsized head|tiny waist|spindly legs")
         self.assertNotRegex(direction_builder, r"editorial|street.style|photograph|studio|portrait")

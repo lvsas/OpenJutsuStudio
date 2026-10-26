@@ -12,7 +12,7 @@ from character_recipe import ENGINE, digest_json, validate_current_recipe, valid
 
 _ALLOWED_ARTIFACTS = {".png", ".txt"}
 CAPSULE_FORMAT = "opengenjutsu-character-capsule"
-CAPSULE_SCHEMA_VERSION = 2
+CAPSULE_SCHEMA_VERSION = 6
 LEGACY_CAPSULE_SCHEMA_VERSIONS = {1}
 REPLAY_CONTRACT = "Verified image/caption bytes and frozen recipe; pixel-identical output is not guaranteed."
 _JOB_ID = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
@@ -67,15 +67,24 @@ def freeze_capsule(job, recipe: dict[str, Any], image: str | Path, caption: str 
     result = contained(job.result, media_dir)
     if result != image:
         raise ValueError("Character job result does not match the frozen image")
+    assets = {"image": _asset(image, media_dir), "caption": _asset(caption, media_dir)}
+    if recipe.get("face_refine") is True:
+        base = contained(job.meta.get("character_base_image", ""), media_dir)
+        if base == image or base.suffix.lower() != ".png" or not base.stat().st_size:
+            raise ValueError("Character base image must be a separate non-empty PNG")
+        from character_pipeline import _validate_png
+        if _validate_png(base, recipe["mode"]) != _validate_png(image, recipe["mode"]):
+            raise ValueError("Character base image dimensions differ from the refined image")
+        assets["base_image"] = _asset(base, media_dir)
     capsule = {
         "format": CAPSULE_FORMAT,
-        "schema_version": CAPSULE_SCHEMA_VERSION,
+        "schema_version": CAPSULE_SCHEMA_VERSION if recipe["schema_version"] == 6 else 2,
         "job_id": job.id,
         "parent_job_id": job.meta.get("parent_job_id"),
         "engine": ENGINE,
         "recipe": recipe,
         "recipe_sha256": digest_json(recipe),
-        "assets": {"image": _asset(image, media_dir), "caption": _asset(caption, media_dir)},
+        "assets": assets,
         "resolved_caption": resolved_caption,
         "replay": {
             "contract": REPLAY_CONTRACT,
@@ -104,7 +113,7 @@ def _validate_capsule_shape(capsule: dict[str, Any], job) -> None:
               "recipe_sha256", "assets", "replay", "capsule_id"}
     if version in LEGACY_CAPSULE_SCHEMA_VERSIONS:
         required = common
-    elif version == CAPSULE_SCHEMA_VERSION:
+    elif version in (2, CAPSULE_SCHEMA_VERSION):
         required = common | {"resolved_caption"}
         if not isinstance(capsule.get("resolved_caption"), str) or not capsule["resolved_caption"].strip():
             raise ValueError("The frozen Character resolved caption changed")
@@ -121,8 +130,18 @@ def _validate_capsule_shape(capsule: dict[str, Any], job) -> None:
     if replay != {"contract": REPLAY_CONTRACT, "model_weights_hashed": False}:
         raise ValueError("The frozen Character replay contract changed")
     assets = capsule.get("assets")
-    if not isinstance(assets, dict) or set(assets) != {"image", "caption"}:
+    roles = {"image", "caption"}
+    if version == 6:
+        recipe = capsule.get("recipe")
+        if (not isinstance(recipe, dict) or recipe.get("schema_version") != 6
+                or type(recipe.get("face_refine")) is not bool):
+            raise ValueError("The frozen Character recipe contract changed")
+        if recipe["face_refine"]:
+            roles.add("base_image")
+    if not isinstance(assets, dict) or set(assets) != roles:
         raise ValueError("The frozen Character artifact list changed")
+    if "base_image" in roles:
+        _validate_asset_metadata(assets["base_image"], ".png")
     _validate_asset_metadata(assets["image"], ".png")
     _validate_asset_metadata(assets["caption"], ".txt")
 
@@ -157,7 +176,13 @@ def replay_recipe(job, media_dir: str | Path) -> dict[str, Any]:
         raise ValueError("This Character was frozen with an earlier policy; create a new Character instead of replaying it.") from exc
     image = contained(job.result, media_dir)
     caption = contained(job.meta.get("character_caption", ""), media_dir)
-    for path, role in ((image, "image"), (caption, "caption")):
+    paths = [(image, "image"), (caption, "caption")]
+    if recipe.get("face_refine") is True:
+        base = contained(job.meta.get("character_base_image", ""), media_dir)
+        if base == image or base.suffix.lower() != ".png":
+            raise ValueError("A Character base image changed after the capsule was frozen")
+        paths.append((base, "base_image"))
+    for path, role in paths:
         expected = capsule["assets"].get(role)
         if not isinstance(expected, dict) or expected.get("sha256") != digest_file(path) \
                 or expected.get("size_bytes") != path.stat().st_size or expected.get("suffix") != path.suffix.lower():

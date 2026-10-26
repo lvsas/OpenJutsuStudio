@@ -35,6 +35,13 @@ class CharacterStudioUITests(unittest.TestCase):
         self.index = (SRC / "templates" / "index.html").read_text()
         self.h3 = (SRC / "templates" / "h3.html").read_text()
 
+    def test_exact_wording_is_the_default_but_rewriting_remains_explicit(self):
+        match = re.search(r'<select id="upsampler"[^>]*>(.*?)</select>', self.page, re.S)
+        assert match is not None
+        select = match.group(1)
+        self.assertRegex(select, r'<option value="off" selected>')
+        self.assertIn('<option value="on">', select)
+
     def test_characters_is_the_leftmost_stage_on_every_page(self):
         for name, markup in (("character.html", self.page), ("index.html", self.index), ("h3.html", self.h3)):
             with self.subTest(page=name):
@@ -181,7 +188,7 @@ class CharacterStudioUITests(unittest.TestCase):
         for field in ("being", "role", "build", "hair", "face", "outfit", "attitude"):
             with self.subTest(field=field):
                 self.assertIn(f"look.{field}", direction_builder)
-        for signal in ("realistically proportioned", "jaw-length dense copper bob", "geometric crest", "horizontal black rolls", "sculptural", "moustache", "smirk"):
+        for signal in ("heavy barrel-chested", "inverted trapezoid", "towering geometric crest", "halo of dense black curls", "sculptural", "moustache", "smirk"):
             with self.subTest(signal=signal):
                 self.assertIn(signal, self.js.lower(), f"default looks lost physical/personality hook: {signal!r}")
         self.assertIn("An original adult ${look.being},", direction_builder)

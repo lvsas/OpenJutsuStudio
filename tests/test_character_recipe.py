@@ -34,9 +34,10 @@ class CharacterRecipeTests(unittest.TestCase):
             upsampler=True,
         )
 
-    def test_new_generated_recipes_are_v5_weird_humans_and_reject_v1_only_accessory(self):
-        self.assertEqual(self.recipe["schema_version"], 5)
-        self.assertEqual(self.recipe["prompt_policy"], "character-v5")
+    def test_new_generated_recipes_are_v6_weird_humans_and_reject_v1_only_accessory(self):
+        self.assertEqual(self.recipe["schema_version"], 6)
+        self.assertEqual(self.recipe["prompt_policy"], "character-v6")
+        self.assertIs(self.recipe["face_refine"], False)
         self.assertEqual(self.recipe["direction_origin"], "generated")
         self.assertIn("no hand-held or carried props", self.recipe["resolved_request"])
         self.assertNotIn("accessory", self.recipe["selections"])

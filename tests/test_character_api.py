@@ -65,6 +65,12 @@ class CharacterAPITests(unittest.TestCase):
         job.save()
         return job
 
+    def test_omitted_upsampler_keeps_exact_wording_by_default(self):
+        response = self.client.post("/api/characters/jobs", json={"direction": "an adult with enormous geometric hair"})
+        self.assertEqual(response.status_code, 202, response.text)
+        recipe = self.dispatch.call_args.args[1]["recipe"]
+        self.assertIs(recipe["upsampler"], False)
+
     def test_character_jobs_are_queued_with_a_frozen_recipe_and_own_namespace(self):
         response = self.submit()
         self.assertEqual(response.status_code, 202, response.text)

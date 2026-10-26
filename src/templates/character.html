@@ -86,12 +86,14 @@
                 <label>
                   <span class="field-label">Prompt detail</span>
                   <select id="upsampler" name="upsampler" class="text-input">
-                    <option value="on">On — a richer caption</option>
-                    <option value="off">Off — the wording exactly</option>
+                    <option value="on">On — rewrite the description</option>
+                    <option value="off" selected>Off — keep the exact wording</option>
                   </select>
                 </label>
               </div>
               <p class="microcopy" id="mode-hint">One shareable studio photograph.</p>
+              <label><input type="checkbox" id="face-refine" name="face_refine"> Refine face (extra pass)</label>
+              <p class="microcopy">Experimental extra pass; it may alter facial details. Compare with the preserved original.</p>
               <p class="field-label">Fine tune an exact detail</p>
               <div class="axis-picker" id="axis-picker"></div>
               <div class="axis-options" id="axis-options"></div>
@@ -135,7 +137,7 @@
           </details>
           <details id="more-details" class="workspace-disclosure">
             <summary>More details</summary>
-            <div class="character-actions"><a id="inspect-image" target="_blank" rel="noopener">Inspect full-size image</a><a id="inspect-capsule" target="_blank" rel="noopener">Frozen capsule</a><a id="inspect-caption" target="_blank" rel="noopener">Caption text</a></div>
+            <div class="character-actions"><a id="inspect-image" target="_blank" rel="noopener">Inspect full-size image</a><a id="inspect-capsule" target="_blank" rel="noopener">Frozen capsule</a><a id="inspect-caption" target="_blank" rel="noopener">Caption text</a><a id="inspect-base" target="_blank" rel="noopener" hidden>View original</a></div>
             <p class="field-label">What the model actually wrote</p><p id="active-caption" class="active-caption"></p>
             <button id="remove-character" type="button" class="btn btn-ghost" hidden>Remove from library</button>
             <p class="microcopy">Discarding an attempt or removing a library entry only changes this workspace. Media, capsules and jobs are retained; running work is not cancelled.</p>

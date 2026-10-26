@@ -40,6 +40,7 @@ function boot({storage = {}, members = [], statuses = {}, fetchHook, storageThro
     const element = new Element(tag);
     element.type = attrs.match(/\btype="([^"]+)"/)?.[1] || '';
     element.hidden = /\bhidden\b/.test(attrs);
+    element.checked = /\bchecked\b/.test(attrs);
     return [id, element];
   }));
   const calls = [], timers = [], sharing = [];
@@ -69,6 +70,43 @@ function boot({storage = {}, members = [], statuses = {}, fetchHook, storageThro
   vm.runInContext(script, context, {filename:'character.js'});
   return {elements, storage, calls, timers, sharing, get library() {return library;}};
 }
+test('face refinement is explicit, unchecked by default and submits literal booleans', async () => {
+  assert.match(html, /<input[^>]*id="face-refine"[^>]*name="face_refine"[^>]*>/);
+  const control = html.match(/<input[^>]*id="face-refine"[^>]*>/)[0];
+  assert.match(control, /type="checkbox"/); assert.doesNotMatch(control, /\bchecked\b/);
+  assert.ok(html.indexOf('id="face-refine"') > html.indexOf('id="more-control"'));
+  assert.ok(html.indexOf('id="face-refine"') < html.indexOf('id="axis-picker"'));
+  assert.match(html, /Refine face \(extra pass\)/);
+  const app = boot(); await flush();
+  assert.equal(app.calls.some(c=>c.options.method==='POST'), false);
+  await app.elements.get('character-form').fire('submit'); await flush();
+  app.elements.get('face-refine').checked = true;
+  await app.elements.get('character-form').fire('submit'); await flush();
+  const payloads=app.calls.filter(c=>c.url==='/api/characters/jobs' && c.options.method==='POST').map(c=>JSON.parse(c.options.body));
+  assert.deepEqual(payloads.map(p=>p.face_refine), [false,true]);
+});
+
+test('original comparison is secondary, status-gated and follows the selected completed job', async () => {
+  assert.match(html, /<details[^>]*id="more-details"[\s\S]*id="inspect-base"[\s\S]*?<\/details>/);
+  const app=boot({members:[member(A),member(B)], storage:{'opengenjutsu.characters.active':A}, fetchHook:url=>{
+    if(url===`/api/characters/jobs/${A}`)return response({job_id:A,status:'done',face_refine:true});
+    if(url===`/api/characters/jobs/${B}`)return response({job_id:B,status:'done',face_refine:false});
+  }}); await flush();
+  const link=app.elements.get('inspect-base');
+  assert.equal(link.hidden,false); assert.equal(link.href,`/api/characters/jobs/${A}/base-image`);
+  assert.match(html, /id="inspect-base"[^>]*>View original<\/a>/);
+  await app.elements.get('active-image').fire('load');
+  assert.match(app.elements.get('image-state').textContent,/face-refined/);
+  await app.elements.get('library-list').children.find(row=>row.dataset.job===B).click(); await flush();
+  assert.equal(link.hidden,true); assert.equal(link.href,'');
+  assert.equal(app.elements.get('active-image').src,`/api/characters/jobs/${B}/image`);
+  assert.equal(app.calls.some(c=>c.url.endsWith('/base-image')||c.options.method==='POST'),false,'comparison never fetches or generates automatically');
+  for(const flag of [undefined,'true',1]){
+    const legacy=boot({members:[member(A)],storage:{'opengenjutsu.characters.active':A},fetchHook:url=>url===`/api/characters/jobs/${A}`?response({job_id:A,status:'done',face_refine:flag}):undefined});
+    await flush(); assert.equal(legacy.elements.get('inspect-base').hidden,true);
+  }
+});
+
 const member = (id, name = 'Saved person') => ({job_id:id, name, saved_at:1, image_url:`/api/characters/jobs/${id}/image`});
 
 test('editable idea and early submit precede refinements; shuffle is local person-only weird adult', async () => {
@@ -92,7 +130,7 @@ test('editable idea and early submit precede refinements; shuffle is local perso
     const idea = app.elements.get('direction').value;
     assert.match(idea, /^An original adult (?:man|woman|non-binary person),/);
     assert.doesNotMatch(idea, /caricature|outsized head|tiny waist|spindly legs|tiny neat feet/i);
-    assert.match(idea, /flat|geometric|sculptural|rolls|cascade|waves/);
+    assert.match(idea, /flat|geometric|sculptural|halo|cascade|waves/);
     assert.doesNotMatch(idea, /editorial|street.style|photograph|studio|portrait|holding|carrying/i);
   }
   assert.equal(app.calls.length, before, 'shuffle must perform zero fetches');

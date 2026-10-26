@@ -21,6 +21,25 @@ test('six coherent proposals include three women and distinct hair/body/clothes'
   }
 });
 
+test('every tuple has an emphatic physical signature, not normalized fashion anatomy',()=>{
+  const signatures=[/shoulder.width.*copper|copper.*(?:shoulder.width|wider than both shoulders)/i,/towering.*crest/i,/enormous.*halo/i,/waist.length.*cascade/i,/three.*oversized.*waves/i,/enormous.*fan/i];
+  for(let i=0;i<looks.length;i++){
+    assert.match(looks[i].hair,signatures[i]);
+    assert.match(looks[i].hair,/strands/i,'architectural volume must remain actual hair');
+    assert.doesNotMatch(looks[i].build,/ordinary|normal-sized|realistically proportioned|natural.length/i);
+    assert.doesNotMatch(looks[i].outfit,/satin|quilted|balloon|billowing|pleated|glossy/i,'clothes must not steal the physical hook');
+  }
+  assert.ok(looks.some(l=>/massive.*muscular/i.test(l.build)));
+  assert.ok(looks.some(l=>/heavy.*belly/i.test(l.build)));
+  assert.ok(looks.some(l=>/very tall.*lean/i.test(l.build)));
+});
+
+test('the wide copper hairstyle specifies geometry instead of a conventional bob',()=>{
+  assert.match(looks[0].hair,/inverted trapezoid.*flat top wider than both shoulders/);
+  assert.match(looks[0].hair,/sides tapering.*jaw/);
+  assert.doesNotMatch(looks[0].hair,/\bbob\b/i);
+});
+
 test('grey hair suggestions describe natural strands rather than metal',()=>{
   assert.ok(looks.some(l=>/natural grey hair.*individual matte strands/.test(l.hair)));
   for(const look of looks)assert.doesNotMatch(look.hair,/\bsilver\b/i);

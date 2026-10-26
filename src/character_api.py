@@ -36,6 +36,7 @@ def _public(job):
     return {"job_id": job.id, "status": job.status, "step": job.step, "progress": job.progress,
             "error": "Character generation failed; check the local worker logs" if job.error else None,
             "parent_job_id": job.meta.get("parent_job_id"), "engine": ENGINE,
+            "face_refine": job.meta.get("character_recipe", {}).get("face_refine") is True,
             "project_id": _public_project_id(job)}
 
 
@@ -77,11 +78,13 @@ class CharacterAPI:
                                  selections=payload.get("selections", {}),
                                  sampler_seed=payload.get("sampler_seed", 0),
                                  upsampler_seed=payload.get("upsampler_seed", payload.get("sampler_seed", 0)),
-                                 upsampler=payload.get("upsampler", True),
+                                 upsampler=payload.get("upsampler", False),
+                                 face_refine=payload.get("face_refine", False),
                                  direction_origin=payload.get("direction_origin", "generated"))
         except (KeyError, TypeError, ValueError) as exc:
             raise HTTPException(422, str(exc)) from exc
-        report = await asyncio.to_thread(self.readiness_check)
+        report = await asyncio.to_thread(self.readiness_check, **(
+            {"required_graph": recipe["graph_template"]} if recipe["face_refine"] else {}))
         if not report.get("ready"):
             raise HTTPException(503, " ".join(report.get("issues", [])) or "Character runtime is not ready")
         if origin_project_id is None:
@@ -110,6 +113,19 @@ class CharacterAPI:
         except (OSError, ValueError, TypeError) as exc:
             raise HTTPException(409, "The Character image is unavailable") from exc
 
+    def base_image(self, job_id):
+        job = _load(job_id)
+        if job.status != "done" or job.meta.get("character_recipe", {}).get("face_refine") is not True:
+            raise HTTPException(409, "The Character base image is not available")
+        try:
+            path = contained(job.meta.get("character_base_image", ""), self.get_media_dir())
+            if (path.suffix.lower() != ".png" or not job.result
+                    or path == contained(job.result, self.get_media_dir())):
+                raise ValueError("Base image must be a separate PNG")
+            return FileResponse(path, media_type="image/png")
+        except (OSError, ValueError, TypeError) as exc:
+            raise HTTPException(409, "The Character base image is unavailable") from exc
+
     def caption(self, job_id):
         job = _load(job_id)
         if job.status != "done":
@@ -136,9 +152,14 @@ class CharacterAPI:
             recipe = make_recipe(job_id=child_id, direction=old["raw_direction"], mode=old["mode"],
                                  trend_id=old["trend_id"], selections=old["selections"],
                                  sampler_seed=old["sampler_seed"], upsampler_seed=old["upsampler_seed"],
-                                 upsampler=old["upsampler"], direction_origin=old["direction_origin"])
+                                 upsampler=old["upsampler"], direction_origin=old["direction_origin"],
+                                 face_refine=old["face_refine"])
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
+        if recipe["face_refine"]:
+            report = await asyncio.to_thread(self.readiness_check, required_graph=recipe["graph_template"])
+            if not report.get("ready"):
+                raise HTTPException(503, " ".join(report.get("issues", [])) or "Character runtime is not ready")
         child = core.Job(id=child_id, engine=ENGINE, prompt=recipe["resolved_request"],
                          meta={"character_recipe": recipe, "parent_job_id": parent.id,
                                "origin_project_id": origin_project_id})
@@ -162,6 +183,7 @@ def create_router(get_media_dir, readiness_check, dispatch_job):
     router.add_api_route("/api/characters/jobs", api.create_job, methods=["POST"], status_code=202)
     router.add_api_route("/api/characters/jobs/{job_id}", api.status, methods=["GET"])
     router.add_api_route("/api/characters/jobs/{job_id}/image", api.image, methods=["GET"])
+    router.add_api_route("/api/characters/jobs/{job_id}/base-image", api.base_image, methods=["GET"])
     router.add_api_route("/api/characters/jobs/{job_id}/caption", api.caption, methods=["GET"])
     router.add_api_route("/api/characters/jobs/{job_id}/capsule", api.capsule, methods=["GET"])
     router.add_api_route("/api/characters/jobs/{job_id}/replay", api.replay, methods=["POST"], status_code=202)

@@ -8,12 +8,14 @@ from fastapi.responses import HTMLResponse
 from app_release import render_release
 
 
-def _character_readiness():
+def _character_readiness(*, required_graph=None):
     from character_recipe import make_recipe
     from readiness import check_readiness
-    recipe = make_recipe(job_id="character_readiness", direction="an original person", mode="portrait",
-                         trend_id="original", selections={}, sampler_seed=1, upsampler_seed=2, upsampler=True)
-    return check_readiness(required_graph=recipe["graph_template"])
+    if required_graph is None:
+        recipe = make_recipe(job_id="character_readiness", direction="an original person", mode="portrait",
+                             trend_id="original", selections={}, sampler_seed=1, upsampler_seed=2, upsampler=True)
+        required_graph = recipe["graph_template"]
+    return check_readiness(required_graph=required_graph)
 
 
 def register_optional_characters(app: FastAPI, executor: Executor, get_media_dir):

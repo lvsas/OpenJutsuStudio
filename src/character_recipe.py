@@ -7,6 +7,7 @@ import ipaddress
 import json
 import re
 from typing import Any
+from character_refine import append_face_refine, REFINE_MODEL_ROLES
 
 from character_graphs import (
     ASPECT_RATIOS,
@@ -34,8 +35,8 @@ V5_SCHEMA_VERSION = 5
 V5_AXES = V4_AXES
 DIRECTION_ORIGINS = ("generated", "user_authored")
 # Public aliases always describe recipes that can be newly created.
-PROMPT_POLICY = V5_PROMPT_POLICY
-SCHEMA_VERSION = V5_SCHEMA_VERSION
+PROMPT_POLICY = "character-v6"
+SCHEMA_VERSION = 6
 AXES = V5_AXES
 MAX_TEXT = 2_000
 MAX_AXIS_TEXT = 300
@@ -221,7 +222,7 @@ def _request_v5(mode: str, direction: str, selections: dict[str, str], direction
 
 def make_recipe(*, job_id: str, direction: str, mode: str, trend_id: str, selections: dict[str, str] | None,
                 sampler_seed: int, upsampler_seed: int, upsampler: bool,
-                direction_origin: str = "generated") -> dict[str, Any]:
+                direction_origin: str = "generated", face_refine: bool = False) -> dict[str, Any]:
     """Resolve all Character choices before a graph is ever submitted."""
     direction = _text(direction, "direction", MAX_TEXT, required=True)
     if not isinstance(mode, str) or mode not in MODE_SPECS:
@@ -233,11 +234,15 @@ def make_recipe(*, job_id: str, direction: str, mode: str, trend_id: str, select
     sampler_seed, upsampler_seed = _seed(sampler_seed, "sampler seed"), _seed(upsampler_seed, "upsampler seed")
     if type(upsampler) is not bool:
         raise ValueError("Character prompt upsampler must be boolean")
+    if type(face_refine) is not bool:
+        raise ValueError("Character face_refine must be boolean")
     resolved = _selections(selections, AXES)
     direction_origin = _direction_origin(direction_origin)
     request = _request_v5(mode, direction, resolved, direction_origin)
     graph = build_character_graph(request, sampler_seed, MODE_SPECS[mode]["aspect_ratio"], upsampler, job_id,
                                   upsampler_seed=upsampler_seed)
+    if face_refine:
+        graph = append_face_refine(graph, seed=sampler_seed, job_id=job_id)
     recipe = {
         "schema_version": SCHEMA_VERSION,
         "engine": ENGINE,
@@ -253,7 +258,8 @@ def make_recipe(*, job_id: str, direction: str, mode: str, trend_id: str, select
         "sampler_seed": sampler_seed,
         "upsampler_seed": upsampler_seed,
         "upsampler": upsampler,
-        "model_roles": copy.deepcopy(MODEL_ROLES),
+        "face_refine": face_refine,
+        "model_roles": {**MODEL_ROLES, **(REFINE_MODEL_ROLES if face_refine else {})},
         "vendor_workflow_sha256": VENDOR_WORKFLOW_SHA256,
         "system_prompt_sha256": SYSTEM_PROMPT_SHA256,
         "graph_template": graph,
@@ -274,6 +280,8 @@ def _recipe_axes(recipe: dict[str, Any]) -> tuple[str, ...]:
         return V4_AXES
     if version == V5_SCHEMA_VERSION and policy == V5_PROMPT_POLICY:
         return V5_AXES
+    if type(version) is int and version == 6 and policy == "character-v6":
+        return V5_AXES
     raise ValueError("Unsupported Character recipe contract")
 
 
@@ -286,8 +294,12 @@ def validate_recipe(recipe: Any) -> dict[str, Any]:
         "mode", "aspect_ratio", "resolved_request", "sampler_seed", "upsampler_seed", "upsampler",
         "model_roles", "vendor_workflow_sha256", "system_prompt_sha256", "graph_template", "graph_sha256",
     }
-    if recipe.get("schema_version") in (V3_SCHEMA_VERSION, V4_SCHEMA_VERSION, V5_SCHEMA_VERSION):
+    if recipe.get("schema_version") in (V3_SCHEMA_VERSION, V4_SCHEMA_VERSION, V5_SCHEMA_VERSION, 6):
         required.add("direction_origin")
+    if recipe.get("schema_version") == 6:
+        required.add("face_refine")
+        if type(recipe.get("face_refine")) is not bool:
+            raise ValueError("Character face_refine must be boolean")
     if set(recipe) != required or recipe.get("engine") != ENGINE:
         raise ValueError("Unsupported Character recipe contract")
     axes = _recipe_axes(recipe)
@@ -316,17 +328,20 @@ def validate_recipe(recipe: Any) -> dict[str, Any]:
             raise ValueError("Character resolved request changed")
     else:
         direction_origin = _direction_origin(recipe.get("direction_origin"))
-        assembler = {3: _request_v3, 4: _request_v4, 5: _request_v5}[recipe["schema_version"]]
+        assembler = {3: _request_v3, 4: _request_v4, 5: _request_v5, 6: _request_v5}[recipe["schema_version"]]
         request = assembler(mode, direction, selections, direction_origin)
         if recipe.get("resolved_request") != request:
             raise ValueError("Character resolved request changed")
-    if recipe.get("model_roles") != MODEL_ROLES:
+    face_refine = recipe["schema_version"] == 6 and recipe["face_refine"]
+    if recipe.get("model_roles") != {**MODEL_ROLES, **(REFINE_MODEL_ROLES if face_refine else {})}:
         raise ValueError("Character model-role map changed")
     if (recipe.get("vendor_workflow_sha256") != VENDOR_WORKFLOW_SHA256
             or recipe.get("system_prompt_sha256") != SYSTEM_PROMPT_SHA256):
         raise ValueError("Character pinned workflow or system prompt changed")
     graph = build_character_graph(request, sampler_seed, MODE_SPECS[mode]["aspect_ratio"],
                                   recipe["upsampler"], job_id, upsampler_seed=upsampler_seed)
+    if face_refine:
+        graph = append_face_refine(graph, seed=sampler_seed, job_id=job_id)
     if recipe.get("graph_template") != graph or recipe.get("graph_sha256") != digest_json(graph):
         raise ValueError("Character frozen graph changed")
     return copy.deepcopy(recipe)

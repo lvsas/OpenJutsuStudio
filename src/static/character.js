@@ -11,50 +11,50 @@
   const LOOKS = [
     {
       being: "man", role: "fastidious train announcer",
-      build: "a broad-shouldered but realistically proportioned adult body",
-      hair: "a jaw-length dense copper bob sculpted into a broad trapezoid, a completely flat top, straight heavy fringe and thick sides covering the ears and flaring outward at the jaw",
-      face: "a long face with a bushy dark walrus moustache drooping over the upper lip",
-      outfit: "a pale mint short-sleeved shirt buttoned to the collar, very high-waisted chocolate-brown trousers with sharp front creases and a slightly short hem, white socks and glossy black loafers",
+      build: "a heavy barrel-chested adult body with a prominent round belly, thick neck and substantial arms and legs",
+      hair: "dense copper hair sculpted into a single enormous inverted trapezoid, its completely flat top wider than both shoulders, straight sides tapering sharply to the jaw and a short blunt fringe; visible strands grow from the scalp throughout this continuous hair mass",
+      face: "a long broad face with a substantial nose and a bushy dark walrus moustache drooping over the upper lip",
+      outfit: "a plain mint short-sleeved shirt, brown trousers and black loafers",
       attitude: "standing with shy tucked-in elbows, raised eyebrows and a bashful closed-mouth smile",
     },
     {
       being: "woman", role: "unyielding boules referee",
-      build: "a short sturdy adult build with powerful forearms and natural head proportions",
-      hair: "natural grey hair with visible individual matte strands, cut into a low geometric crest with closely shaved temples",
-      face: "an aquiline nose, straight emphatic eyebrows and tightly pursed lips",
-      outfit: "a plum jumpsuit with an unusually broad collar and billowing legs gathered at the ankles, with simple black shoes",
+      build: "a broad powerful adult build with massive muscular shoulders, thick forearms and sturdy legs",
+      hair: "natural grey hair with visible individual matte strands, rising from the scalp into a towering geometric crest as tall as the forehead, with closely shaved temples",
+      face: "a strong square jaw, a prominent aquiline nose, straight emphatic eyebrows and tightly pursed lips",
+      outfit: "a plain plum polo shirt, dark straight trousers and simple black shoes",
       attitude: "feet firmly planted, chin forward and a defiant smirk",
     },
     {
       being: "woman", role: "ceremonious karaoke organiser",
-      build: "a tall rounded adult build with narrow shoulders and ordinary limb lengths",
-      hair: "two smooth horizontal black rolls above the ears and a short neat nape",
-      face: "full cheeks, slightly spaced front teeth and an emphatic knowing smile",
-      outfit: "a burnt-orange suit with a short square jacket, a long pleated skirt and low cream shoes",
-      attitude: "chin raised, elbows poised and a triumphant closed-mouth smile",
+      build: "a tall pear-shaped adult body with narrow shoulders, a soft waist and very broad heavy hips and thighs",
+      hair: "an enormous shoulder-wide halo of dense black curls, visible springy hair strands rooted at the scalp, with a short straight fringe",
+      face: "full round cheeks, a broad nose, slightly spaced front teeth and an emphatic knowing smile",
+      outfit: "a plain burnt-orange top, a dark straight skirt and low cream shoes",
+      attitude: "chin raised, elbows poised and a triumphant toothy smile",
     },
     {
       being: "woman", role: "dreamy lift technician",
-      build: "a slender long-limbed adult build with long arms and a normal-sized head",
-      hair: "pale blonde hair cut short at the front with a long wavy cascade down the back",
-      face: "an angular face with heavy upper eyelids and a narrow softly crooked nose",
-      outfit: "loose cobalt overalls over a lemon shirt with exaggerated balloon sleeves, and plain brown boots",
+      build: "a very tall strikingly lean adult build with long arms and legs, high shoulders and large hands",
+      hair: "a waist-length thick blonde cascade of crimped hair, spreading into a broad triangular silhouette behind the shoulders, visible fine strands and a short flat fringe",
+      face: "an elongated angular face with a projecting chin, heavy upper eyelids and a long softly crooked nose",
+      outfit: "plain cobalt overalls over a lemon T-shirt and brown boots",
       attitude: "relaxed shoulders, a tilted head and a distracted gentle smile",
     },
     {
       being: "man", role: "reserved dance teacher",
-      build: "a compact adult build with a round belly and strong natural-length legs",
-      hair: "brown curls combed into three precise sculptural waves across the forehead",
-      face: "a clean-shaven face with a short nose and deep smiling creases",
-      outfit: "a rose satin blouse with bottle-green flared trousers and plain black dance shoes",
+      build: "a top-heavy adult weightlifter build with an immense muscular chest, thick upper arms, a broad waist and solid legs",
+      hair: "brown hair swept into three oversized sculptural waves rising high above the forehead, each wave made of visible combed strands connected to the scalp, with short sides",
+      face: "a wide square jaw, a heavy cleft chin, a short nose and deep smiling creases on a clean-shaven face",
+      outfit: "a plain rose T-shirt, dark green trousers and black dance shoes",
       attitude: "open hands, an earnest upright stance and a slightly worried expression",
     },
     {
       being: "non-binary person", role: "enthusiastic apartment-block coordinator",
-      build: "a tall athletic adult build with broad shoulders and ordinary proportions",
-      hair: "white hair shaped into an asymmetric sculptural fan sweeping to one side",
-      face: "a wide angular jaw, a cleft chin and expressive arched eyebrows",
-      outfit: "a very short lilac quilted jacket, red carrot-cut trousers and simple white shoes",
+      build: "a long-torsoed broad-hipped adult body with narrow sloping shoulders, a soft belly and long strong legs",
+      hair: "white hair growing from the scalp into an enormous asymmetric sculptural fan sweeping a full head-width to one side, clearly visible wispy strands and closely cropped hair on the other side",
+      face: "a wide angular jaw, a pronounced cleft chin, a broad nose and expressive arched eyebrows",
+      outfit: "a plain lilac sweatshirt, red straight trousers and simple white shoes",
       attitude: "leaning slightly forward with a conspiratorial smile and an inviting open posture",
     },
   ];
@@ -428,6 +428,12 @@
     $("#use-ltx").href = `/?character_id=${activeId}`;
     $("#use-h3").href = `/h3?character_id=${activeId}`;
     $("#use-timeline").href = `/timeline?character_id=${activeId}`;
+    const baseLink = $("#inspect-base");
+    if (baseLink) {
+      const refined = jobs.get(activeId)?.status === "done" && jobs.get(activeId)?.face_refine === true;
+      baseLink.hidden = !refined;
+      baseLink.href = refined ? `/api/characters/jobs/${activeId}/base-image` : "";
+    }
     if (renderedId === activeId) return; // Status polling must not reset a useful canvas or a draft name.
     renderedId = activeId;
     sharedFile = null;
@@ -578,7 +584,8 @@
       const response = await fetch("/api/characters/jobs", {
         method:"POST", headers:{"content-type":"application/json"},
         body:JSON.stringify({project_id:projectId, direction, mode:$("#mode").value, trend_id:"original", selections:selections(),
-          direction_origin:directionOrigin, sampler_seed:seed, upsampler_seed:randomSeed(), upsampler:$("#upsampler").value === "on"}),
+          direction_origin:directionOrigin, sampler_seed:seed, upsampler_seed:randomSeed(), upsampler:$("#upsampler").value === "on",
+          face_refine:$("#face-refine")?.checked === true}),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !validId(payload.job_id)) { showError("The local app could not queue this character. Check runtime readiness and try again."); return; }
@@ -611,7 +618,8 @@
   $("#keep-character").addEventListener("click", () => changeMembership("POST"));
   $("#remove-character").addEventListener("click", () => changeMembership("DELETE"));
   $("#refresh-library").addEventListener("click", () => { if (!libraryBusy) refreshLibrary(); });
-  $("#active-image").addEventListener("load", () => { $("#image-state").textContent = "Completed PNG · original result"; });
+  $("#active-image").addEventListener("load", () => { $("#image-state").textContent = jobs.get(activeId)?.face_refine === true
+      ? "Completed PNG · face-refined result" : "Completed PNG · original result"; });
   $("#active-image").addEventListener("error", () => { $("#image-state").textContent = "Image unavailable. The saved entry has not been removed; refresh or inspect the job."; });
   $("#share-character").addEventListener("click", () => {
     if (!sharedFile || sharedFile.id !== activeId) return;

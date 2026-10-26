@@ -13,6 +13,7 @@ import core
 from character_capsule import freeze_capsule
 from character_graphs import IMAGE_OUTPUT_NODE, TEXT_OUTPUT_NODE
 from character_recipe import ENGINE, validate_recipe
+from character_refine import REFINED_OUTPUT_NODE
 from comfy_transport import _run_graph_artifacts, make_client
 
 
@@ -99,6 +100,7 @@ def run_character_pipeline(job, opts: dict[str, Any]) -> None:
     job.step, job.progress, job.result, job.error = "character_prepare", 0.02, None, None
     job.meta.pop("character_capsule", None)
     job.meta.pop("character_caption", None)
+    job.meta.pop("character_base_image", None)
     job.save()
     try:
         if job.engine != ENGINE:
@@ -119,13 +121,23 @@ def run_character_pipeline(job, opts: dict[str, Any]) -> None:
         job.meta["character_recipe"] = copy.deepcopy(recipe)
         job.save()
         client = make_client()
+        requests = copy.deepcopy(_ARTIFACT_REQUESTS)
+        if recipe.get("face_refine") is True:
+            requests.update(image=(REFINED_OUTPUT_NODE, {".png"}), base_image=(IMAGE_OUTPUT_NODE, {".png"}))
         artifacts = _run_graph_artifacts(
-            client, recipe["graph_template"], _ARTIFACT_REQUESTS, folder,
+            client, recipe["graph_template"], requests, folder,
             on_progress=lambda state: _progress(job, state),
         )
         published = True
         image, caption = artifacts["image"], artifacts["caption"]
         width, height = _validate_png(image, recipe["mode"])
+        if recipe.get("face_refine") is True:
+            base = artifacts["base_image"]
+            if base.resolve() == image.resolve():
+                raise ValueError("Character base image must be a separate artifact")
+            if _validate_png(base, recipe["mode"]) != (width, height):
+                raise ValueError("Character base image dimensions differ from the refined image")
+            job.meta["character_base_image"] = str(base.resolve())
         _validate_caption(caption)
         job.result = str(image.resolve())
         job.meta.update(character_caption=str(caption.resolve()), character_dimensions={"width": width, "height": height})
@@ -137,6 +149,7 @@ def run_character_pipeline(job, opts: dict[str, Any]) -> None:
         job.meta.pop("character_caption", None)
         job.meta.pop("character_capsule", None)
         job.meta.pop("character_dimensions", None)
+        job.meta.pop("character_base_image", None)
         if published and folder is not None:
             shutil.rmtree(folder, ignore_errors=True)
     finally:

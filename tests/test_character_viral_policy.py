@@ -16,7 +16,7 @@ class CharacterViralPolicyTests(unittest.TestCase):
 
     def test_new_policy_defaults_to_lifelike_adults_not_forced_caricature(self):
         r=self.recipe()
-        self.assertEqual((r['schema_version'],r['prompt_policy']),(5,'character-v5'))
+        self.assertEqual((r['schema_version'],r['prompt_policy']),(6,'character-v6'))
         text=r['resolved_request']
         self.assertNotIn('unexaggerated natural expression',text)
         self.assertNotIn('caricature',text)

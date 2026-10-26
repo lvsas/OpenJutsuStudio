@@ -22,11 +22,11 @@ class Element {
   pause(){this.paused=true;}removeAttribute(k){delete this[k];}getAttribute(k){return this[k]??null;}
   showModal(){this.open=true;}close(){this.open=false;}focus(){}select(){}
 }
-async function environment(fetcher) {
+async function environment(fetcher,navigator={}) {
   const elements=new Map([...readMarkup().matchAll(/\bid="([^"]+)"/g)].map(m=>[m[1],new Element()]));
   const notices=[],storage=new Map(),modules=new Map();
   const context=vm.createContext({console,Response,URL,AbortSignal,fetch:fetcher,setTimeout,clearTimeout,
-    document:{getElementById:id=>elements.get(id),querySelectorAll:()=>['native-video','candidate-video','timeline-video','export-video'].map(id=>elements.get(id)).filter(Boolean)},window:{addEventListener(){}},navigator:{},
+    document:{getElementById:id=>elements.get(id),querySelectorAll:()=>['native-video','candidate-video','timeline-video','export-video'].map(id=>elements.get(id)).filter(Boolean)},window:{addEventListener(){}},navigator,
     localStorage:{setItem:(k,v)=>storage.set(k,v)},Blob,File:class{}});
   async function load(path){
     path=resolve(path);if(modules.has(path))return modules.get(path);
@@ -102,4 +102,47 @@ test('empty native workspace cannot export a hidden legacy cut',async()=>{
   const {mountNativeExport}=await app.entry('native-sequence-export.js');const button=app.elements.get('native-export');
   mountNativeExport({sequence:{state:()=>({placements:[],clips:[{}]}),editable:()=>true},button,notify:app.notify});
   assert.equal(button.disabled,true);await button.click();
+});
+
+test('ready export exposes edited-caption X intent and a fallback without native sharing',async()=>{
+  const calls=[];const app=await environment(async(url,options={})=>{calls.push({url,options});return response(receipt());});
+  const {TimelineExport}=await app.entry('timeline-export-ui.js');const ui=new TimelineExport(app.notify);
+  await ui.open(workspace(),'native');
+  const link=app.elements.get('open-export-x'),caption=app.elements.get('export-caption');
+  assert.equal(link.hidden,false);assert.equal(app.elements.get('share-export').hidden,true);
+  assert.match(app.elements.get('export-share-help').textContent,/download.*caption/i);
+  caption.value='A weird original character & a new moment';
+  for(const listener of caption.listeners.input||[])listener();
+  const intent=new URL(link.href);
+  assert.equal(intent.origin,'https://twitter.com');
+  assert.equal(intent.searchParams.get('text'),caption.value);
+  assert.doesNotMatch(link.href,/localhost|127\.0\.0\.1|api%2Ftimeline|PRIVATE/);
+  assert.equal(calls.length,1,'caption edits must neither export again nor download media');
+  app.elements.get('timeline-export-dialog').close();
+  for(const listener of app.elements.get('timeline-export-dialog').listeners.close||[])listener();
+  assert.equal(link.getAttribute('href'),null);
+});
+
+test('new failed export clears the previous social intent and download',async()=>{
+  let fail=false;const app=await environment(async()=>{if(fail)throw Error('Synthetic refusal');return response(receipt());});
+  const {TimelineExport}=await app.entry('timeline-export-ui.js');const ui=new TimelineExport(app.notify);
+  await ui.open(workspace(),'native');fail=true;await ui.open(workspace(),'native');
+  assert.equal(app.elements.get('open-export-x').hidden,true);
+  assert.equal(app.elements.get('open-export-x').getAttribute('href'),null);
+  assert.equal(app.elements.get('download-export').hidden,true);
+});
+
+test('unsupported or oversized native file keeps explicit download-caption fallback',async()=>{
+  for(const oversized of [false,true]){
+    let shared=0;
+    const nav={share:async()=>{shared++;},canShare:()=>false};
+    const app=await environment(async(url,options={})=>options.method==='POST'?response(receipt()):
+      new Response('synthetic bytes',{headers:{'Content-Type':'video/mp4',...(oversized?{'Content-Length':String(51*1024*1024)}:{})}}),nav);
+    const {TimelineExport}=await app.entry('timeline-export-ui.js');const ui=new TimelineExport(app.notify);
+    await ui.open(workspace(),'native');await app.elements.get('share-export').click();
+    assert.equal(shared,0);assert.equal(ui.file,null);
+    assert.equal(app.elements.get('download-export').hidden,false);
+    assert.equal(app.elements.get('open-export-x').hidden,false);
+    assert.match(app.elements.get('export-share-help').textContent,oversized?/budget/i:/unavailable/i);
+  }
 });

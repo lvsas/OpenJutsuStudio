@@ -2,8 +2,9 @@
     <div class="timeline-export-header"><div><p class="eyebrow">Made to be seen</p><h2 id="export-title">Your cut, ready to share.</h2></div><button id="close-export" class="btn btn-ghost btn-small" type="button" aria-label="Close export preview">Close ✕</button></div>
     <p id="export-status" role="status" aria-live="polite">Preparing your export…</p>
     <video id="export-video" controls playsinline hidden></video>
-    <div class="timeline-export-actions"><a id="download-export" class="btn btn-primary" hidden download>Download MP4</a><button id="share-export" class="btn btn-secondary" type="button" hidden>Prepare file sharing</button><button id="retry-export" class="btn btn-secondary" type="button" hidden>Retry export</button></div>
+    <div class="timeline-export-actions"><a id="download-export" class="btn btn-primary" hidden download>Download MP4</a><a id="open-export-x" class="btn btn-secondary" target="_blank" rel="noopener noreferrer" hidden>Open X</a><button id="share-export" class="btn btn-secondary" type="button" hidden>Prepare file sharing</button><button id="retry-export" class="btn btn-secondary" type="button" hidden>Retry export</button></div>
+    <p id="export-share-help" class="microcopy" role="status">Download the MP4, copy your caption and attach the video in your social app.</p>
     <label class="field-label" for="export-caption">A caption to make it yours</label><textarea id="export-caption" class="text-input" rows="2" maxlength="2000"></textarea><button id="copy-export-caption" class="btn btn-ghost btn-small" type="button">Copy caption</button>
-    <p class="microcopy">Preview, download and sharing use the same MP4. This is a saved snapshot of your cut; later edits stay separate. No social account is posted to automatically.</p>
+    <p class="microcopy">Preview, download and sharing use the same MP4. This is a saved snapshot of your cut; later edits stay separate. Open X prepares text only: attach the downloaded MP4 yourself. No social account is posted to automatically.</p>
     <p id="export-format" class="microcopy">MP4 · H.264 / AAC · original clip order and frame trims · no added transitions. Different dimensions fit the first clip's canvas without cropping; mixed frame rates are reported explicitly.</p>
   </dialog>

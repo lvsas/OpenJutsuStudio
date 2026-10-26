@@ -11,13 +11,16 @@ export class TimelineExport {
     this.notify=notify;this.epoch=0;this.current=null;this.project=null;this.file=null;
     $('close-export').addEventListener('click',()=>$('timeline-export-dialog').close());
     $('timeline-export-dialog').addEventListener('close',()=>{
-      if (!$('timeline-export-dialog').open) $('export-video').pause();
+      if (!$('timeline-export-dialog').open) {
+        $('export-video').pause();$('open-export-x').removeAttribute('href');
+      }
     });
     $('copy-export-caption').addEventListener('click',async()=>{
       try {await navigator.clipboard.writeText($('export-caption').value);notify('Caption copied. Add your MP4 when posting.');}
       catch {$('export-caption').focus();$('export-caption').select();notify('Select and copy the caption here; clipboard access is unavailable.');}
     });
     $('share-export').addEventListener('click',()=>this.share());
+    $('export-caption').addEventListener('input',()=>this.updateX());
     $('retry-export').addEventListener('click',()=>{
       if (this.current && ['queued','running'].includes(this.current.status)) this.watch(this.current.export_id,this.epoch);
       else if (this.project) this.open(this.project,this.source,this.notify);
@@ -30,11 +33,13 @@ export class TimelineExport {
     project={project_id:project.project_id,title:project.title,revision:project.revision,
       ...(source==='native'?{placements:project.placements.map(p=>({...p}))}:{clips:project.clips.map(c=>({...c}))})};
     const epoch=++this.epoch;clearTimeout(this.timer);this.project=project;this.source=source;
-    this.notify=notify;this.file=null;this.current=null;
+    this.notify=notify;this.file=null;this.current=null;this.shareProblem=null;
+    $('open-export-x').removeAttribute('href');
+    $('export-share-help').textContent='Download the MP4, copy your caption and attach the video in your social app.';
     for(const player of document.querySelectorAll('video'))player.pause();
     $('share-export').disabled=false;
     $('export-video').pause();$('export-video').removeAttribute('src');$('export-video').hidden=true;
-    for (const id of ['download-export','share-export','retry-export']) $(id).hidden=true;
+    for (const id of ['download-export','share-export','retry-export','open-export-x']) $(id).hidden=true;
     $('export-caption').value=`${project.title}\nMade with OpenGenjutsu. #OpenGenjutsu`;
     $('export-status').textContent='Preparing your cut. You can close this preview while it works.';
     const dialog=$('timeline-export-dialog');if (!dialog.open) dialog.showModal();
@@ -93,8 +98,19 @@ export class TimelineExport {
     const video=$('export-video');
     if (video.getAttribute('src')!==value.preview_url) video.src=value.preview_url;
     video.hidden=false;$('download-export').href=value.download_url;$('download-export').hidden=false;
-    $('share-export').hidden=typeof navigator.share!=='function';
+    $('open-export-x').hidden=false;this.updateX();
+    const native=typeof navigator.share==='function' && typeof navigator.canShare==='function' && typeof File!=='undefined';
+    $('share-export').hidden=!native || Boolean(this.shareProblem && !this.file);
+    $('export-share-help').textContent=this.shareProblem || (!native
+      ? 'File sharing is unavailable in this browser. Download the MP4, copy your caption and attach it in your social app.'
+      : this.file ? 'File prepared. Open your device sharing menu, or download the MP4 and copy your caption.'
+      : 'Download the MP4 and copy your caption for any social app, or prepare native file sharing. Open X prepares text only; attach the downloaded MP4 yourself.');
     $('share-export').textContent=this.file?'Share prepared file':'Prepare file sharing';
+  }
+  updateX() {
+    const link=$('open-export-x');
+    if (!$('timeline-export-dialog').open || this.current?.status!=='ready') {link.removeAttribute('href');return;}
+    link.href=`https://twitter.com/intent/tweet?text=${encodeURIComponent($('export-caption').value)}`;
   }
   async share() {
     if (this.current?.status!=='ready') return;
@@ -123,7 +139,7 @@ export class TimelineExport {
       const file=new File(chunks,`opengenjutsu-${id.slice(0,8)}.mp4`,{type:'video/mp4'});
       if (!navigator.canShare?.({files:[file]})) throw new Error('File sharing is unavailable in this browser. Download the MP4 and copy your caption instead.');
       this.file=file;this.notify('File prepared. Press Share prepared file to open your device’s sharing menu.');
-    } catch(error) {if (epoch===this.epoch) this.notify(error.message);}
+    } catch(error) {if (epoch===this.epoch) {this.shareProblem=error.message;this.notify(error.message);}}
     finally {if (epoch===this.epoch) {button.disabled=false;this.paint();}}
   }
 }

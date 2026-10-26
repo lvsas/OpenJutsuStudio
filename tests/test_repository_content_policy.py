@@ -1,6 +1,6 @@
 """What ships must not name an adapter the product does not ship.
 
-The contest repository is public. A workflow that merely *mentions* a style LoRA
+The contest repository is intended for public review. A workflow that merely *mentions* a style LoRA
 is a rule problem even when the switch is off and the file is never loaded: the
 graph is read by people, and an NSFW adapter name in a shipped graph is
 disqualifying. This guard is repository-wide so the mention cannot come back

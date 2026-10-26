@@ -80,6 +80,8 @@ frozen prompt and renders. You can override any of it; nothing is ever invented 
 The repository guardrails below are verified continuously. The actual contest submission, demo video,
 try-it link, social-post link and feature-credit consent are **pending** until they exist as real
 artifacts; this table does not claim an entry has been submitted.
+Public-read access and reviewed integration to the default branch are also pending;
+see [release gates](docs/release-readiness.md).
 
 The [current official rules](https://comfy.org/open-source-higgsfield) allow ComfyUI
 "entirely local", Comfy Cloud, the Developer Platform, Router, SDK, or a mix.
@@ -96,7 +98,7 @@ prepared environment and real acceptance required before we claim it works.
 | Open-source licence and enough setup detail to run it elsewhere | [Apache-2.0](LICENSE), [local setup guide](docs/local-setup.md), `bash scripts/setup.sh --with-proxy` |
 | Workflow files | [`workflows/`](workflows/README.md) — API-format app graphs plus the pinned vendor FLUX 3 source, checked by tests |
 | Other tools, models and techniques explained in the demo video | script/content: pending; the current list is under *Techniques the demo explains* |
-| Lawful, SFW, no unlicensed IP or likenesses | public demo fixtures and prompts: pending human review; nothing copyrighted is bundled |
+| Lawful, SFW, no unlicensed IP or likenesses | demo fixtures, prompts and tracked screenshot rights: pending human review; the source-code licence is not automatic media clearance |
 | One submission per person | one final entry will be prepared; **not submitted** |
 
 

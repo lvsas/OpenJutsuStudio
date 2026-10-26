@@ -246,10 +246,10 @@ in a subfolder must add, or the audit refuses the name with `value_not_in_list`.
 
 ### Deliberately not required
 
-The instance holds 217 LoRAs, including a large NSFW library, and 33 UNets for unrelated
-projects. **None of them is referenced by this repository.** An install guide must list the files
-above and nothing else, so a third party downloads a known set instead of mirroring a
-workstation.
+The reference executor also holds assets for unrelated projects. **They are not
+application dependencies.** Use the declared roles and sources in `dependencies.json`
+rather than mirroring a workstation. The current fixed Swap-file installer and
+[executor setup guide](executor-setup.md) define the portable setup scope.
 
 ## 6. Runtime configuration
 

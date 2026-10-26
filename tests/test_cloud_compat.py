@@ -1,9 +1,12 @@
-"""Tests for Comfy Cloud compatibility (no local path assumptions)."""
+"""Static portability guards; these are not managed-Cloud acceptance tests."""
 import unittest
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
+# Match arbitrary accounts, not the maintainer's personal username.
+LOCAL_HOME_PATH = r"(?:/home/|/Users/|[A-Za-z]:[\\/]Users[\\/])[A-Za-z0-9_.-]+"
 
 
 class TestCloudCompat(unittest.TestCase):
@@ -13,17 +16,22 @@ class TestCloudCompat(unittest.TestCase):
         """core.py should not contain hardcoded /home/ paths."""
         with open(os.path.join(os.path.dirname(__file__), "..", "src", "core.py")) as f:
             content = f.read()
-        self.assertNotIn("/home/user", content,
-                         "core.py should not reference /home/user")
-        self.assertNotIn("/home/user", content,
-                         "core.py should not reference /home/user")
+        self.assertNotRegex(content, LOCAL_HOME_PATH,
+                            "core.py should not hardcode a machine home path")
 
     def test_no_local_path_assumptions_in_app(self):
         """app.py should not contain hardcoded /home/ paths."""
         with open(os.path.join(os.path.dirname(__file__), "..", "src", "app.py")) as f:
             content = f.read()
-        self.assertNotIn("/home/user", content,
-                         "app.py should not reference /home/user")
+        self.assertNotRegex(content, LOCAL_HOME_PATH,
+                            "app.py should not hardcode a machine home path")
+
+    def test_home_path_guard_is_not_tied_to_one_account_or_os(self):
+        for value in ('/home/example/project', '/Users/example/project',
+                      r'C:\Users\example\project', 'C:/Users/example/project'):
+            with self.subTest(value=value):
+                self.assertRegex(value, LOCAL_HOME_PATH)
+        self.assertNotRegex('work/media/example.png', LOCAL_HOME_PATH)
 
     def test_core_uses_the_local_proxy_default(self):
         """The product does not accept inherited SDK Cloud targets."""

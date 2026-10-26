@@ -21,6 +21,11 @@ test('six coherent proposals include three women and distinct hair/body/clothes'
   }
 });
 
+test('grey hair suggestions describe natural strands rather than metal',()=>{
+  assert.ok(looks.some(l=>/natural grey hair.*individual matte strands/.test(l.hair)));
+  for(const look of looks)assert.doesNotMatch(look.hair,/\bsilver\b/i);
+});
+
 test('the shipped builder consumes presentation and face, not just labels',()=>{
   for(let i=0;i<looks.length;i++){
     const text=direction(i),look=looks[i];

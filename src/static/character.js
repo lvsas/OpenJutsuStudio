@@ -20,7 +20,7 @@
     {
       being: "woman", role: "unyielding boules referee",
       build: "a short sturdy adult build with powerful forearms and natural head proportions",
-      hair: "a low geometric silver crest with closely shaved temples",
+      hair: "natural grey hair with visible individual matte strands, cut into a low geometric crest with closely shaved temples",
       face: "an aquiline nose, straight emphatic eyebrows and tightly pursed lips",
       outfit: "a plum jumpsuit with an unusually broad collar and billowing legs gathered at the ankles, with simple black shoes",
       attitude: "feet firmly planted, chin forward and a defiant smirk",

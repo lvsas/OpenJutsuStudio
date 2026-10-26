@@ -181,7 +181,7 @@ class CharacterStudioUITests(unittest.TestCase):
         for field in ("being", "role", "build", "hair", "face", "outfit", "attitude"):
             with self.subTest(field=field):
                 self.assertIn(f"look.{field}", direction_builder)
-        for signal in ("realistically proportioned", "jaw-length dense copper bob", "geometric silver", "horizontal black rolls", "sculptural", "moustache", "smirk"):
+        for signal in ("realistically proportioned", "jaw-length dense copper bob", "geometric crest", "horizontal black rolls", "sculptural", "moustache", "smirk"):
             with self.subTest(signal=signal):
                 self.assertIn(signal, self.js.lower(), f"default looks lost physical/personality hook: {signal!r}")
         self.assertIn("An original adult ${look.being},", direction_builder)

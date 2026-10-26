@@ -33,10 +33,12 @@ def _load(job_id):
 
 
 def _public(job):
+    mode = job.meta.get("character_recipe", {}).get("mode")
     return {"job_id": job.id, "status": job.status, "step": job.step, "progress": job.progress,
             "error": "Character generation failed; check the local worker logs" if job.error else None,
             "parent_job_id": job.meta.get("parent_job_id"), "engine": ENGINE,
             "face_refine": job.meta.get("character_recipe", {}).get("face_refine") is True,
+            "mode": mode if mode in ("portrait", "full_body", "turnaround") else None,
             "project_id": _public_project_id(job)}
 
 
@@ -80,6 +82,7 @@ class CharacterAPI:
                                  upsampler_seed=payload.get("upsampler_seed", payload.get("sampler_seed", 0)),
                                  upsampler=payload.get("upsampler", False),
                                  face_refine=payload.get("face_refine", False),
+                                 direction_facts=payload.get("direction_facts"),
                                  direction_origin=payload.get("direction_origin", "generated"))
         except (KeyError, TypeError, ValueError) as exc:
             raise HTTPException(422, str(exc)) from exc
@@ -153,6 +156,7 @@ class CharacterAPI:
                                  trend_id=old["trend_id"], selections=old["selections"],
                                  sampler_seed=old["sampler_seed"], upsampler_seed=old["upsampler_seed"],
                                  upsampler=old["upsampler"], direction_origin=old["direction_origin"],
+                                 direction_facts=old["direction_facts"],
                                  face_refine=old["face_refine"])
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc

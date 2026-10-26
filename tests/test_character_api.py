@@ -15,6 +15,7 @@ import character_api  # noqa: E402
 import core  # noqa: E402
 from character_capsule import freeze_capsule  # noqa: E402
 from character_recipe import make_recipe  # noqa: E402
+from tests.character_recipe_fixtures import direction_facts_fixture, direction_wording_fixture
 
 
 def png(width=880, height=1184):
@@ -44,7 +45,7 @@ class CharacterAPITests(unittest.TestCase):
         self.addCleanup(self.client.close)
 
     def submit(self, **overrides):
-        payload = {"direction": "an original bowl-cut heavyweight beekeeper", "mode": "portrait",
+        payload = {"direction": direction_wording_fixture(), "direction_facts": direction_facts_fixture(), "mode": "portrait",
                    "trend_id": "original", "selections": {"hair": "blunt bowl cut"},
                    "sampler_seed": 11, "upsampler_seed": 29, "upsampler": True}
         payload.update(overrides)
@@ -65,6 +66,15 @@ class CharacterAPITests(unittest.TestCase):
         job.save()
         return job
 
+    def test_status_exposes_the_actual_frozen_mode_for_each_output(self):
+        for mode in ("portrait", "full_body", "turnaround"):
+            response = self.submit(mode=mode)
+            self.assertEqual(response.status_code, 202, response.text)
+            job_id = response.json()["job_id"]
+            self.assertEqual(response.json().get("mode"), mode)
+            status = self.client.get(f"/api/characters/jobs/{job_id}")
+            self.assertEqual(status.json().get("mode"), mode)
+
     def test_omitted_upsampler_keeps_exact_wording_by_default(self):
         response = self.client.post("/api/characters/jobs", json={"direction": "an adult with enormous geometric hair"})
         self.assertEqual(response.status_code, 202, response.text)
@@ -84,13 +94,13 @@ class CharacterAPITests(unittest.TestCase):
 
     def test_two_submissions_produce_independent_jobs_without_blocking(self):
         first = self.submit()
-        second = self.submit(direction="an original chrome accordionist")
+        second = self.submit(direction="an original chrome accordionist", direction_facts=None, selections={})
         self.assertEqual((first.status_code, second.status_code), (202, 202))
         ids = [call.args[0].id for call in self.dispatch.call_args_list]
         self.assertEqual(len(ids), 2)
         self.assertEqual(len(set(ids)), 2)
         recipes = [call.args[1]["recipe"] for call in self.dispatch.call_args_list]
-        self.assertEqual(recipes[0]["raw_direction"], "an original bowl-cut heavyweight beekeeper")
+        self.assertEqual(recipes[0]["raw_direction"], direction_wording_fixture())
         self.assertEqual(recipes[1]["raw_direction"], "an original chrome accordionist")
         self.assertNotEqual(recipes[0]["graph_sha256"], recipes[1]["graph_sha256"])
 
@@ -114,7 +124,7 @@ class CharacterAPITests(unittest.TestCase):
         self.assertEqual(generated.status_code, 202, generated.text)
         recipe = self.dispatch.call_args.args[1]["recipe"]
         self.assertEqual(recipe["direction_origin"], "generated")
-        self.assertIn("no hand-held or carried props", recipe["resolved_request"])
+        self.assertIn("Their hands are empty.", recipe["resolved_request"])
         self.dispatch.reset_mock()
         invalid = self.submit(direction_origin="system")
         self.assertEqual(invalid.status_code, 422)

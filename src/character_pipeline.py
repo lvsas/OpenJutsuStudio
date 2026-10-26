@@ -21,7 +21,7 @@ _ARTIFACT_REQUESTS = {
     "image": (IMAGE_OUTPUT_NODE, {".png"}),
     "caption": (TEXT_OUTPUT_NODE, {".txt"}),
 }
-_EXPECTED_RATIOS = {"portrait": 3 / 4, "turnaround": 16 / 9}
+_EXPECTED_RATIOS = {"portrait": 3 / 4, "full_body": 3 / 4, "turnaround": 16 / 9}
 
 
 def _validate_png(path: Path, mode: str) -> tuple[int, int]:

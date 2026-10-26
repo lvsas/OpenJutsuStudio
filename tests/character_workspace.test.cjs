@@ -25,7 +25,8 @@ class Element {
   addEventListener(event, listener) { (this.listeners[event] ||= []).push(listener); }
   async fire(event, extra = {}) { for (const listener of this.listeners[event] || []) await listener({preventDefault() {}, target: this, ...extra}); }
   click() { return this.fire('click'); }
-  focus() {}
+  focus(options) { (this.focusCalls ||= []).push(options); }
+  scrollIntoView(options) { (this.scrollCalls ||= []).push(options); }
   querySelectorAll(selector) { return this.children.flatMap(child => [child, ...child.querySelectorAll('*')]).filter(node => selector === '*' || (selector.startsWith('.') && node.className?.split(' ').includes(selector.slice(1))) || node.tagName.toLowerCase() === selector); }
   querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
 }
@@ -35,7 +36,7 @@ const response = (data, status = 200) => ({ok: status >= 200 && status < 300, st
 const deferred = () => { let resolve; const promise = new Promise(r => {resolve = r;}); return {promise, resolve}; };
 async function flush() { for (let i = 0; i < 30; i++) await new Promise(resolve => setImmediate(resolve)); }
 
-function boot({storage = {}, members = [], statuses = {}, fetchHook, storageThrows = false, nativeShare = false} = {}) {
+function boot({storage = {}, members = [], statuses = {}, fetchHook, storageThrows = false, nativeShare = false, search = '', project} = {}) {
   const elements = new Map([...html.matchAll(/<(\w+)\b([^>]*\bid="([^"]+)"[^>]*)>/g)].map(([, tag, attrs, id]) => {
     const element = new Element(tag);
     element.type = attrs.match(/\btype="([^"]+)"/)?.[1] || '';
@@ -46,7 +47,11 @@ function boot({storage = {}, members = [], statuses = {}, fetchHook, storageThro
   const calls = [], timers = [], sharing = [];
   let library = members.map(entry => ({...entry}));
   const document = {querySelector: selector => elements.get(selector.slice(1)) || null, createElement: tag => new Element(tag)};
-  elements.get('mode').value = 'portrait'; elements.get('upsampler').value = 'on';
+  for(const id of ['mode','upsampler']) {
+    const options=html.match(new RegExp(`<select id="${id}"[^>]*>([\\s\\S]*?)</select>`))[1];
+    const selected=[...options.matchAll(/<option value="([^"]+)"([^>]*)>/g)];
+    elements.get(id).value=(selected.find(([, ,attrs])=>/\bselected\b/.test(attrs)) || selected[0])[1];
+  }
   const localStorage = {getItem(key) { if (storageThrows) throw Error('denied'); return storage[key] ?? null; }, setItem(key, value) { if (storageThrows) throw Error('quota'); storage[key] = value; }, removeItem(key) { if (storageThrows) throw Error('denied'); delete storage[key]; }};
   const fetch = async (url, options = {}) => {
     calls.push({url, options});
@@ -66,9 +71,11 @@ function boot({storage = {}, members = [], statuses = {}, fetchHook, storageThro
     return response({job_id:id, status: statuses[id] || 'done', engine:'flux3-klein-character'});
   };
   const navigator = nativeShare ? {canShare: ({files}) => files[0].type === 'image/png', share: data => {sharing.push(data); return Promise.resolve();}} : {};
-  const context = vm.createContext({document, localStorage, fetch, crypto:webcrypto, navigator, File, Blob, URL, console, Uint32Array, Uint8Array, setTimeout: callback => {timers.push(callback); return timers.length;}, clearTimeout() {}});
+  const location={href:'http://studio.test/characters'+search,pathname:'/characters',search};
+  const history={replaceState(_state,_title,value){const next=new URL(value,location.href);location.href=next.href;location.search=next.search;}};
+  const context = vm.createContext({document, localStorage, fetch, crypto:webcrypto, navigator, File, Blob, URL, URLSearchParams, location, history, OpenGenjutsuProject:project ? {storageKey:key=>key,...project} : undefined, console, Uint32Array, Uint8Array, setTimeout: callback => {timers.push(callback); return timers.length;}, clearTimeout() {}});
   vm.runInContext(script, context, {filename:'character.js'});
-  return {elements, storage, calls, timers, sharing, get library() {return library;}};
+  return {elements, storage, calls, timers, sharing, location, get library() {return library;}};
 }
 test('face refinement is explicit, unchecked by default and submits literal booleans', async () => {
   assert.match(html, /<input[^>]*id="face-refine"[^>]*name="face_refine"[^>]*>/);
@@ -116,7 +123,9 @@ test('editable idea and early submit precede refinements; shuffle is local perso
     else if (match[0].startsWith('<details')) stack.push(match[0]);
     else if (match[0].includes('id="direction"')) ideaAncestors = [...stack];
   }
-  assert.deepEqual(ideaAncestors, [], 'idea must not live in any disclosure');
+  assert.equal(ideaAncestors.length,1);
+  assert.match(ideaAncestors[0],/id="idea-editor"/,'long prompt editing is optional; the short idea remains visible');
+  assert.ok(html.indexOf('id="idea-summary"') < html.indexOf('id="generate"'));
   assert.ok(html.indexOf('id="generate"') < html.indexOf('id="refine-list"'));
   assert.ok(html.indexOf('id="generate"') < html.indexOf('id="more-control"'));
   const app = boot(); await flush();
@@ -134,7 +143,7 @@ test('editable idea and early submit precede refinements; shuffle is local perso
     assert.doesNotMatch(idea, /editorial|street.style|photograph|studio|portrait|holding|carrying/i);
   }
   assert.equal(app.calls.length, before, 'shuffle must perform zero fetches');
-  assert.match(app.elements.get('refine-list').textContent, /From the idea/);
+  assert.match(app.elements.get('refine-list').textContent, /Build.*Hair.*Face.*Clothes.*Expression/);
   const silhouette = app.elements.get('refine-list').children[0];
   await silhouette.click();
   const custom = app.elements.get('refine-options').querySelector('input');
@@ -153,7 +162,7 @@ test('editable idea and early submit precede refinements; shuffle is local perso
 });
 
 test('one cached result survives pending work, legacy attempts migrate without auto-save', async () => {
-  const app = boot({storage:{'opengenjutsu.characters.jobs':JSON.stringify([A, B]), 'opengenjutsu.characters.active':A}, statuses:{[B]:'running'}});
+  const app = boot({storage:{'opengenjutsu.characters.jobs':JSON.stringify([A, B]), 'opengenjutsu.characters.active':A}, statuses:{[B]:'running',[C]:'running'}});
   await flush();
   assert.equal(app.elements.get('active-image').src, `/api/characters/jobs/${A}/image`);
   assert.equal(app.elements.get('active-result').hidden, false);
@@ -214,7 +223,7 @@ test('individual discard does not resurrect after a pending response or remove a
   const app = boot({members:[member(A)], storage:{'opengenjutsu.characters.jobs':JSON.stringify([A,B]), 'opengenjutsu.characters.active':A}, fetchHook: url => url === `/api/characters/jobs/${B}` ? waiting.promise : undefined});
   await flush();
   const row = app.elements.get('recent-list').children.find(row => row.dataset.job === B);
-  await row.children.find(child => child.textContent === 'Discard').click();
+  await row.querySelector('.attempt-hide').click();
   waiting.resolve(response({job_id:B,status:'done'})); await flush();
   assert.equal(app.elements.get('recent-list').children.some(row => row.dataset.job === B), false);
   assert.equal(app.elements.get('active-image').src, `/api/characters/jobs/${A}/image`);
@@ -237,6 +246,8 @@ test('latest explicit selection wins over an older saved selection and caption r
   assert.equal(app.elements.get('use-ltx').href, `/?character_id=${B}`);
   assert.equal(app.elements.get('use-h3').href, `/h3?character_id=${B}`);
   assert.equal(app.elements.get('use-timeline').href, `/timeline?character_id=${B}`);
+  assert.equal(app.elements.get('active-result').scrollCalls.length,1,'stale selection cannot reveal the old result');
+  assert.equal(app.elements.get('active-result').focusCalls.length,1,'stale selection cannot steal focus');
 });
 
 for (const autoFirst of [false, true]) {
@@ -278,6 +289,8 @@ for (const autoFirst of [false, true]) {
       assert.equal(app.storage['opengenjutsu.characters.active'], A);
       assert.equal(app.elements.get('library-list').children.find(row => row.dataset.job === A).getAttribute('aria-pressed'), 'true');
       assert.equal(app.elements.get('use-timeline').href, `/timeline?character_id=${A}`);
+      assert.equal(app.elements.get('active-result').scrollCalls.length,1,'only the winning explicit selection reveals');
+      assert.equal(app.elements.get('active-result').focusCalls.length,1);
       assert.equal(app.calls.some(call => call.options.method), false, 'selection and polling never generate or mutate the library');
     });
   }
@@ -319,4 +332,280 @@ test('readiness errors, failed image loads and unsupported share keep truthful d
   await app.elements.get('active-image').fire('error');
   assert.match(app.elements.get('image-state').textContent,/unavailable/);
   assert.equal(app.elements.get('download-character').href,`/api/characters/jobs/${A}/image`);
+});
+
+test('latest explicitly generated turnaround replaces the old preview quietly on completion', async () => {
+  let polls=0;
+  const app=boot({members:[member(A)],storage:{'opengenjutsu.characters.active':A},fetchHook:url=>url===`/api/characters/jobs/${C}`?response({job_id:C,status:++polls===1?'running':'done',mode:'turnaround'}):undefined});
+  await flush();
+  app.elements.get('mode').value='turnaround'; await app.elements.get('mode').fire('change');
+  assert.equal(app.elements.get('active-image').src,`/api/characters/jobs/${A}/image`,'changing view alone does not transform a saved image');
+  await app.elements.get('character-form').fire('submit'); await flush();
+  assert.equal(JSON.parse(app.calls.find(c=>c.options.method==='POST').options.body).mode,'turnaround');
+  assert.equal(app.elements.get('active-image').src,`/api/characters/jobs/${A}/image`);
+  assert.match(app.elements.get('generation-state').textContent,/turnaround/i);
+  app.timers.shift()(); await flush();
+  assert.equal(app.elements.get('active-image').src,`/api/characters/jobs/${C}/image`);
+  assert.match(app.elements.get('result-mode').textContent,/Turnaround/);
+  assert.equal(app.elements.get('active-result').scrollCalls?.length||0,0);
+  assert.equal(app.elements.get('active-result').focusCalls?.length||0,0);
+});
+
+test('a completed new generation never overwrites a later explicit choice', async () => {
+  let polls=0;
+  const app=boot({members:[member(A),member(B)],storage:{'opengenjutsu.characters.active':A},fetchHook:url=>url===`/api/characters/jobs/${C}`?response({job_id:C,status:++polls===1?'running':'done',mode:'full_body'}):undefined});
+  await flush(); await app.elements.get('character-form').fire('submit'); await flush();
+  await app.elements.get('library-list').children.find(e=>e.dataset.job===B).click(); await flush();
+  app.timers.shift()(); await flush();
+  assert.equal(app.elements.get('active-image').src,`/api/characters/jobs/${B}/image`);
+  assert.match(app.elements.get('generation-state').textContent,/ready/i);
+  assert.equal(app.elements.get('recent-list').children.find(e=>e.dataset.job===C).dataset.state,'done');
+});
+
+test('default idea and adjustment labels are short; tabs and adjustments never generate', async () => {
+  const app=boot(); await flush(); const before=app.calls.length;
+  assert.ok(app.elements.get('idea-summary').textContent.length>30);
+  assert.ok(app.elements.get('idea-summary').textContent.length<220);
+  await app.elements.get('refine-list').children.find(e=>e.dataset.refinement==='appearance').click();
+  const chips=app.elements.get('refine-options').querySelectorAll('.chip');
+  assert.ok(chips.length>=6);
+  for(const chip of chips)assert.ok(chip.textContent.length<=48,chip.textContent);
+  await app.elements.get('tab-saved').click();
+  assert.equal(app.elements.get('recent-attempts').hidden,true);
+  assert.equal(app.elements.get('saved-characters').hidden,false);
+  await app.elements.get('tab-attempts').click();
+  assert.equal(app.elements.get('recent-attempts').hidden,false);
+  assert.equal(app.calls.length,before);
+});
+
+test('browser-hidden project attempts stay hidden after reload and a server merge', async () => {
+  const storage={}; const project={jobs:()=>[{job_id:A},{job_id:B}],containsJob:()=>true};
+  const app=boot({storage,project}); await flush();
+  const row=app.elements.get('recent-list').children.find(e=>e.dataset.job===B);
+  await row.querySelector('.attempt-hide').click(); await flush();
+  const restored=boot({storage,project}); await flush();
+  assert.equal(restored.elements.get('recent-list').children.some(e=>e.dataset.job===B),false);
+  assert.equal(restored.elements.get('recent-list').children.some(e=>e.dataset.job===A),true);
+  assert.equal(app.calls.some(c=>c.options.method),false,'hiding is not deletion or submission');
+});
+
+test('reuse idea reads the selected capsule explicitly and never generates', async () => {
+  const app=boot({members:[member(A)],storage:{'opengenjutsu.characters.active':A},fetchHook:url=>url.endsWith('/capsule')?response({recipe:{schema_version:6,raw_direction:'An adult in a purple sculpted jacket.'}}):undefined});
+  await flush(); assert.equal(app.calls.some(c=>c.url.endsWith('/capsule')),false);
+  await app.elements.get('reuse-idea').click(); await flush();
+  assert.equal(app.elements.get('direction').value,'An adult in a purple sculpted jacket.');
+  assert.equal(app.elements.get('idea-editor').open,true);
+  assert.equal(app.elements.get('proposal-refinements').hidden,true);
+  assert.equal(generationPayloads(app).length,0);
+  assert.match(app.elements.get('workspace-notice').textContent,/identity can change/);
+});
+
+test('a late reused idea cannot replace a draft edited while it loads', async () => {
+  const wait=deferred();
+  const app=boot({members:[member(A)],storage:{'opengenjutsu.characters.active':A},fetchHook:url=>url.endsWith('/capsule')?wait.promise:undefined});
+  await flush(); const loading=app.elements.get('reuse-idea').click(); await flush();
+  app.elements.get('direction').value='My newer character idea';await app.elements.get('direction').fire('input');
+  wait.resolve(response({recipe:{schema_version:6,raw_direction:'An older idea.'}}));await loading;await flush();
+  assert.equal(app.elements.get('direction').value,'My newer character idea');
+  assert.equal(generationPayloads(app).length,0);
+});
+
+test('deep-link selection and hiding survive reload without reviving the old image', async () => {
+  const storage={},project={jobs:()=>[{job_id:A},{job_id:B}],containsJob:()=>true};
+  const app=boot({storage,project,search:`?job_id=${A}`});await flush();
+  await app.elements.get('recent-list').children.find(e=>e.dataset.job===B).querySelector('.attempt-select').click();await flush();
+  assert.equal(new URLSearchParams(app.location.search).get('job_id'),B);
+  const restored=boot({storage,project,search:app.location.search});await flush();
+  assert.equal(restored.elements.get('active-image').src,`/api/characters/jobs/${B}/image`);
+  await restored.elements.get('recent-list').children.find(e=>e.dataset.job===B).querySelector('.attempt-hide').click();await flush();
+  assert.equal(new URLSearchParams(restored.location.search).has('job_id'),false);
+  const hidden=boot({storage,project,search:restored.location.search});await flush();
+  assert.equal(hidden.elements.get('recent-list').children.some(e=>e.dataset.job===B),false);
+});
+
+test('refresh restores an explicit pending result without another submission', async () => {
+  const storage={'opengenjutsu.characters.active':A,'opengenjutsu.characters.pending-result':C,'opengenjutsu.characters.attempts':JSON.stringify([C,A])};
+  const app=boot({storage});await flush();
+  assert.equal(app.elements.get('active-image').src,`/api/characters/jobs/${C}/image`);
+  assert.equal(storage['opengenjutsu.characters.pending-result'],'');
+  assert.equal(generationPayloads(app).length,0);
+});
+
+test('local shuffle explores all eighteen coherent combinations before repeating', async () => {
+  const app=boot();await flush();const before=app.calls.length,ideas=[];
+  for(let i=0;i<18;i++){
+    ideas.push(app.elements.get('direction').value);
+    if(i<17)await app.elements.get('shuffle').click();
+  }
+  assert.equal(new Set(ideas).size,18);
+  const personas=vm.runInNewContext(script.match(/const LOOKS = (\[[\s\S]*?\n  \]);/)[1]);
+  for(const look of personas)assert.equal(ideas.filter(text=>text.includes(look.role+':')).length,3);
+  for(let i=1;i<ideas.length;i++){
+    const previous=personas.find(look=>ideas[i-1].includes(look.role+':'));
+    assert.equal(ideas[i].includes(previous.role+':'),false,'a new idea should visibly change the persona');
+  }
+  assert.equal(app.calls.length,before,'the variety loop remains local and free of computation');
+});
+
+const generationPayloads = app => app.calls.filter(c=>c.url==='/api/characters/jobs' && c.options.method==='POST').map(c=>JSON.parse(c.options.body));
+const canonical = look => `An original adult ${look.being}, ${/^[aeiou]/i.test(look.role)?'an':'a'} ${look.role}: ${look.build}, ${look.hair}, ${look.face}, wearing ${look.outfit}, ${look.attitude}.`;
+
+test('generated submissions carry an exact copied base snapshot; refinements stay local and separate', async () => {
+  const app=boot(); await flush();
+  await app.elements.get('character-form').fire('submit'); await flush();
+  const base=generationPayloads(app)[0];
+  assert.ok(base.direction_facts,'generated direction must carry facts, not only prose');
+  assert.deepEqual(Object.keys(base.direction_facts).sort(),['being','role','build','hair','face','outfit','attitude','primary_axis'].sort());
+  assert.equal(base.direction,canonical(base.direction_facts));
+  assert.equal(base.direction_origin,'generated');
+  assert.deepEqual(base.selections,{});
+  const catalogue=vm.runInNewContext(script.match(/const LOOKS = (\[[\s\S]*?\n  \]);/)[1]);
+  const wardrobes=vm.runInNewContext(script.match(/const WARDROBES = (\[[\s\S]*?\n  \]);/)[1]);
+  const persona=catalogue.findIndex(look=>Object.keys(look).filter(key=>key!=='outfit').every(key=>look[key]===base.direction_facts[key]));
+  assert.ok(persona>=0);
+  assert.ok(wardrobes[persona].some(entry=>entry.outfit===base.direction_facts.outfit),'wardrobe must be curated for this exact persona');
+  const before=app.calls.length;
+  await app.elements.get('refine-list').children[0].click();
+  const input=app.elements.get('refine-options').querySelector('input');
+  input.value='a narrow angular silhouette'; await input.fire('change');
+  assert.equal(app.calls.length,before,'local refinement cannot fetch or render');
+  assert.equal(app.elements.get('direction').value,base.direction,'the canonical base is not rewritten by overrides');
+  await app.elements.get('character-form').fire('submit'); await flush();
+  const refined=generationPayloads(app)[1];
+  assert.deepEqual(refined.direction_facts,base.direction_facts,'snapshot must stay the unmodified base tuple');
+  assert.deepEqual(refined.selections,{build:'a narrow angular silhouette'});
+  assert.equal(refined.direction,base.direction);
+  await app.elements.get('shuffle').click();
+  await app.elements.get('character-form').fire('submit'); await flush();
+  const reset=generationPayloads(app)[2];
+  assert.deepEqual(reset.selections,{});
+  assert.equal(reset.direction_origin,'generated');
+  assert.equal(reset.direction,canonical(reset.direction_facts));
+  assert.equal(app.elements.get('clear-axes').hidden,true);
+});
+
+test('editing an idea clears facts and overrides, blocks stale refinement handlers and keeps output controls usable', async () => {
+  const app=boot(); await flush();
+  await app.elements.get('refine-list').children[0].click();
+  const staleInput=app.elements.get('refine-options').querySelector('input');
+  staleInput.value='an extremely broad silhouette'; await staleInput.fire('change');
+  const staleButton=app.elements.get('axis-select');
+  const before=app.calls.length;
+  app.elements.get('direction').value='My own adult character with asymmetric short hair.';
+  await app.elements.get('direction').fire('input');
+  assert.equal(app.elements.get('proposal-refinements').hidden,true);
+  assert.equal(app.elements.get('fine-refinements').hidden,true);
+  assert.equal(app.elements.get('refine-options').children.length,0);
+  assert.equal(app.elements.get('axis-options').children.length,0);
+  assert.equal(app.elements.get('clear-axes').hidden,true);
+  assert.match(app.elements.get('proposal-summary').textContent,/Your own idea.*Another idea restores/);
+  staleInput.value='stale override'; await staleInput.fire('change'); staleButton.value='hair'; await staleButton.fire('change');
+  assert.equal(app.elements.get('axis-options').children.length,0);
+  for(const id of ['mode','upsampler','face-refine'])assert.equal(app.elements.get(id).disabled,false);
+  app.elements.get('mode').value='full_body'; await app.elements.get('mode').fire('change');
+  app.elements.get('upsampler').value='on'; app.elements.get('face-refine').checked=true;
+  assert.equal(app.calls.length,before,'editing and output choices are zero-fetch');
+  await app.elements.get('character-form').fire('submit'); await flush();
+  const authored=generationPayloads(app)[0];
+  assert.equal(authored.direction_facts,null);
+  assert.equal(authored.direction_origin,'user_authored');
+  assert.equal(authored.direction,'My own adult character with asymmetric short hair.');
+  assert.deepEqual(authored.selections,{});
+  assert.equal(authored.mode,'full_body'); assert.equal(authored.upsampler,true); assert.equal(authored.face_refine,true);
+  await app.elements.get('shuffle').click();
+  assert.equal(app.elements.get('proposal-refinements').hidden,false);
+  assert.equal(app.elements.get('fine-refinements').hidden,false);
+  await app.elements.get('refine-list').children[0].click();
+  assert.ok(app.elements.get('refine-options').querySelector('input'));
+});
+
+test('a programmatically changed idea is never sent with a stale generated snapshot', async () => {
+  const app=boot(); await flush();
+  await app.elements.get('refine-list').children[0].click();
+  const input=app.elements.get('refine-options').querySelector('input'); input.value='old override'; await input.fire('change');
+  app.elements.get('direction').value='New free text without an input event';
+  await app.elements.get('character-form').fire('submit'); await flush();
+  const payload=generationPayloads(app)[0];
+  assert.equal(payload.direction_facts,null); assert.equal(payload.direction_origin,'user_authored'); assert.deepEqual(payload.selections,{});
+});
+
+test('an explicit submission freezes its idea and facts before awaiting project creation', async () => {
+  const waiting=deferred();
+  const project={ensure:()=>waiting.promise, jobs:()=>[], acceptJob(){}};
+  const app=boot({project}); await flush();
+  const before=app.elements.get('direction').value;
+  const submitted=app.elements.get('character-form').fire('submit'); await flush();
+  app.elements.get('direction').value='A new draft while submitting'; await app.elements.get('direction').fire('input');
+  waiting.resolve('project-id'); await submitted; await flush();
+  const payload=generationPayloads(app)[0];
+  assert.equal(payload.project_id,'project-id'); assert.equal(payload.direction,before);
+  assert.equal(payload.direction_origin,'generated'); assert.equal(payload.direction,canonical(payload.direction_facts));
+});
+
+test('mode copy distinguishes a face-and-hair portrait, full figure and unchanged four-angle turnaround', async () => {
+  const app=boot(); await flush();
+  assert.match(html,/<option value="portrait">Portrait · 3:4<\/option>/);
+  assert.match(html,/<option value="full_body">Full body · 3:4<\/option>/);
+  assert.match(html,/<option value="turnaround">Turnaround · 16:9<\/option>/);
+  assert.match(html,/id="mode-hint">[^<]*waist-up[^<]*(?:face|hairstyle)/i);
+  assert.match(html,/<option value="on">[^<]*expand[^<]*rewrite[^<]*short idea/i);
+  assert.match(html,/<option value="off" selected>[^<]*exact[^<]*full caption/i);
+  assert.equal(app.elements.get('upsampler').value,'off','harness must use the served default');
+  const before=app.calls.length;
+  for(const [mode,copy] of [['portrait',/waist-up.*face.*hairstyle/i],['full_body',/full figure.*feet/i],['turnaround',/front, three-quarter, profile, back/]]) {
+    app.elements.get('mode').value=mode; await app.elements.get('mode').fire('change');
+    assert.match(app.elements.get('mode-hint').textContent,copy);
+  }
+  assert.equal(app.calls.length,before);
+});
+
+test('explicit saved and recent selections reveal and focus the canvas; restoration never does', async () => {
+  const app=boot({members:[member(A)],storage:{'opengenjutsu.characters.attempts':JSON.stringify([B]),'opengenjutsu.characters.active':A}}); await flush();
+  const canvas=app.elements.get('active-result');
+  assert.equal(canvas.scrollCalls?.length||0,0); assert.equal(canvas.focusCalls?.length||0,0);
+  const row=app.elements.get('recent-list').children.find(row=>row.dataset.job===B);
+  await row.querySelector('.attempt-select').click(); await flush();
+  assert.equal(app.elements.get('active-image').src,`/api/characters/jobs/${B}/image`);
+  assert.equal(canvas.scrollCalls?.length||0,1,'explicit Choose must reveal the off-screen canvas'); assert.equal(canvas.scrollCalls[0].block,'start');
+  assert.equal(canvas.focusCalls?.length||0,1,'explicit Choose must focus the result'); assert.equal(canvas.focusCalls[0].preventScroll,true);
+  assert.match(html,/<article[^>]*id="active-result"[^>]*tabindex="-1"/);
+  await app.elements.get('library-list').children[0].click(); await flush();
+  assert.equal(canvas.scrollCalls.length,2); assert.equal(canvas.focusCalls.length,2);
+  assert.equal(generationPayloads(app).length,0);
+});
+
+test('boot deep links and automatic polling completion never reveal, focus or generate', async () => {
+  const project={jobs:()=>[{job_id:A}],containsJob:id=>id===A};
+  const app=boot({search:`?job_id=${A}`,project}); await flush();
+  assert.equal(app.elements.get('active-image').src,`/api/characters/jobs/${A}/image`);
+  assert.equal(app.elements.get('active-result').scrollCalls?.length||0,0);
+  assert.equal(app.elements.get('active-result').focusCalls?.length||0,0);
+  let polls=0;
+  const polling=boot({storage:{'opengenjutsu.characters.attempts':JSON.stringify([B])},fetchHook:url=>url===`/api/characters/jobs/${B}`?response({job_id:B,status:++polls===1?'running':'done'}):undefined}); await flush();
+  polling.timers.shift()(); await flush();
+  assert.equal(polling.elements.get('active-image').src,`/api/characters/jobs/${B}/image`);
+  assert.equal(polling.elements.get('active-result').scrollCalls?.length||0,0);
+  assert.equal(polling.elements.get('active-result').focusCalls?.length||0,0);
+  assert.equal(generationPayloads(app).length+generationPayloads(polling).length,0);
+});
+
+test('remove from library is a visible management action outside every closed disclosure', async () => {
+  const stack=[]; let ancestors;
+  for(const match of html.matchAll(/<\/?(?:details|button)\b[^>]*>/g)) {
+    if(match[0].startsWith('</details'))stack.pop();
+    else if(match[0].startsWith('<details'))stack.push(match[0]);
+    else if(match[0].includes('id="remove-character"'))ancestors=[...stack];
+  }
+  assert.deepEqual(ancestors,[],'Remove must not be hidden by More details');
+  assert.match(html,/<div[^>]*id="library-management"[^>]*>[\s\S]*?id="character-name"[\s\S]*?id="keep-character"[\s\S]*?<\/div>/);
+  assert.match(html,/Removing a library or project entry never deletes media/i);
+  assert.match(html,/<section[^>]*id="saved-characters"[\s\S]*?id="remove-character"[\s\S]*?<\/section>/);
+
+  const app=boot({members:[member(A)],storage:{'opengenjutsu.characters.active':A}}); await flush();
+  assert.equal(app.elements.get('more-details').open,false);
+  assert.equal(app.elements.get('remove-character').hidden,false);
+  await app.elements.get('remove-character').click(); await flush();
+  assert.equal(app.library.length,0);
+  assert.ok(app.calls.some((c,i)=>c.url===`/api/characters/library/${A}` && c.options.method==='DELETE' && app.calls[i+1]?.url==='/api/characters/library'));
+  assert.match(app.elements.get('workspace-notice').textContent,/media, capsule and job are retained/);
 });

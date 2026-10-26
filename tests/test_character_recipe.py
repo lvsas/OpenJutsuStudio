@@ -8,7 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from tests.character_recipe_fixtures import v1_recipe_fixture, v2_recipe_fixture  # noqa: E402
+from tests.character_recipe_fixtures import (v1_recipe_fixture, v2_recipe_fixture,
+                                           direction_facts_fixture, direction_wording_fixture)  # noqa: E402
 from character_recipe import (  # noqa: E402
     AXES,
     ENGINE,
@@ -25,7 +26,7 @@ class CharacterRecipeTests(unittest.TestCase):
     def setUp(self):
         self.recipe = make_recipe(
             job_id="character_recipe_1",
-            direction="an original heavyweight beekeeper with a deliberately blunt bowl cut",
+            direction=direction_wording_fixture(), direction_facts=direction_facts_fixture(),
             mode="portrait",
             trend_id="original",
             selections={"skin_tone": "fair skin", "hair": "short blunt bowl cut"},
@@ -34,12 +35,12 @@ class CharacterRecipeTests(unittest.TestCase):
             upsampler=True,
         )
 
-    def test_new_generated_recipes_are_v6_weird_humans_and_reject_v1_only_accessory(self):
-        self.assertEqual(self.recipe["schema_version"], 6)
-        self.assertEqual(self.recipe["prompt_policy"], "character-v6")
+    def test_new_generated_recipes_are_v7_structured_and_reject_v1_only_accessory(self):
+        self.assertEqual(self.recipe["schema_version"], 7)
+        self.assertEqual(self.recipe["prompt_policy"], "character-v7")
         self.assertIs(self.recipe["face_refine"], False)
         self.assertEqual(self.recipe["direction_origin"], "generated")
-        self.assertIn("no hand-held or carried props", self.recipe["resolved_request"])
+        self.assertIn("Their hands are empty.", self.recipe["resolved_request"])
         self.assertNotIn("accessory", self.recipe["selections"])
         self.assertNotIn("absurdity", self.recipe["selections"])
         with self.assertRaisesRegex(ValueError, "Unknown Character selection axis"):
@@ -79,7 +80,8 @@ class CharacterRecipeTests(unittest.TestCase):
         self.assertEqual(self.recipe["aspect_ratio"], MODE_SPECS["portrait"]["aspect_ratio"])
         self.assertEqual(self.recipe["trend_id"], "original")
         self.assertEqual(self.recipe["raw_direction"],
-                         "an original heavyweight beekeeper with a deliberately blunt bowl cut")
+                         direction_wording_fixture())
+        self.assertEqual(self.recipe["direction_facts"], direction_facts_fixture())
         self.assertEqual(self.recipe["selections"]["skin_tone"], "fair skin")
         self.assertEqual(self.recipe["selections"]["hair"], "short blunt bowl cut")
         for axis in set(AXES) - {"skin_tone", "hair"}:
@@ -96,12 +98,13 @@ class CharacterRecipeTests(unittest.TestCase):
         validate_recipe(self.recipe)
 
     def test_request_is_photographic_and_turnaround_asks_for_four_different_angles(self):
-        self.assertTrue(self.recipe["resolved_request"].startswith("Full-length photograph"))
+        self.assertTrue(self.recipe["resolved_request"].startswith("Studio photograph of one original adult"))
+        self.assertIn("waist-up", self.recipe["resolved_request"])
         turnaround = make_recipe(
             job_id="character_turnaround_1", direction="an original locksmith", mode="turnaround",
             trend_id="original", selections={}, sampler_seed=1, upsampler_seed=1, upsampler=True)
         request = turnaround["resolved_request"]
-        self.assertTrue(request.startswith("Studio photographic quadriptych"))
+        self.assertTrue(request.startswith("Studio photograph of one original adult"))
         self.assertNotIn("character sheet", request.lower())
         # The earlier probe asked for "four identical views", which is why every panel came back
         # frontal. A usable turnaround must name the four distinct angles.
@@ -109,10 +112,10 @@ class CharacterRecipeTests(unittest.TestCase):
         for angle in ("front view", "three-quarter view", "left profile", "back view"):
             with self.subTest(angle=angle):
                 self.assertIn(angle, request)
-        for negative in ("no text", "no watermark", "exactly one person",
-                         "clear eyes", "coherent facial anatomy", "natural adult head-to-body scale"):
-            with self.subTest(negative=negative):
-                self.assertIn(negative, request)
+        for positive in ("one original adult", "lifelike skin texture", "individual hair strands", "real fabric"):
+            with self.subTest(positive=positive):
+                self.assertIn(positive, request)
+        self.assertNotIn("natural adult head-to-body scale", request)
         with self.assertRaisesRegex(ValueError, "character sheet"):
             make_recipe(job_id="character_bad", direction="a character sheet of a locksmith", mode="portrait",
                         trend_id="original", selections={}, sampler_seed=1, upsampler_seed=1, upsampler=True)
@@ -183,12 +186,13 @@ class CharacterRecipeTests(unittest.TestCase):
 
     def test_v2_keeps_safe_free_text_axes_open_but_rejects_accessory_steering(self):
         free = make_recipe(
-            job_id="character_free_1", direction="an original performer", mode="portrait",
+            job_id="character_free_1", direction=direction_wording_fixture(),
+            direction_facts=direction_facts_fixture(), mode="portrait",
             trend_id="original", selections={"attitude": "quietly delighted by a private joke"},
             sampler_seed=9, upsampler_seed=9, upsampler=False)
         self.assertEqual(free["selections"]["attitude"], "quietly delighted by a private joke")
         self.assertEqual(set(TREND_LIBRARY), {"original"})
-        self.assertIn("attitude: quietly delighted by a private joke", free["resolved_request"])
+        self.assertIn("Their expression and posture are quietly delighted by a private joke.", free["resolved_request"])
         with self.assertRaisesRegex(ValueError, "Unknown Character selection axis"):
             make_recipe(job_id="character_no_prop", direction="an original performer", mode="portrait",
                         trend_id="original", selections={"accessory": "a chrome accordion shaped like a fish"},

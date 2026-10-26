@@ -8,7 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from tests.character_recipe_fixtures import v1_recipe_fixture, v2_recipe_fixture  # noqa: E402
+from tests.character_recipe_fixtures import (v1_recipe_fixture, v2_recipe_fixture,
+                                           direction_facts_fixture, direction_wording_fixture)  # noqa: E402
 from core import Job  # noqa: E402
 from character_capsule import freeze_capsule, get_capsule, replay_recipe  # noqa: E402
 from character_recipe import ENGINE, digest_json, make_recipe  # noqa: E402
@@ -25,7 +26,8 @@ class CharacterCapsuleTests(unittest.TestCase):
         self.image.write_bytes(b"verified-image-bytes")
         self.caption.write_text("Studio photograph of an original person.", encoding="utf-8")
         self.recipe = make_recipe(
-            job_id="character_capsule_1", direction="an original locksmith", mode="portrait",
+            job_id="character_capsule_1", direction=direction_wording_fixture(),
+            direction_facts=direction_facts_fixture(), mode="portrait",
             trend_id="original", selections={"hair": "flat top"}, sampler_seed=42,
             upsampler_seed=42, upsampler=True)
         self.job = Job(id="character_capsule_1", engine=ENGINE, status="done", result=str(self.image),
@@ -111,7 +113,9 @@ class CharacterCapsuleTests(unittest.TestCase):
                     replay_recipe(legacy_job, self.media)
 
     def test_historical_capsule_is_readable_but_current_policy_is_checked_only_on_replay(self):
-        frozen = freeze_capsule(self.job, self.recipe, self.image, self.caption, self.media)
+        legacy = v1_recipe_fixture()
+        self.job.id = legacy["job_id"]
+        frozen = freeze_capsule(self.job, legacy, self.image, self.caption, self.media)
         historical = copy.deepcopy(frozen)
         historical.pop("resolved_caption")
         historical["schema_version"] = 1

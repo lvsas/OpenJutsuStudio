@@ -64,7 +64,7 @@ class CharacterStudioUITests(unittest.TestCase):
 
     def test_primary_action_precedes_optional_refinements(self):
         self.assertEqual(self.page.count('id="generate"'), 1)
-        self.assertLess(self.page.index('id="direction"'), self.page.index('id="generate"'))
+        self.assertLess(self.page.index('id="idea-summary"'), self.page.index('id="generate"'))
         self.assertLess(self.page.index('id="generate"'), self.page.index('id="refine-list"'))
         editor = re.search(r'<label[^>]*id="direction-editor"[^>]*>', self.page)
         assert editor is not None, 'the idea must stay editable'
@@ -88,8 +88,7 @@ class CharacterStudioUITests(unittest.TestCase):
         for element_id in ("proposal-summary", "refine-list", "refine-options", "more-control"):
             with self.subTest(element_id=element_id):
                 self.assertIn(f'id="{element_id}"', self.page)
-        for label in ("Silhouette", "Signature hair and face", "Expression and personality",
-                      "Clothes and style"):
+        for label in ("Build", "Hair", "Face", "Expression", "Clothes"):
             with self.subTest(label=label):
                 self.assertIn(f'"{label}"', self.js)
         self.assertIn("const REFINEMENTS = [", self.js)
@@ -115,8 +114,8 @@ class CharacterStudioUITests(unittest.TestCase):
                       "a closed advanced disclosure must actually hide its controls")
 
     def test_payload_reaches_the_api_with_the_expected_contract(self):
-        for key in ("direction", "mode", "trend_id", "selections", "sampler_seed", "upsampler_seed",
-                    "upsampler"):
+        for key in ("direction", "direction_facts", "direction_origin", "mode", "trend_id", "selections",
+                    "sampler_seed", "upsampler_seed", "upsampler"):
             self.assertIn(key, self.js, f"the request must send {key}")
         self.assertIn('fetch("/api/characters/jobs"', self.js)
         self.assertIn("/api/characters/jobs/${id}", self.js)
@@ -133,7 +132,7 @@ class CharacterStudioUITests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.page.count('id="active-result"'), 1)
         self.assertNotIn('class="job-card"', self.page)
-        for disclosure in ("recent-attempts", "more-details", "use-character"):
+        for disclosure in ("idea-editor", "idea-adjustments", "more-details", "use-character"):
             match = re.search(r'<details[^>]*id="' + disclosure + r'"[^>]*>', self.page)
             self.assertIsNotNone(match)
             self.assertNotIn(" open", match.group(0))
@@ -155,7 +154,7 @@ class CharacterStudioUITests(unittest.TestCase):
         end = self.js.index("/* ----", start)
         shuffle_body = self.js[start:end]
         self.assertNotIn("fetch(", shuffle_body, "shuffle must never call the server")
-        self.assertIn("buildDirection()", shuffle_body)
+        self.assertIn("buildDirection(directionFacts)", shuffle_body)
 
     def test_payload_records_whether_the_direction_was_generated_or_user_authored(self):
         self.assertIn('let directionOrigin = "generated"', self.js)
@@ -168,7 +167,7 @@ class CharacterStudioUITests(unittest.TestCase):
     def test_shuffle_vocabulary_is_person_first_face_safe_and_style_coherent(self):
         """A viral hook comes from one complete contemporary look, never a prop or costume collision."""
         banned_default_terms = (
-            "taxidermy", "accordion", "oversized ring of keys", "bolted-on grin",
+            "taxidermy", "holding an accordion", "oversized ring of keys", "bolted-on grin",
             "eyebrows drawn far too high", "gormless", "holding a fish", "competitive cheese judge",
             "night-shift lighthouse keeper", "unlicensed beekeeper", "freelance snake handler",
             "towering pompadour", "blunt bowl cut", "puffer jacket over a wetsuit",
@@ -181,14 +180,14 @@ class CharacterStudioUITests(unittest.TestCase):
         self.assertNotIn("const ROLES", self.js, "independent lists create incoherent costume collisions")
         self.assertNotIn('"accessory"', self.js, "browser controls must not expose accessory")
         self.assertIn("const LOOKS = [", self.js)
-        direction_start = self.js.index("function buildDirection()")
+        direction_start = self.js.index("function buildDirection(look)")
         direction_end = self.js.index("function shuffle()", direction_start)
         direction_builder = self.js[direction_start:direction_end]
-        self.assertIn("const look = pick(LOOKS)", direction_builder)
+        self.assertNotIn("pick(LOOKS)", direction_builder, "the builder must use the supplied snapshot")
         for field in ("being", "role", "build", "hair", "face", "outfit", "attitude"):
             with self.subTest(field=field):
                 self.assertIn(f"look.{field}", direction_builder)
-        for signal in ("heavy barrel-chested", "inverted trapezoid", "towering geometric crest", "halo of dense black curls", "sculptural", "moustache", "smirk"):
+        for signal in ("heavy barrel-chested", "low horizontal", "towering geometric crest", "halo of dense black curls", "sculptural", "moustache", "smirk"):
             with self.subTest(signal=signal):
                 self.assertIn(signal, self.js.lower(), f"default looks lost physical/personality hook: {signal!r}")
         self.assertIn("An original adult ${look.being},", direction_builder)

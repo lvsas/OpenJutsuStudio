@@ -42,118 +42,98 @@
       <p>One memorable silhouette. A personality of their own. Create with FLUX 3, then make it yours.</p>
     </section>
 
-    <div class="studio-grid">
-      <section class="recipe-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Direction</p>
-            <h2>Make a person</h2>
-          </div>
-        </div>
-
+    <div class="studio-grid character-workbench" id="character-workbench">
+      <section class="recipe-panel" aria-labelledby="composer-title">
+        <div class="composer-heading"><div><p class="eyebrow">Create</p><h2 id="composer-title">Next character</h2></div><button type="button" class="btn btn-ghost btn-small" id="shuffle">Another idea ↻</button></div>
         <form id="character-form">
-          <section class="proposal-card" aria-labelledby="proposal-label">
-            <label class="direction-editor" id="direction-editor">
-              <span class="field-label" id="proposal-label">Your character idea</span>
-              <textarea id="direction" name="direction" class="text-input textarea" rows="5" maxlength="2000" required
-                        placeholder="Describe their silhouette, signature hair or face, and personality…"></textarea>
-            </label>
-            <p class="proposal-summary" id="proposal-summary" aria-live="polite"></p>
-          </section>
-          <div class="character-actions idea-actions">
-            <button type="submit" class="btn btn-primary" id="generate">Generate character</button>
-            <button type="button" class="btn btn-ghost btn-small" id="shuffle">Try another</button>
+          <div class="idea-card"><p id="idea-summary" class="idea-summary" aria-live="polite">A distinctive person, with a personality of their own.</p></div>
+          <div class="generation-controls">
+            <label><span class="field-label">View</span><select id="mode" name="mode" class="text-input">
+              <option value="portrait">Portrait · 3:4</option><option value="full_body">Full body · 3:4</option><option value="turnaround">Turnaround · 16:9</option>
+            </select></label>
+            <button type="submit" class="btn btn-primary" id="generate" aria-label="Generate character">Generate</button>
           </div>
+          <p class="microcopy" id="mode-hint">Waist-up portrait · face and hairstyle.</p>
           <p class="microcopy form-error" id="form-error" role="alert" hidden></p>
-          <div class="refinement-heading"><span class="field-label">Optional refinements</span><button type="button" class="btn btn-ghost btn-small" id="clear-axes" hidden>Clear refinements</button></div>
-          <div class="refine-list" id="refine-list" aria-label="Refine the proposal"></div>
-          <div class="refine-options" id="refine-options" aria-live="polite"></div>
-
-          <details class="more-control" id="more-control">
-            <summary>
-              <span class="optional-label">More control</span>
-              <small>output and fine details</small>
-            </summary>
-            <div class="more-control-body">
-              <div class="character-row">
-                <label>
-                  <span class="field-label">Output</span>
-                  <select id="mode" name="mode" class="text-input">
-                    <option value="portrait">Portrait · 3:4</option>
-                    <option value="turnaround">Turnaround · 16:9</option>
-                  </select>
-                </label>
-                <label>
-                  <span class="field-label">Prompt detail</span>
-                  <select id="upsampler" name="upsampler" class="text-input">
-                    <option value="on">On — rewrite the description</option>
-                    <option value="off" selected>Off — keep the exact wording</option>
-                  </select>
-                </label>
-              </div>
-              <p class="microcopy" id="mode-hint">One shareable studio photograph.</p>
-              <label><input type="checkbox" id="face-refine" name="face_refine"> Refine face (extra pass)</label>
-              <p class="microcopy">Experimental extra pass; it may alter facial details. Compare with the preserved original.</p>
-              <p class="field-label">Fine tune an exact detail</p>
-              <div class="axis-picker" id="axis-picker"></div>
-              <div class="axis-options" id="axis-options"></div>
+          <p class="proposal-summary" id="proposal-summary" aria-live="polite"></p>
+          <details class="composer-disclosure" id="idea-editor">
+            <summary>Write your own idea</summary>
+            <label class="direction-editor" id="direction-editor"><span class="field-label" id="proposal-label">Describe the person you want</span>
+              <textarea id="direction" name="direction" class="text-input textarea" rows="5" maxlength="2000" placeholder="Their look, expression and personality…"></textarea>
+            </label>
+          </details>
+          <details class="composer-disclosure" id="idea-adjustments">
+            <summary>Adjust this idea <span class="optional-note">optional</span></summary>
+            <div class="proposal-refinements" id="proposal-refinements">
+              <div class="refinement-heading"><span class="field-label">Change one thing</span><button type="button" class="btn btn-ghost btn-small" id="clear-axes" hidden>Reset changes</button></div>
+              <div class="refine-list" id="refine-list" aria-label="Adjust the suggested character"></div>
+              <div class="refine-options" id="refine-options" aria-live="polite"></div>
             </div>
           </details>
-
+          <details class="more-control composer-disclosure" id="more-control">
+            <summary>Output options <span class="optional-note">optional</span></summary>
+            <div class="more-control-body">
+              <div class="character-row">
+                <label><span class="field-label">Description</span><select id="upsampler" name="upsampler" class="text-input">
+                  <option value="on">Expand/rewrite a short idea</option><option value="off" selected>Use the exact full caption</option>
+                </select></label>
+              </div>
+              <label class="optional-pass"><input type="checkbox" id="face-refine" name="face_refine"> Refine face (extra pass)</label>
+              <p class="microcopy">Experimental. It may change facial details; the original is preserved.</p>
+              <details class="fine-refinements" id="fine-refinements"><summary>More description choices</summary>
+                <div id="axis-picker"><label><span class="field-label">Detail to change</span><select id="axis-select" class="text-input"><option value="">Choose a detail…</option></select></label></div>
+                <div class="axis-options" id="axis-options"></div>
+              </details>
+            </div>
+          </details>
         </form>
       </section>
 
-      <section class="studio-stage">
-        <header class="stage-header">
-          <div>
-            <p class="eyebrow">Workspace</p>
-            <h2>Your character</h2>
-          </div>
-          <div class="stage-actions">
-            <span class="stage-meta" id="job-count">No attempts yet</span>
-          </div>
-        </header>
+      <section class="studio-stage" aria-label="Character preview">
+        <header class="stage-header"><h2 id="active-title">Your character</h2><div class="preview-badges"><span class="badge" id="result-mode" hidden></span><span class="badge" id="saved-state" hidden>Not saved</span></div></header>
+        <p class="selection-context microcopy" id="selection-context" hidden></p>
         <p class="microcopy" id="workspace-notice" role="status" aria-live="polite"></p>
         <p class="microcopy" id="storage-notice" role="status" hidden></p>
-        <div id="empty-result" class="empty-result">A person, not a pile of renders.<br>Generate a character or choose one you saved.</div>
-        <article id="active-result" class="active-result" hidden>
-          <div class="canvas"><img id="active-image" alt="Selected original character"></div>
-          <p class="microcopy" id="image-state" role="status"></p>
-          <div class="active-heading"><h3 id="active-title">Original character</h3><span class="badge" id="saved-state">Not saved</span></div>
-          <div class="character-actions">
-            <label class="character-name"><span class="field-label">Library name</span><input id="character-name" class="text-input" maxlength="100" placeholder="Name this person"></label>
+        <p class="generation-state" id="generation-state" role="status" aria-live="polite" hidden></p>
+        <div id="empty-result" class="empty-result"><strong>Meet your next character.</strong><span>Generate from an idea, or pick a face from your attempts.</span></div>
+        <article id="active-result" class="active-result" tabindex="-1" aria-labelledby="active-title" hidden>
+          <div class="keep-row" id="library-management" role="group" aria-label="Keep this character" aria-describedby="library-management-help">
+            <label class="character-name"><span class="field-label">Name <span class="optional-note">optional</span></span><input id="character-name" class="text-input" maxlength="100" placeholder="Give them a name"></label>
             <button id="keep-character" type="button" class="btn btn-primary">Keep character</button>
-            <button id="discard-character" type="button" class="btn btn-ghost">Discard attempt</button>
           </div>
-          <div class="character-actions">
-            <a id="download-character" class="btn btn-ghost">Download PNG</a>
-            <button id="share-character" type="button" class="btn btn-ghost" hidden>Share PNG</button>
+          <div class="canvas"><img id="active-image" alt="Selected original character"></div>
+          <div class="result-tools">
+            <details id="use-character" class="use-character-menu" hidden><summary class="btn btn-primary">Use in studio</summary><div class="use-character-links"><a id="use-ltx" class="btn btn-ghost">LTX Studio</a><a id="use-h3" class="btn btn-ghost">H3 Studio</a><a id="use-timeline" class="btn btn-ghost">Timeline</a></div></details>
+            <button id="reuse-idea" type="button" class="btn btn-ghost btn-small">Reuse idea</button>
+            <a id="download-character" class="btn btn-ghost btn-small">Download PNG</a>
+            <a id="inspect-image" class="btn btn-ghost btn-small" target="_blank" rel="noopener">Full size ↗</a>
+            <button id="share-character" type="button" class="btn btn-ghost btn-small" hidden>Share PNG</button>
+            <details id="more-details" class="result-details"><summary>Details</summary><div class="result-details-panel">
+              <p class="microcopy" id="image-state" role="status"></p>
+              <div class="character-actions"><a id="inspect-capsule" target="_blank" rel="noopener">Frozen capsule</a><a id="inspect-caption" target="_blank" rel="noopener">Caption text</a><a id="inspect-base" target="_blank" rel="noopener" hidden>View original</a></div>
+              <p class="field-label">Description used for this image</p><p id="active-caption" class="active-caption"></p>
+              <p class="microcopy" id="share-notice">Download the PNG to share it. Native sharing appears on supported devices.</p>
+              <p class="microcopy" id="library-management-help">Removing a library or project entry never deletes media, capsules or jobs. Reusing an idea starts a new generation; it does not edit this image.</p>
+            </div></details>
           </div>
-          <p class="microcopy" id="share-notice">Download the PNG to share it. Native sharing appears on supported devices.</p>
-          <details id="use-character" class="workspace-disclosure" hidden>
-            <summary>Use this character</summary>
-            <p class="microcopy">Start with this saved reference. You choose what to make next.</p>
-            <div class="character-actions"><a id="use-ltx" class="btn btn-ghost">LTX Studio</a><a id="use-h3" class="btn btn-ghost">H3 Studio</a><a id="use-timeline" class="btn btn-ghost">Timeline</a></div>
-          </details>
-          <details id="more-details" class="workspace-disclosure">
-            <summary>More details</summary>
-            <div class="character-actions"><a id="inspect-image" target="_blank" rel="noopener">Inspect full-size image</a><a id="inspect-capsule" target="_blank" rel="noopener">Frozen capsule</a><a id="inspect-caption" target="_blank" rel="noopener">Caption text</a><a id="inspect-base" target="_blank" rel="noopener" hidden>View original</a></div>
-            <p class="field-label">What the model actually wrote</p><p id="active-caption" class="active-caption"></p>
-            <button id="remove-character" type="button" class="btn btn-ghost" hidden>Remove from library</button>
-            <p class="microcopy">Discarding an attempt or removing a library entry only changes this workspace. Media, capsules and jobs are retained; running work is not cancelled.</p>
-          </details>
         </article>
-        <details id="recent-attempts" class="workspace-disclosure">
-          <summary>Recent attempts <span id="recent-count"></span></summary>
-          <div class="shelf-heading"><p class="microcopy">Attempts are not saved characters.</p><button type="button" class="btn btn-ghost btn-small" id="clear-jobs">Clear attempts</button></div>
-          <div id="recent-list" class="recent-list"></div>
-        </details>
-        <section class="character-library" aria-labelledby="library-title">
-          <div class="shelf-heading"><h3 id="library-title">Saved characters</h3><button id="refresh-library" type="button" class="btn btn-ghost btn-small">Refresh library</button></div>
-          <p class="microcopy" id="library-state" role="status">Loading saved characters…</p>
-          <div id="library-list" class="library-list"></div>
-        </section>
       </section>
+
+      <aside class="character-shelf" aria-labelledby="shelf-title">
+        <header class="shelf-heading"><h2 id="shelf-title">Your characters</h2><span class="stage-meta" id="job-count">No attempts yet</span></header>
+        <div class="shelf-tabs" role="tablist" aria-label="Character collection"><button id="tab-attempts" type="button" role="tab" aria-selected="true" aria-controls="recent-attempts">Attempts</button><button id="tab-saved" type="button" role="tab" aria-selected="false" aria-controls="saved-characters" tabindex="-1">Saved</button></div>
+        <section id="recent-attempts" class="shelf-panel" role="tabpanel" aria-labelledby="tab-attempts">
+          <div class="shelf-panel-heading"><p class="microcopy">In this project <span id="recent-count"></span></p><button id="discard-character" type="button" class="btn btn-ghost btn-small" hidden>Hide selected</button></div>
+          <p class="microcopy" id="attempts-empty">Your next generations appear here.</p>
+          <div id="recent-list" class="recent-list"></div>
+          <details class="shelf-options"><summary>Manage attempts</summary><button type="button" class="btn btn-ghost btn-small" id="clear-jobs">Hide all in this browser</button></details>
+        </section>
+        <section id="saved-characters" class="shelf-panel" role="tabpanel" aria-labelledby="tab-saved" hidden>
+          <p class="microcopy">Saved library · reusable across projects</p><p class="microcopy" id="library-state" role="status">Loading saved characters…</p>
+          <div id="library-list" class="library-list"></div>
+          <div class="shelf-management"><button id="remove-character" type="button" class="btn btn-ghost btn-small" hidden>Remove from library</button><button id="refresh-library" type="button" class="btn btn-ghost btn-small">Refresh</button></div>
+        </section>
+      </aside>
     </div>
   </main>
 

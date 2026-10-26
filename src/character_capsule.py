@@ -7,12 +7,12 @@ import re
 from pathlib import Path
 from typing import Any
 
-from character_recipe import ENGINE, digest_json, validate_current_recipe, validate_recipe
+from character_recipe import ENGINE, digest_json, validate_current_recipe, validate_recipe, validate_frozen_recipe
 
 
 _ALLOWED_ARTIFACTS = {".png", ".txt"}
 CAPSULE_FORMAT = "opengenjutsu-character-capsule"
-CAPSULE_SCHEMA_VERSION = 6
+CAPSULE_SCHEMA_VERSION = 7
 LEGACY_CAPSULE_SCHEMA_VERSIONS = {1}
 REPLAY_CONTRACT = "Verified image/caption bytes and frozen recipe; pixel-identical output is not guaranteed."
 _JOB_ID = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
@@ -78,7 +78,7 @@ def freeze_capsule(job, recipe: dict[str, Any], image: str | Path, caption: str 
         assets["base_image"] = _asset(base, media_dir)
     capsule = {
         "format": CAPSULE_FORMAT,
-        "schema_version": CAPSULE_SCHEMA_VERSION if recipe["schema_version"] == 6 else 2,
+        "schema_version": recipe["schema_version"] if recipe["schema_version"] in (6, 7) else 2,
         "job_id": job.id,
         "parent_job_id": job.meta.get("parent_job_id"),
         "engine": ENGINE,
@@ -109,11 +109,13 @@ def _validate_asset_metadata(value: Any, suffix: str) -> None:
 
 def _validate_capsule_shape(capsule: dict[str, Any], job) -> None:
     version = capsule.get("schema_version")
+    if type(version) is not int:
+        raise ValueError("The frozen Character capsule schema is unsupported")
     common = {"format", "schema_version", "job_id", "parent_job_id", "engine", "recipe",
               "recipe_sha256", "assets", "replay", "capsule_id"}
     if version in LEGACY_CAPSULE_SCHEMA_VERSIONS:
         required = common
-    elif version in (2, CAPSULE_SCHEMA_VERSION):
+    elif version in (2, 6, CAPSULE_SCHEMA_VERSION):
         required = common | {"resolved_caption"}
         if not isinstance(capsule.get("resolved_caption"), str) or not capsule["resolved_caption"].strip():
             raise ValueError("The frozen Character resolved caption changed")
@@ -127,14 +129,20 @@ def _validate_capsule_shape(capsule: dict[str, Any], job) -> None:
     if parent is not None and (not isinstance(parent, str) or not _JOB_ID.fullmatch(parent)):
         raise ValueError("The frozen Character capsule lineage changed")
     replay = capsule.get("replay")
-    if replay != {"contract": REPLAY_CONTRACT, "model_weights_hashed": False}:
+    if (not isinstance(replay, dict)
+            or replay != {"contract": REPLAY_CONTRACT, "model_weights_hashed": False}
+            or replay.get("model_weights_hashed") is not False):
         raise ValueError("The frozen Character replay contract changed")
+    recipe = capsule.get("recipe")
+    # Legacy envelopes predate recipes 6/7; they must never hide future contracts.
+    allowed_recipes = {1: (1, 2, 3, 4, 5), 2: (1, 2, 3, 4, 5), 6: (6,), 7: (7,)}[version]
+    if (not isinstance(recipe, dict) or type(recipe.get("schema_version")) is not int
+            or recipe["schema_version"] not in allowed_recipes):
+        raise ValueError("The frozen Character recipe contract changed")
     assets = capsule.get("assets")
     roles = {"image", "caption"}
-    if version == 6:
-        recipe = capsule.get("recipe")
-        if (not isinstance(recipe, dict) or recipe.get("schema_version") != 6
-                or type(recipe.get("face_refine")) is not bool):
+    if version in (6, 7):
+        if type(recipe.get("face_refine")) is not bool:
             raise ValueError("The frozen Character recipe contract changed")
         if recipe["face_refine"]:
             roles.add("base_image")
@@ -164,6 +172,7 @@ def get_capsule(job) -> dict[str, Any]:
     if (not isinstance(recipe, dict) or recipe.get("job_id") != job.id
             or capsule.get("recipe_sha256") != digest_json(recipe)):
         raise ValueError("The frozen Character recipe changed")
+    validate_frozen_recipe(recipe)
     return capsule
 
 

@@ -24,6 +24,22 @@ _FIXTURE_PATH = Path(__file__).with_name("fixtures") / "character_recipe_v1_froz
 _V2_FIXTURE_PATH = Path(__file__).with_name("fixtures") / "character_recipe_v2_frozen.json"
 
 
+def direction_facts_fixture() -> dict:
+    return {
+        "being": "woman", "role": "architect", "build": "a broad powerful build",
+        "hair": "enormous sculptural silver hair", "face": "a square jaw and clear green eyes",
+        "outfit": "a tailored navy wool suit", "attitude": "quietly amused with an upright stance",
+        "primary_axis": "hair",
+    }
+
+
+def direction_wording_fixture(facts=None) -> str:
+    facts = direction_facts_fixture() if facts is None else facts
+    article = "an" if facts["role"][0].lower() in "aeiou" else "a"
+    return (f"An original adult {facts['being']}, {article} {facts['role']}: {facts['build']}, "
+            f"{facts['hair']}, {facts['face']}, wearing {facts['outfit']}, {facts['attitude']}.")
+
+
 def v1_recipe_fixture() -> dict:
     """Rehydrate a captured v1 recipe with its old, non-reconstructed request."""
     frozen = json.loads(_FIXTURE_PATH.read_text(encoding="utf-8"))
@@ -60,3 +76,31 @@ def v2_recipe_fixture() -> dict:
     if (frozen.get("schema_version"), frozen.get("prompt_policy")) != (_V2_SCHEMA_VERSION, _V2_PROMPT_POLICY):
         raise AssertionError("The captured recipe is not v2 evidence")
     return copy.deepcopy(frozen)
+
+
+def v6_recipe_fixture() -> dict:
+    """Captured v6 framing/input and graph digest, independent of the current assembler."""
+    request = (
+        "Full-length photograph of one life-sized original adult, both feet visible, natural camera "
+        "perspective on a plain mid-grey seamless backdrop under soft neutral studio light; "
+        "unretouched photographic skin texture, real hair and fabric, an original locksmith, "
+        "no text, no letters, no logo, no watermark, no border, no frame, exactly one person, "
+        "nothing cropped, clear eyes, coherent facial anatomy; natural adult head-to-body scale "
+        "and limb lengths unless explicitly requested in the character idea; retain the requested "
+        "distinctive hair, face, expression and build with lifelike skin pores and individual hair "
+        "strands, empty hands, no hand-held or carried props"
+    )
+    graph = build_character_graph(request, 11, "3:4 (Portrait Standard)", True, "legacy_v6", upsampler_seed=29)
+    graph_sha256 = "6e32a716edc932191d33c7209a96a2aa0830909947db73c6e008a65a1839f997"
+    if digest_json(graph) != graph_sha256:
+        raise AssertionError("The captured v6 graph no longer matches its frozen request")
+    return {
+        "schema_version": 6, "engine": ENGINE, "prompt_policy": "character-v6", "job_id": "legacy_v6",
+        "raw_direction": "an original locksmith", "direction_origin": "generated", "trend_id": "original",
+        "selections": {axis: "model_decides" for axis in
+                       ("being", "build", "skin_tone", "hair", "face", "outfit", "role", "era", "attitude")},
+        "mode": "portrait", "aspect_ratio": "3:4 (Portrait Standard)", "resolved_request": request,
+        "sampler_seed": 11, "upsampler_seed": 29, "upsampler": True, "face_refine": False,
+        "model_roles": copy.deepcopy(MODEL_ROLES), "vendor_workflow_sha256": VENDOR_WORKFLOW_SHA256,
+        "system_prompt_sha256": SYSTEM_PROMPT_SHA256, "graph_template": graph, "graph_sha256": graph_sha256,
+    }

@@ -255,9 +255,9 @@ class RefinePolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "earlier policy"):
             validate_current_recipe(V5)
 
-    def test_schema6_graph_preserves_base_and_freezes_detail_policy(self):
+    def test_schema7_graph_preserves_base_and_freezes_detail_policy(self):
         recipe = refined()
-        self.assertEqual((recipe["schema_version"], recipe["prompt_policy"]), (6, "character-v6"))
+        self.assertEqual((recipe["schema_version"], recipe["prompt_policy"]), (7, "character-v7"))
         self.assertIs(recipe["face_refine"], True)
         graph = recipe["graph_template"]
         from character_graphs import build_character_graph
@@ -310,7 +310,7 @@ class RefineWorkerTests(unittest.TestCase):
         self.assertEqual(self.job.status, "done", self.job.error)
         self.assertEqual(captured, [{"image":("character_refined", {".png"}), "base_image":("9", {".png"}), "caption":("character_caption", {".txt"})}])
         frozen = get_capsule(self.job)
-        self.assertEqual(frozen["schema_version"], 6)
+        self.assertEqual(frozen["schema_version"], 7)
         self.assertEqual(set(frozen["assets"]), {"image", "caption", "base_image"})
         self.assertEqual(replay_recipe(self.job, self.media), self.recipe)
         base = __import__('pathlib').Path(self.job.meta["character_base_image"])

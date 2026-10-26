@@ -12,6 +12,7 @@ import core  # noqa: E402
 from core import Job  # noqa: E402
 from character_recipe import ENGINE, make_recipe  # noqa: E402
 from character_pipeline import run_character_pipeline  # noqa: E402
+from tests.character_recipe_fixtures import direction_facts_fixture, direction_wording_fixture
 
 
 def png(width=880, height=1184):
@@ -36,7 +37,8 @@ class CharacterPipelineTests(unittest.TestCase):
         patch.object(core, "WORK", Path(self.tmp.name)).start()
         self.media = Path(self.tmp.name) / "media"
         self.recipe = make_recipe(
-            job_id="character_worker_1", direction="an original beekeeper", mode="portrait",
+            job_id="character_worker_1", direction=direction_wording_fixture(),
+            direction_facts=direction_facts_fixture(), mode="portrait",
             trend_id="original", selections={"hair": "blunt bowl cut"}, sampler_seed=10,
             upsampler_seed=20, upsampler=True)
         self.job = Job(id="character_worker_1", engine=ENGINE, meta={"character_recipe": self.recipe})

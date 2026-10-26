@@ -115,6 +115,13 @@ Characters and native continuity likewise require their separate manifest roles.
 Restart your own ComfyUI only when its work is idle, then check its actual node and
 loader inventory; a successful weight download is not a proven GPU render.
 
+See [executor setup](executor-setup.md) for the exact standalone custom-node
+source/version selections, attention/quantization prerequisites and optional H3
+vision snapshot preloading. The scoped check `--engine h3` does not require LTX,
+Characters or experimental continuity packs. `--engine ltx` includes FLUX editing.
+Use `--engine all --with-descriptions` to check both and optional vision choices;
+HF snapshot file presence still needs executor-side verification.
+
 ## 3. Launch the proxy explicitly
 
 Start ComfyUI with the required nodes and weights first. In terminal A, from this

@@ -108,7 +108,7 @@ The competition requires the combined techniques to be explained in the demo vid
 - **FLUX 2 Klein** (Black Forest Labs) as the first-frame image editor in LTX Studio
 - **LTX 2.5 + Ripple FFAF IC-LoRA** as the motion stage in LTX Studio
 - **MiniMax H3**, two-pass sampling, with the **Character Swap LoRA `h3_character_swap_v1.5` by akatz-ai** in H3 Studio
-- a **local vision model** (`Qwen3-VL-4B`) that reads the source clip and each reference image to write the descriptions the studio freezes into the take
+- an optional **local vision model** (`Qwen3-VL-2B-Instruct`, 4-bit quantization) that reads the H3 source clip and references to write descriptions frozen into the take
 
 > **Commercial use needs separate model licences.** The weights this project runs are not all
 > licensed for paid work, and two of them are the reason to read carefully:
@@ -166,6 +166,13 @@ The LTX 2.5 components and Ripple adapter have separate model licenses/terms. Re
 | Local SDK proxy | `comfy-api-proxy` 0.1.6, installed only with `--with-proxy`; bridges the SDK v2 API to self-hosted ComfyUI |
 
 The frame editor also requires FLUX.2 Klein 9B and its ComfyUI-compatible text encoder/VAE installed locally. Model downloads are user-managed and must follow each model's terms.
+
+For both engines, use the [executor setup guide](docs/executor-setup.md) and the
+source/version selections in `dependencies.json`. The reference executor reports
+ComfyUI0.42.0; that is not a measured minimum-version promise. Check the actual
+classes and loader choices with `scripts/check_dependencies.py --engine h3` or
+`--engine ltx`. `--with-descriptions` explicitly includes the optional H3 vision
+prerequisites; it does not attest that their HF files are already downloaded.
 
 
 ---

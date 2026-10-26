@@ -48,7 +48,14 @@
         "ltx-frame-edit",
         "h3-recast"
       ],
-      "required": true
+      "required": true,
+      "install": {
+        "kind": "registry",
+        "version": "1.7.9",
+        "package_url": "https://cdn.comfy.org/kosinkadink/comfyui-videohelpersuite/1.7.9/node.zip",
+        "package_sha256": "ac63991d8b237afe5b2cd2b287a14b4a4d40ff203c0f2ee9d5fe61059f57cdf8",
+        "verification": "downloaded registry archive hashed and exports inspected; fresh import not verified"
+      }
     },
     {
       "name": "ComfyUI-LTXVideo",
@@ -59,7 +66,12 @@
       "used_by": [
         "ltx-ripple"
       ],
-      "required": true
+      "required": true,
+      "install": {
+        "kind": "git",
+        "revision": "44c8a36b7c31ee00b4271daed11dc2a4aa481140",
+        "verification": "upstream exports inspected; fresh executor import/render not verified"
+      }
     },
     {
       "name": "ComfyUI-KJNodes",
@@ -69,13 +81,20 @@
         "PathchSageAttentionKJ",
         "VAELoaderKJ",
         "LTX2MemoryEfficientSageAttentionPatch",
-        "INTConstant"
+        "INTConstant",
+        "ImageBatchMulti"
       ],
       "used_by": [
-        "ltx-ripple"
+        "ltx-ripple",
+        "h3-descriptions"
       ],
       "required": true,
-      "warning": "On the reference machine these arrive from a locally bundled folder named comfyui-workflow-encrypt. Install KJNodes upstream; the bundled name is not installable."
+      "warning": "Reference classes resolve through a bundled folder; install the standalone upstream at the declared revision, not that local folder. Source exports checked; fresh import and CUDA kernels still require target validation.",
+      "install": {
+        "kind": "git",
+        "revision": "f20bdd5337ace70abbec147bdb68ea345d340836",
+        "verification": "upstream exports inspected; fresh executor import/render not verified"
+      }
     },
     {
       "name": "ComfyUI_Res4lyf",
@@ -86,7 +105,12 @@
       "used_by": [
         "ltx-ripple"
       ],
-      "required": true
+      "required": true,
+      "install": {
+        "kind": "git",
+        "revision": "56e44755d866c87ff9cb4b6608c8e42155db6ecc",
+        "verification": "upstream exports inspected; fresh executor import/render not verified"
+      }
     },
     {
       "name": "MiniMaxH3-LatentUpscaler",
@@ -98,7 +122,12 @@
         "h3-recast"
       ],
       "required": true,
-      "warning": "Two packs of this name are installed on the reference machine. Pin one and assert the resolved python_module at startup."
+      "warning": "Two packs of this name are installed on the reference machine. Pin one and assert the resolved python_module at startup.",
+      "install": {
+        "kind": "git",
+        "revision": "40316cf008b2fd8663263270669eb4da23f89d2c",
+        "verification": "upstream exports inspected; fresh executor import/render not verified"
+      }
     },
     {
       "name": "comfyui-obvpm",
@@ -175,7 +204,6 @@
         "ComfyMathExpression",
         "ComfyNotNode",
         "CustomCombo",
-        "ImageBatchMulti",
         "JoinStringMulti",
         "LoadAudio",
         "PixaromaH3AudioSync",
@@ -188,8 +216,46 @@
         "h3-continuity"
       ],
       "note": "named by the adopted continuity templates; pack origin not verified on the target"
+    },
+    {
+      "name": "ComfyUI-QwenVL",
+      "source": "https://github.com/1038lab/ComfyUI-QwenVL",
+      "nodes": [
+        "AILab_QwenVL"
+      ],
+      "used_by": [
+        "h3-descriptions"
+      ],
+      "required": false,
+      "install": {
+        "kind": "git",
+        "revision": "1b67b443918801f571714bab636edc1845b7002a",
+        "verification": "reference-reported revision and upstream exports/path resolver inspected; fresh import not verified"
+      },
+      "note": "Optional automatic H3 source/reference descriptions; runtime warns and continues on failure. Model-name choices do not prove local HF snapshot files exist."
     }
   ],
+  "vision_description": {
+    "node": "AILab_QwenVL",
+    "model_name": "Qwen3-VL-2B-Instruct",
+    "quantization": "4-bit (VRAM-friendly)",
+    "repository": "Qwen/Qwen3-VL-2B-Instruct",
+    "revision": "89644892e4d85e24eaac8bacfd4f463576704203",
+    "local_dir": "LLM/Qwen/Qwen3-VL-2B-Instruct",
+    "source": "https://huggingface.co/Qwen/Qwen3-VL-2B-Instruct",
+    "snapshot_size_bytes_declared": 4266648961,
+    "used_by": [
+      "h3-descriptions"
+    ],
+    "required": false,
+    "python_dependencies": [
+      "transformers>=4.57.0",
+      "bitsandbytes",
+      "accelerate",
+      "huggingface-hub"
+    ],
+    "note": "2B is model size; 4-bit is runtime quantization, not a 4B model. No checkpoint family substitution. Preload a new empty directory or allow upstream acquisition only on an explicit job; API choices cannot attest disk files or CUDA compatibility."
+  },
   "core_nodes": {
     "note": "Provided by ComfyUI itself; nothing to install. Listed so a version floor can be checked.",
     "from_comfy_extras": [

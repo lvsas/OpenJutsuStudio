@@ -162,13 +162,17 @@ class CapsulesManifestTests(unittest.TestCase):
             fields.setdefault(field, [[], {}])[0].append(entry["file"])
         report = checker.check(inventory, manifest)
         self.assertFalse(checker.required_missing(report))
-        self.assertEqual(set(report["optional_missing_nodes"]), {
-            "comfyui-obvpm", "comfyui-obvpm-timeline", "ComfyUI-OpenJutsu-Capsules"})
+        native_names = {"comfyui-obvpm", "comfyui-obvpm-timeline", "ComfyUI-OpenJutsu-Capsules"}
+        self.assertTrue(native_names <= set(report["optional_missing_nodes"]))
+        self.assertIn("ComfyUI-QwenVL", report["optional_missing_nodes"])
         self.assertTrue({"missing_nodes", "present_packs", "missing_models", "missing_core_nodes",
                          "planned_roles", "checked_models"} <= report.keys())
         native = checker.check(inventory, manifest, selected_features=[NATIVE])
         self.assertTrue(checker.required_missing(native))
-        self.assertEqual(set(native["missing_nodes"]), set(report["optional_missing_nodes"]))
+        self.assertEqual(set(native["missing_nodes"]), native_names)
+        self.assertIn("ComfyUI-QwenVL", native["optional_missing_nodes"])
+        described = checker.check(inventory, manifest, selected_features=['h3-descriptions'])
+        self.assertEqual(set(described['missing_nodes']), {'ComfyUI-QwenVL'})
         for pack in manifest["comfyui_packs"]:
             inventory.update({node: {} for node in pack["nodes"] if node not in inventory})
         self.assertFalse(checker.required_missing(checker.check(

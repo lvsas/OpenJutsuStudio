@@ -4,7 +4,9 @@
 Reads `dependencies.json` and asks the target's `/object_info`, then reports, per category, what is
 absent. Exits non-zero when something required is missing, so it can gate a deployment.
 
-    python3 scripts/check_dependencies.py --host http://127.0.0.1:8188
+    python3 scripts/check_dependencies.py --host http://127.0.0.1:8188 --engine all
+    python3 scripts/check_dependencies.py --host <url> --engine h3 --with-descriptions
+    python3 scripts/check_dependencies.py --object-info inventory.json --engine ltx
     python3 scripts/check_dependencies.py --host <url> --include-planned   # also the FLUX 3 set
     python3 scripts/check_dependencies.py --host <url> --feature h3-native-continuity-experimental
     python3 scripts/check_dependencies.py --host <url> --feature characters
@@ -127,9 +129,83 @@ def check(object_info, manifest, include_planned=False, selected_features=()):
     return report
 
 
+def runtime_graph(engine, *, descriptions=False):
+    """The shipped Swap builders, declared defaults only; never submit or resolve Settings."""
+    if engine not in ('ltx', 'h3', 'all'):
+        raise ValueError('Unknown Swap engine')
+    if descriptions and engine == 'ltx':
+        raise ValueError('Vision descriptions belong to H3')
+    stages = {}
+    if engine in ('ltx', 'all'):
+        from graphs import build_frame_edit, build_ripple
+        stages['edit'] = build_frame_edit('placeholder.png', 'edit', model_files={})
+        stages['ripple'] = build_ripple('placeholder.mp4', 'placeholder.png', model_files={})
+    if engine in ('h3', 'all'):
+        from h3_graphs import H3Models, build_h3_recast
+        stages['h3'] = build_h3_recast('placeholder.mp4', 'placeholder.png', 'edit',
+            source_frames=22, models=H3Models.configured({}), guide_image='guide.png', guide_frame=0)
+    if descriptions:
+        from h3_preserve import build_preserve_graph
+        stages['vision'] = build_preserve_graph(['frame.png'] * 4)
+    return {stage + '_' + key: node for stage, graph in stages.items() for key, node in graph.items()}
+
+
+def check_swap(object_info, manifest, engine='all', *, descriptions=False):
+    """Exact engine inventory gate; optional HF snapshot presence is not observable here."""
+    graph = runtime_graph(engine, descriptions=descriptions)
+    required = {node['class_type'] for node in graph.values()}
+    report = {'scope': engine, 'missing_nodes': {}, 'present_packs': [], 'missing_models': [],
+              'missing_core_nodes': [], 'planned_roles': [], 'checked_models': 0,
+              'optional_missing_nodes': {}, 'unknown_inventory': [], 'provisioning_notes': []}
+    declared = set()
+    for pack in manifest.get('comfyui_packs', []):
+        used = required.intersection(pack['nodes'])
+        if not used:
+            continue
+        declared.update(used)
+        absent = sorted(used - object_info.keys())
+        if absent:
+            present = sorted(used.intersection(object_info))
+            report['missing_nodes'][pack['name']] = {'missing': absent, 'present': present,
+                'resolved_module': sorted({object_info[n].get('python_module', '') for n in present})}
+        else:
+            report['present_packs'].append(pack['name'])
+    core = manifest.get('core_nodes', {})
+    declared_core = set(core.get('from_core', []) + core.get('from_comfy_extras', []))
+    report['missing_core_nodes'] = sorted((required & declared_core) - object_info.keys())
+    undeclared = sorted(required - declared - declared_core)
+    if undeclared:
+        report['missing_nodes']['UNDECLARED runtime dependencies'] = {
+            'missing': undeclared, 'present': [], 'resolved_module': []}
+    fields = {'unet_name', 'clip_name', 'vae_name', 'lora_name', 'model_name'}
+    seen = set()
+    for node in graph.values():
+        name = node['class_type']
+        if name not in object_info:
+            continue
+        selected_fields = fields | ({'quantization', 'attention_mode'} if name == 'AILab_QwenVL' else set())
+        for field, value in node['inputs'].items():
+            if field not in selected_fields or not isinstance(value, str) or (name, field, value) in seen:
+                continue
+            seen.add((name, field, value))
+            report['checked_models'] += 1
+            options = loader_choices(object_info, name, field)
+            detail = {'file': value, 'loader': name + '.' + field}
+            if options is None:
+                report['unknown_inventory'].append(detail)
+            elif value not in options:
+                report['missing_models'].append(detail)
+    if descriptions:
+        report['provisioning_notes'].append(
+            'Vision HF snapshot files are not verified by model-name choices; pre-stage the declared '
+            'snapshot on the executor. The upstream node can download missing weights on an explicit job.')
+    return report
+
+
 def required_missing(report):
     """Use the same readiness verdict for the exit code and the human summary."""
     return bool(report["missing_nodes"] or report["missing_core_nodes"] or report["missing_models"]
+                or report.get("unknown_inventory")
                 or any(role.get("required", True) and not role["satisfied"]
                        for role in report["planned_roles"]))
 
@@ -156,7 +232,8 @@ def print_report(report, as_json=False):
         print(f"  OPTIONAL {pack}: {', '.join(detail['missing'])}")
     if report["missing_core_nodes"]:
         print(f"  ComfyUI too old for: {', '.join(report['missing_core_nodes'])}")
-    print(f"models checked     : {report['checked_models']}")
+    label = 'loader choices' if report.get('scope') else 'models checked'
+    print(f"{label:<19}: {report['checked_models']}")
     for item in report["missing_models"]:
         marker = " (planned)" if item.get("planned") else ""
         print(f"  MISSING {item['file']}{marker}")
@@ -167,8 +244,13 @@ def print_report(report, as_json=False):
             marker = "MISSING" if entry.get("required", True) else "OPTIONAL"
             print(f"  role {entry['role']:<18} {marker} — needs one of: "
                   f"{', '.join(entry['alternatives'])}")
+    for item in report.get('unknown_inventory', []):
+        print(f"  UNKNOWN inventory: {item['loader']}")
+    for note in report.get('provisioning_notes', []):
+        print('  NOTE: ' + note)
     if not required_missing(report):
-        print("everything required is present")
+        print('required node/loader inventory is present (not a GPU or HF-files proof)'
+              if report.get('scope') else "everything required is present")
 
 
 def main(argv=None):
@@ -176,6 +258,12 @@ def main(argv=None):
     parser.add_argument("--host", default="http://127.0.0.1:8188",
                         help="base URL of the ComfyUI to check")
     parser.add_argument("--manifest", default=str(MANIFEST))
+    parser.add_argument('--engine', choices=('ltx', 'h3', 'all'),
+                        help='Check real Swap graph scope, not all historical templates')
+    parser.add_argument('--with-descriptions', action='store_true',
+                        help='Include optional H3 vision node/model/quantization choices')
+    parser.add_argument('--object-info', type=Path,
+                        help='Read a saved inventory instead of contacting any server')
     parser.add_argument("--include-planned", action="store_true",
                         help="include planned dependencies and select character-generator roles")
     parser.add_argument("--feature", action="append", default=[],
@@ -184,20 +272,43 @@ def main(argv=None):
     parser.add_argument("--json", action="store_true", help="print the report as JSON")
     args = parser.parse_args(argv)
 
-    manifest = load_manifest(args.manifest)
+    if (args.engine or args.with_descriptions) and (args.feature or args.include_planned):
+        parser.error('Swap scope and legacy advanced-feature selection are separate checks')
+    if args.engine == 'ltx' and args.with_descriptions:
+        parser.error('Vision descriptions belong to H3; select h3 or all')
+    try:
+        manifest = load_manifest(args.manifest)
+        if not isinstance(manifest, dict):
+            raise ValueError('Invalid manifest')
+    except (OSError, ValueError):
+        print('Cannot read dependency manifest.', file=sys.stderr)
+        return 2
     features = {feature for pack in manifest.get("comfyui_packs", [])
                 for feature in pack.get("used_by", [])}
     features.update(manifest.get("character_generator", {}).get("used_by", ["characters"]))
     if set(args.feature) - features:
         parser.error(f"unknown feature; choose from: {', '.join(sorted(features))}")
     try:
-        object_info = fetch_object_info(args.host)
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        print(f"cannot reach {args.host}: {exc}", file=sys.stderr)
+        if args.object_info:
+            object_info = json.loads(args.object_info.read_text())
+        else:
+            from urllib.parse import urlsplit
+            parsed = urlsplit(args.host)
+            if (parsed.scheme not in ('http', 'https') or not parsed.hostname
+                    or parsed.username or parsed.password or parsed.query or parsed.fragment):
+                raise ValueError('Invalid host URL')
+            object_info = fetch_object_info(args.host)
+        if not isinstance(object_info, dict):
+            raise ValueError('Invalid inventory')
+    except (OSError, ValueError, TimeoutError):
+        print('Cannot read ComfyUI inventory; verify endpoint or snapshot (no generation attempted).', file=sys.stderr)
         return 2
 
-    report = check(object_info, manifest, include_planned=args.include_planned,
-                   selected_features=args.feature)
+    report = (check_swap(object_info, manifest, args.engine or 'all', descriptions=args.with_descriptions)
+              if args.engine or args.with_descriptions else
+              check(object_info, manifest, include_planned=args.include_planned,
+                    selected_features=args.feature))
+    report['inventory_source'] = 'snapshot' if args.object_info else 'live'
     print_report(report, as_json=args.json)
 
     return 1 if required_missing(report) else 0

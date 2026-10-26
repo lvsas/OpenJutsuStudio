@@ -7,7 +7,7 @@ supplier is evaluated on each request. Registration is an app decision.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated, Callable
+from typing import Annotated, Callable, Literal
 
 from fastapi import APIRouter, HTTPException, Path as ApiPath
 from fastapi.responses import FileResponse, JSONResponse
@@ -65,6 +65,16 @@ def create_router(get_work_dir: Callable[[], Path]) -> APIRouter:
         if download:
             headers['Content-Disposition'] = f'attachment; filename="take-{take_id}.capsule.json"'
         return JSONResponse(document, headers=headers)
+
+    @router.get('/{take_id}/artifacts/{role}')
+    def artifact(take_id: TakeId, role: Literal['video', 'mctx', 'conditioning']):
+        """Explicit private native backup bytes; never an automatic preview download."""
+        family = _read(get_validated_family, get_work_dir(), take_id, missing_status=409)
+        suffix = {'video': '.mp4', 'mctx': '.mctx.safetensors',
+                  'conditioning': '.cond.safetensors'}[role]
+        return FileResponse(getattr(family, role), media_type='application/octet-stream',
+            filename=f'take-{take_id}{suffix}',
+            headers={**_PRIVATE, 'X-Content-Type-Options': 'nosniff'})
 
     @router.get('/{take_id}/poster')
     def poster(take_id: TakeId):

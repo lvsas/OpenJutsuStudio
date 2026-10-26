@@ -106,12 +106,13 @@
               <span class="quality-state">Fixed</span>
             </div>
           </fieldset>
-
           <details class="advanced-settings">
-            <summary>Advanced controls <span>Seed</span></summary>
+            <summary>Advanced controls <span>Seed · native state</span></summary>
             <label class="field-label" for="h3-seed">Seed</label>
             <input id="h3-seed" name="seed" class="text-input" type="text" inputmode="numeric" pattern="[0-9]{1,20}" value="302929098223082" required aria-describedby="h3-seed-help">
             <p id="h3-seed-help" class="field-help">Unsigned 64-bit integer. Replays use the frozen recipe, not this form.</p>
+            <label class="field-label" for="h3-native-capture"><input id="h3-native-capture" type="checkbox" name="native_capture" value="true"> Save native state too</label>
+            <p class="field-help">Optional private video, MCTX and conditioning. Applies to the next generation or re-run, not the saved parent.</p>
           </details>
           <button id="h3-submit" class="btn btn-primary generate-button" type="submit" disabled><span>Generate swap</span><span aria-hidden="true">→</span></button>
           <p id="h3-form-help" class="field-help">Add a source and one reference. H3 must be ready to submit.</p>
@@ -178,10 +179,19 @@
           <details id="h3-completion-more" class="completion-more"><summary>More / technical details</summary>
           <button id="h3-copy-caption" class="btn btn-secondary btn-small" type="button">Copy caption</button>
           <div class="export-actions">
-            <button id="h3-save-capsule" class="btn btn-secondary btn-small" type="button" disabled>Save Capsule JSON</button>
+            <button id="h3-save-capsule" class="btn btn-secondary btn-small" type="button" disabled>Save recipe receipt JSON</button>
             <button id="h3-replay" class="btn btn-secondary btn-small" type="button" disabled>Re-run this take</button>
           </div>
           <p id="h3-capsule-status" class="microcopy" role="status">Checking the frozen recipe…</p>
+          <p id="h3-native-state-status" class="microcopy" role="status" hidden></p>
+          <section id="h3-native-state" hidden aria-label="Native state version"><strong>Native state version</strong>
+            <p id="h3-native-seconds" class="microcopy"></p>
+            <p class="microcopy">The native version retains the full sampled duration and generated audio. The finished Swap retains original timing and source audio. These are distinct versions; forward compatibility is not verified here.</p>
+            <div class="export-actions"><a id="h3-native-video" class="btn btn-secondary btn-small" download>Private native video</a>
+              <a id="h3-native-mctx" class="btn btn-secondary btn-small" download>MCTX state</a>
+              <a id="h3-native-conditioning" class="btn btn-secondary btn-small" download>Conditioning</a>
+              <a id="h3-native-timeline" class="btn btn-secondary btn-small">Choose version in Timeline</a></div>
+            <p class="microcopy">Recipe receipt JSON is not a native backup. Native files are private; download only when you choose.</p></section>
           <details id="h3-capsule-details" class="capsule-inspector" hidden>
             <summary>Technical provenance: frozen recipe and fingerprints</summary>
             <pre id="h3-capsule-manifest" class="capsule-manifest"></pre>

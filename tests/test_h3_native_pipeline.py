@@ -56,7 +56,9 @@ class NativePipelineTests(unittest.TestCase):
         self.remote.status = 'succeeded'
         self.remote.get_outputs.return_value = [image, video]
 
-        self.download = patch.object(pipeline, 'download_h3_artifacts').start()
+        self.download = patch.object(pipeline, 'download_h3_artifacts',
+            side_effect=lambda remote, node, folder: folder.mkdir()).start()
+        patch.object(pipeline, 'missing_dependencies', return_value=([], [])).start()
         self.import_family = patch.object(pipeline, 'import_family').start()
         self.import_family.return_value = MagicMock(take_id='c' * 32)
 

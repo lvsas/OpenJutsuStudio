@@ -24,8 +24,9 @@ function syncStage() {
 
 function update() {
   const locked = pending || take.active;
+  byId('native-state').inert = locked;
   clip.setLocked(locked);
-  for (const field of ['video', 'reference', 'seed', 'add-second-reference', 'remove-reference']) byId(field).disabled = locked;
+  for (const field of ['video', 'reference', 'seed', 'native-capture', 'add-second-reference', 'remove-reference']) byId(field).disabled = locked;
   byId('reference-2').disabled = locked || byId('second-reference').hidden;
   for (const field of ['edit', 'description']) byId(field).disabled = locked || !byId('directions').open;
   const inputs = byId('video').files.length === 1 && byId('reference').files.length === 1;
@@ -49,9 +50,12 @@ async function checkReadiness() {
   badge.textContent = 'Checking local studio…';
   notes.hidden = true;
   try {
-    const report = await request('/api/h3/readiness', {signal: AbortSignal.timeout(20000)});
+    const report = await request('/api/h3/readiness' + (byId('native-capture').checked ? '?native_capture=true' : ''), {signal: AbortSignal.timeout(20000)});
     if (epoch !== readinessEpoch) return false;
-    ready = report.ready === true;
+    ready = report.ready === true && (!byId('native-capture').checked || report.native_capture_supported === true);
+    if (byId('native-capture').checked && report.native_capture_supported !== true) {
+      report.issues = ['This application has not confirmed native capture support. Retry availability after the backend update, or uncheck native state.'];
+    }
     clip.setLimit(report.limits?.max_clip_seconds);
     badge.classList.toggle('live', ready);
     badge.textContent = ready ? (report.inventory_verified === false ? 'Connected · dependencies unchecked' : 'Studio ready') : (report.issues || ['Studio unavailable']).join(' ');
@@ -170,6 +174,9 @@ async function submit(event) {
   update();
   byId('run-overlay').hidden = false;
   try {
+    if (data.get('native_capture') === 'true' && !await checkReadiness()) {
+      throw new Error('Native state capture is not confirmed. Check availability or uncheck native state.');
+    }
     const projectId = await window.OpenGenjutsuProject?.ensure();
     if (projectId) data.set('project_id', projectId);
     const response = await request('/api/h3/jobs', {method: 'POST', body: data});
@@ -191,6 +198,7 @@ async function submit(event) {
 }
 form.addEventListener('submit', submit);
 byId('directions').addEventListener('toggle', update);
+byId('native-capture').addEventListener('change', () => { if (!pending && !take.active) checkReadiness(); });
 for (const [field, kind] of [['video', 'source'], ['reference', 'reference'],
                              ['reference-2', 'reference']]) {
   byId(field).addEventListener('change', () => {

@@ -81,8 +81,13 @@ def native_take_link(store, job) -> dict:
     try:
         take_id = identifier(job.meta.get('native_take_id'))
         record = get_take(store.work, take_id)
-        if record.to_manifest()['origin']['source_job'] == job.id:
-            return {'native_take_id': take_id}
+        origin = record.to_manifest()['origin']
+        if origin['source_job'] == job.id:
+            result = {'native_take_id': take_id}
+            if origin.get('operator_label') == 'native-swap':
+                from h3_swap_native import NATIVE_ARTIFACT_RELATION
+                result['native_artifact_relation'] = NATIVE_ARTIFACT_RELATION
+            return result
     except (ValueError, OSError, KeyError, TypeError):
         pass
     return {}

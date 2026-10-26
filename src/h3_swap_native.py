@@ -27,6 +27,7 @@ SAVE_NODE = 'native_swap_save'
 HANDLE_NODE = 'native_swap_clip_handle'
 AUDIO_NODE = 'native_swap_audio'
 _VERSION = 'opengenjutsu.h3-swap-capture.v1'
+NATIVE_ARTIFACT_RELATION = 'native-raw-family-and-distinct-finished-swap'
 _HEX32 = re.compile(r'[0-9a-f]{32}\Z')
 _HEX64 = re.compile(r'[0-9a-f]{64}\Z')
 _ASSET_ID = re.compile(r'[A-Za-z0-9_.:-]{1,256}\Z')
@@ -64,6 +65,21 @@ def _asset(value):
             or not isinstance(identifier, str) or not _ASSET_ID.fullmatch(identifier)):
         raise ValueError('Native Swap requires committed SDK asset IDs')
     return identifier
+
+
+def native_inventory_graph(recipe, *, operation_id, weights=None):
+    """Compile the exact capture shape with sentinel assets; never submit these IDs."""
+    recipe = validate_recipe(recipe)
+    graph = copy.deepcopy(recipe['graph_template'])
+    asset = lambda name: {'__type': 'core/ASSET', 'info': {'id': 'inventory-' + name}}
+    graph['155']['inputs']['video'] = asset('source')
+    for index in range(recipe['reference_count']):
+        graph[str(REFERENCE_NODE + index)]['inputs']['image'] = asset(f'reference-{index}')
+    graph['156']['inputs']['filename_prefix'] = f'OpenGenjutsu/h3-{operation_id}'
+    profile = ({role: Weight(name) for role, name in recipe['model_files'].items()}
+               if weights is None else weights)
+    return build_swap_native_capture(recipe, graph, operation_id=operation_id,
+                                     weights=profile, publish_family=True).graph
 
 
 def build_swap_native_capture(recipe, graph, *, operation_id, weights, publish_family=False):
@@ -135,7 +151,7 @@ def build_swap_native_capture(recipe, graph, *, operation_id, weights, publish_f
         'sampler_output': ['170', 1], 'conditioning': ['136', 0],
         'seed': recipe['seed'], 'steps': recipe['steps'], 'split_step': recipe['split_step'],
         'runtime_verified': False, 'forward_verified': False,
-        'artifact_relation': 'native-raw-family-and-distinct-finished-swap',
+        'artifact_relation': NATIVE_ARTIFACT_RELATION,
         # Never claim a measured identity the caller did not actually measure.
         'weight_verification': ('measured-on-owning-machine' if measured
                                 else 'filename-only; bytes not measured'),

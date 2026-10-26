@@ -5,16 +5,19 @@ other jobs. Dispatch this function in the application's normal worker queue.
 """
 import copy
 import hashlib
+import os
 import time
 from dataclasses import asdict
 from pathlib import Path
 import core
 from comfy_transport import make_client
-from continuable_take import get_take, import_family
-from h3_artifact_transport import download_h3_artifacts
+from continuable_take import import_family, recover_imported_family
+from h3_artifact_transport import download_h3_artifacts, revalidate_downloaded_h3_artifacts
 from h3_continuity_graphs import Weight
 from h3_graphs import H3Models, REFERENCE_NODE
-from h3_swap_native import build_swap_native_capture
+from h3_swap_native import build_swap_native_capture, native_inventory_graph, NATIVE_ARTIFACT_RELATION
+from continuity_pipeline import _carry_reference
+from readiness import missing_dependencies
 from h3_media import prepare_source, finish_result, validate_result, has_audio
 from h3_capsule import contained, digest_file, freeze_capsule
 from h3_preserve import describe_character, describe_preserved
@@ -127,23 +130,38 @@ def _published_mp4(remote, folder):
     return destination
 
 
-def _publish_native_take(job, remote, folder, media_dir, graph):
-    """Download the family from this job and register it as an immutable Take."""
-    destination = folder / 'native'
-    download_h3_artifacts(remote, NATIVE_FAMILY_NODE, destination)
+def _publish_native_take(job, remote, folder, media_dir, graph, *, references=()):
+    """Collect once, carry reference bytes, and reuse only a revalidated matching Take."""
     take_id = native_operation_id(job)
+    def recovered():
+        return recover_imported_family(core.WORK, take_id, captured_graph=graph,
+                                       source_job=job.id, operator_label='native-swap')
+    published = recovered()
+    if published is not None:
+        return published.record.take_id
+    destination = folder / 'native'
+    if os.path.lexists(destination):
+        revalidate_downloaded_h3_artifacts(remote, NATIVE_FAMILY_NODE, destination)
+    else:
+        download_h3_artifacts(remote, NATIVE_FAMILY_NODE, destination)
+    carried = []
+    for index, reference in enumerate(references, start=1):
+        source = Path(reference)
+        target = destination / f'reference-{index}{source.suffix.lower()}'
+        _carry_reference(source, target)
+        carried.append(target)
     try:
         record = import_family(
-            destination / 'take.mp4',
-            destination / 'take.mctx.safetensors',
-            destination / 'take.cond.safetensors',
-            root=media_dir, work=core.WORK, captured_graph=graph,
-            take_id=take_id, graph_completeness='complete',
+            destination / 'take.mp4', destination / 'take.mctx.safetensors',
+            destination / 'take.cond.safetensors', root=destination, work=core.WORK,
+            captured_graph=graph, take_id=take_id, graph_completeness='complete',
             graph_source='operator_capture', source_job=job.id,
-            operator_label='native-swap')
+            operator_label='native-swap', references=carried)
     except FileExistsError:
-        # A retried collection reuses what is already published.
-        return get_take(core.WORK, take_id).take_id
+        published = recovered()
+        if published is None:
+            raise ValueError('Native Take publication could not be confirmed') from None
+        return published.record.take_id
     return record.take_id
 
 
@@ -186,6 +204,18 @@ def run_h3_pipeline(job, video_path, opts):
             raise ValueError('Replay conditioning audio differs from the frozen recipe')
         if recipe['source_frames_24fps'] not in (None, count):
             raise ValueError('Replay normalization differs from the frozen recipe')
+        native = opts.get('native_capture') is True
+        if native:
+            preview = (bind_frames(recipe, count, source_audio=prepared_audio)
+                       if recipe['source_frames_24fps'] is None else recipe)
+            graph = native_inventory_graph(preview, operation_id=native_operation_id(job),
+                                           weights=_weight_profile(opts, preview))
+            try:
+                missing_nodes, missing_models = missing_dependencies(graph)
+            except Exception:
+                raise ValueError('Native state inventory could not be verified. No inference was submitted.') from None
+            if missing_nodes or missing_models:
+                raise ValueError('Native state dependencies are unavailable. No inference was submitted.')
         client = make_client()
         if recipe['source_frames_24fps'] is None:
             recipe, reference_warning = _complete_reference_descriptions(
@@ -222,7 +252,6 @@ def run_h3_pipeline(job, video_path, opts):
         graph['156']['inputs']['filename_prefix'] = f'OpenGenjutsu/h3-{job.id}'
         # The native capture is an explicit opt-in. It appends publication nodes to
         # the same graph, so the Swap is still sampled exactly once.
-        native = opts.get('native_capture') is True
         submitted = graph
         if native:
             # The capture contract owns the server-side output prefix: it must
@@ -247,7 +276,8 @@ def run_h3_pipeline(job, video_path, opts):
         freeze_capsule(job, recipe, source, references, result, media_dir)
         if native:
             job.meta['native_take_id'] = _publish_native_take(
-                job, remote, folder, media_dir, submitted)
+                job, remote, folder, media_dir, submitted, references=references)
+            job.meta['native_artifact_relation'] = NATIVE_ARTIFACT_RELATION
         job.result, job.status, job.step, job.progress = str(result.resolve()), 'done', 'done', 1.0
     except Exception as exc:
         job.status, job.step = 'error', 'h3_error'

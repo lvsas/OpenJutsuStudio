@@ -42,11 +42,11 @@ for (const match of html.matchAll(/<([\w-]+)\b([^>]*\bid="([^"]+)"[^>]*)>/g)) {
   element.dataset = {h3Stage: match[2].match(/data-h3-stage="([^"]+)"/)?.[1]};
   element.hidden = /\bhidden\b/.test(match[2]);
   element.disabled = /\bdisabled\b/.test(match[2]);
+  element.checked = /\bchecked\b/.test(match[2]);
   element.value = match[2].match(/\bvalue="([^"]*)"/)?.[1] || '';
   elements.set(match[3], element);
 }
 elements.set('h3-advanced', new Element('DETAILS'));
-// LTX parity: source summary after frame, capsule media inside result actions.
 for (const kind of ['source', 'reference', 'result']) {
   assert.ok(html.includes(`id="h3-take-${kind}-preview"`), `capsule card ${kind} needs media`);
 }
@@ -55,6 +55,7 @@ const resultActionsAt = html.indexOf('id="h3-result-actions"');
 assert.ok(html.indexOf('id="h3-source-summary"') > frameAt, 'source summary must follow the frame');
 assert.ok(html.indexOf('id="h3-take-story"') > resultActionsAt, 'capsule must sit inside result actions');
 const el = id => elements.get(`h3-${id}`);
+assert.equal(el('native-capture')?.checked,false,'Native capture is explicit opt-in');assert.equal(el('native-state')?.hidden,true,'Native state starts hidden');
 globalThis.document = {getElementById: id => elements.get(id), createElement: tag => new Element(tag.toUpperCase()),
   querySelectorAll: selector => selector === '[data-h3-stage]' ? [...elements.values()].filter(e => e.dataset?.h3Stage) : []};
 const toasts = [];
@@ -140,7 +141,7 @@ await take.replay();
 await settle();
 assert.equal(take.id, child);
 assert.equal(el('result-actions').hidden, true);
-assert.ok(calls.some(([url, opts]) => url.endsWith('/replay') && opts.method === 'POST' && !opts.body));
+assert.ok(calls.some(([url, opts]) => url.endsWith('/replay') && opts.method === 'POST' && JSON.parse(opts.body).native_capture === false));
 job = {...base, id: child, status: 'error', step: 'h3_error', error: 'Input decode failed'};
 handler = () => response(job);
 await take.poll(take.epoch);
@@ -162,7 +163,6 @@ take.resume();
 assert.equal(store.has('opengenjutsu.h3.current-job'), false);
 assert.equal(store.get('opengenjutsu.ltx.current-job'), child);
 await settle();
-// Old restoration cannot replace a newly selected source.
 let resolveOld;
 handler = () => new Promise(resolve => { resolveOld = resolve; });
 const late = new H3Take(() => {}, async () => true);
@@ -188,14 +188,12 @@ const privateTake = new H3Take(() => {}, async () => true);
 privateTake.watch(id); await settle();
 assert.equal(el('result-actions').hidden, false, 'storage denial must not break generation');
 privateTake.reset(); globalThis.localStorage = storage;
-
-// Actual controller, template-derived multipart and advisory readiness.
 const NativeFormData = globalThis.FormData;
 globalThis.FormData = class extends NativeFormData {
   constructor(form) {
     super();
     if (form) for (const field of elements.values()) {
-      if (field.name && !field.disabled) this.append(field.name,
+      if (field.name && !field.disabled && (field.type !== 'checkbox' || field.checked)) this.append(field.name,
         field.type === 'file' ? field.files[0] || new File([], '') : field.value);
     }
   }
@@ -213,6 +211,9 @@ await import('../src/static/h3-studio.js');
 await settle();
 assert.equal(el('submit').disabled, true);
 assert.equal(el('readiness').textContent, 'Studio ready');
+const beforeToggle=calls.length;el('native-capture').checked=true;el('native-capture').events.change();await settle();
+assert.deepEqual(calls.slice(beforeToggle).map(([url])=>url),['/api/h3/readiness?native_capture=true']);
+el('native-capture').checked=false;el('native-capture').events.change();await settle();assert.equal(calls.at(-1)[0],'/api/h3/readiness');
 el('take-reference-preview').src = 'first-reference.png';
 el('take-reference-2-preview').src = 'second-reference.png';
 el('take-reference-2-card').click();
@@ -224,7 +225,6 @@ assert.equal(el('notices').hidden, false);
 el('video').files = [new File(['video bytes'], 'source.webm')];
 el('reference').files = [new File(['image bytes'], 'character.png')];
 el('video').events.change();
-// Explicit metadata: no fake production duration default.
 Object.assign(el('source-preview'), {currentSrc: el('source-preview').src, duration: 8, videoWidth: 1280, videoHeight: 720});
 el('source-preview').events.loadedmetadata();
 el('add-second-reference').click();
@@ -236,7 +236,7 @@ const inFlight = el('form').events.submit({preventDefault() {}});
 await settle();
 const assertFrozenReferences = () => {
   const epoch = controllerTake?.epoch, timer = controllerTake?.pollTimer;
-  for (const field of ['video', 'reference', 'reference-2', 'seed', 'add-second-reference', 'remove-reference'])
+  for (const field of ['video', 'reference', 'reference-2', 'seed', 'native-capture', 'add-second-reference', 'remove-reference'])
     assert.equal(el(field).disabled, true, `${field} must be frozen while submitting/tracking`);
   el('reference-2').events.change();
   if (controllerTake) assert.equal(store.get('opengenjutsu.h3.current-job'), id, 'changing reference 2 cannot abandon queued/running tracking');
@@ -250,7 +250,7 @@ const assertFrozenReferences = () => {
   assert.equal(controllerTake?.epoch, epoch); assert.equal(controllerTake?.pollTimer, timer);
 };
 assertFrozenReferences();
-assert.equal(submitted.has('edit_prompt'), false);
+assert.equal(submitted.has('edit_prompt'), false);assert.equal(submitted.has('native_capture'),false);
 assert.equal(submitted.has(el('description').name), false);
 assert.equal(submitted.get('seed'), '302929098223082');
 assert.equal(submitted.has('clip_start_seconds'), false); assert.equal(submitted.has('clip_end_seconds'), false);
@@ -269,24 +269,15 @@ assert.equal(el('reference-2').files.length, 0); assert.equal(el('take-reference
 el('video').events.change();
 el('directions').open = true;
 el('directions').events.toggle();
-el('description').value = '  a tall woman  ';
-handler = (url, opts) => {
-  if (url === '/api/h3/readiness') return response({ready});
-  if (url === '/api/h3/jobs') { submitted = opts.body; return response({job_id: child}, 202); }
-  return response({...base, id: child, status: 'error', error: 'Test failure'});
-};
-await el('form').events.submit({preventDefault() {}});
-await settle();
-assert.equal(submitted.get('edit_prompt'), '  original\n directions  ');
-assert.equal(submitted.get(el('description').name), '  a tall woman  ');
-assert.equal(submitted.getAll('reference_images').length, 1); assert.equal(el('reference-2').disabled, true);
+const {checkNativeCaptureUpgrade}=await import('./h3_native_capture_upgrade.mjs');
+await checkNativeCaptureUpgrade({el,calls,response,settle,child,base,setHandler:fn=>{handler=fn;},lastToast:()=>toasts.at(-1)[1]});
 el('add-second-reference').click(); assert.equal(el('reference-2').disabled, false, 'error unlocks second-reference editing');
 el('remove-reference').click();
 assert.equal(el('reference').files.length, 0); assert.equal(el('second-reference').hidden, true); assert.equal(el('reference-2').disabled, true);
 el('reference').files = [new File(['image bytes'], 'character.png')]; el('reference').events.change();
 assert.equal(el('submit').disabled, false);
 handler = (url, opts) => {
-  if (url === '/api/h3/readiness') return response({ready});
+  if (url.startsWith('/api/h3/readiness')) return response({ready,native_capture_supported:true});
   if (url === '/api/h3/jobs') return response({detail: 'The Comfy readiness probe timed out. Retry; no generation job has been submitted.'}, 503);
   return response({...base, id: child, status: 'error', error: 'Test failure'});
 };
@@ -295,6 +286,7 @@ await el('form').events.submit({preventDefault() {}});
 await settle();
 assert.equal(calls.filter(([url]) => url === '/api/h3/jobs').length, count + 1);
 assert.match(toasts.at(-1)[1], /timed out/);
+el('native-capture').checked=false;el('native-capture').events.change();await settle();
 const {checkSourceClipStudio} = await import('./h3_source_clip_studio.mjs');
 await checkSourceClipStudio({el, calls, response, settle, File, id, child, base, capsule, setHandler: fn => { handler = fn; }, getTake: () => controllerTake});
 console.log('H3 UI contract checks passed: exact multipart, source clip validation/preview, input freeze, done/error editing, advisory readiness, resume, replay, HTTP failures.');

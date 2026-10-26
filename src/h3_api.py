@@ -11,6 +11,8 @@ import mimetypes
 import core
 from api_schema import _public_project_id
 from project_scope import submission_project
+from continuable_take import get_validated_family
+from h3_swap_native import NATIVE_ARTIFACT_RELATION
 from h3_capsule import contained, digest_file, frozen_references, get_capsule, replay_inputs
 from h3_graphs import REFERENCE_SLOTS
 from h3_recipe import ENGINE, MAX_TEXT, make_recipe
@@ -38,16 +40,21 @@ def _response(job):
             'limitations': ['One continuous shot only; no automatic scene splitting or cut rejection.']}
 
 
-def _dispatch_options(source, references, recipe, media_dir):
+def _dispatch_options(source, references, recipe, media_dir, native_capture=False):
     hashes = {'source': digest_file(source)}
     hashes.update({f'reference-{index}': digest_file(path)
                    for index, path in enumerate(references)})
-    return {'recipe': copy.deepcopy(recipe), 'reference_images': list(references),
-            'media_dir': media_dir, 'input_hashes': hashes}
+    options = {'recipe': copy.deepcopy(recipe), 'reference_images': list(references),
+               'media_dir': media_dir, 'input_hashes': hashes}
+    if native_capture is True:
+        options['native_capture'] = True
+    return options
 
 
-async def _dispatch(dispatch, job, source, references, recipe, media_dir):
-    opts = await asyncio.to_thread(_dispatch_options, source, references, recipe, media_dir)
+async def _dispatch(dispatch, job, source, references, recipe, media_dir, native_capture=False):
+    opts = await asyncio.to_thread(_dispatch_options, source, references, recipe, media_dir, native_capture)
+    if native_capture is True:
+        job.meta['native_capture_requested'] = True
     await asyncio.to_thread(job.save)
     try:
         # Call dispatch on the ASGI loop: app adapters use run_in_executor here.
@@ -60,15 +67,22 @@ async def _dispatch(dispatch, job, source, references, recipe, media_dir):
 
 
 class H3API:
-    def __init__(self, get_media_dir, max_upload_bytes, readiness_check, dispatch_job):
+    def __init__(self, get_media_dir, max_upload_bytes, readiness_check, dispatch_job,
+                 native_readiness_check=None):
         self.get_media_dir = get_media_dir
         self.limit = max_upload_bytes
         self.readiness_check = readiness_check
         self.dispatch_job = dispatch_job
+        self.native_readiness_check = native_readiness_check
 
-    async def readiness(self):
-        report = await asyncio.to_thread(self.readiness_check)
-        return {**report, 'limits': {**report.get('limits', {}), 'max_clip_seconds': MAX_CLIP_SECONDS}}
+    async def readiness(self, native_capture: bool = False):
+        check = self.native_readiness_check if native_capture else self.readiness_check
+        report = (await asyncio.to_thread(check) if check is not None else
+                  {'ready': False, 'issues': ['Native state capture is not configured on this application.']})
+        result = {**report, 'limits': {**report.get('limits', {}), 'max_clip_seconds': MAX_CLIP_SECONDS}}
+        if native_capture:
+            result['native_capture_supported'] = check is not None
+        return result
 
     def _asset(self, job_id, field, media_type, index=0):
         job = _load(job_id)
@@ -87,8 +101,8 @@ class H3API:
     def reference(self, job_id, index: int = 0):
         return self._asset(job_id, 'reference', 'image/png', index)
 
-    async def ready(self):
-        report = await asyncio.to_thread(self.readiness_check)
+    async def ready(self, native_capture=False):
+        report = await self.readiness(native_capture)
         if not report.get('ready'):
             raise HTTPException(503, ' '.join(report.get('issues', [])) or 'H3 is not ready')
 
@@ -97,6 +111,7 @@ class H3API:
                          edit_prompt: str = Form(default='', max_length=2000),
                          seed: int = Form(default=302929098223082, ge=0, le=2**64-1),
                          project_id: str | None = Form(default=None),
+                         native_capture: bool = Form(default=False),
                          clip_start_seconds: float | None = Form(default=None),
                          clip_end_seconds: float | None = Form(default=None)):
         """Submit one continuous shot and one or two ordered character references.
@@ -138,7 +153,7 @@ class H3API:
         for upload in reference_images:
             if Path(upload.filename or '').suffix.lower() not in {'.png', '.jpg', '.jpeg', '.webp'}:
                 raise HTTPException(415, 'Use a PNG, JPEG or WebP reference')
-        await self.ready()
+        await self.ready(native_capture)
         media_dir.mkdir(parents=True, exist_ok=True)
         job_id = uuid.uuid4().hex
         source = media_dir / f'{job_id}-source{suffix}'
@@ -196,7 +211,35 @@ class H3API:
             raise HTTPException(422, 'H3 could not validate the source and reference') from exc
         for path in references:
             path.with_suffix('.upload').unlink(missing_ok=True)
-        return await _dispatch(self.dispatch_job, job, source, references, recipe, media_dir)
+        return await _dispatch(self.dispatch_job, job, source, references, recipe, media_dir, native_capture)
+
+    def native_state(self, job_id: str):
+        """Describe an explicitly captured variant, never manufacture state for an old MP4."""
+        job = _load(job_id)
+        take_id = job.meta.get('native_take_id')
+        if job.status != 'done' or take_id is None:
+            return {'available': False}
+        try:
+            family = get_validated_family(core.WORK, take_id)
+            record = family.record
+            capsule = record.to_manifest()
+            if (record.take_id != take_id or capsule['origin'] !=
+                    {'source_job': job.id, 'operator_label': 'native-swap'}):
+                raise ValueError('Native variant origin differs')
+            context = capsule['family']['context']
+            seconds = context['delivered_frames'] / context['fps']
+        except (ValueError, OSError, KeyError, TypeError, ZeroDivisionError) as exc:
+            raise HTTPException(409, 'The native state could not be verified; the finished Swap is unchanged') from exc
+        base = '/api/continuity/takes/' + take_id
+        displayed = job.meta.get('processed_frames')
+        return {'available': True, 'take_id': take_id,
+                'native_seconds': seconds,
+                'display_seconds': displayed / 24 if type(displayed) is int and displayed > 0 else None,
+                'relation': NATIVE_ARTIFACT_RELATION,
+                'urls': {'video': base + '/artifacts/video', 'mctx': base + '/artifacts/mctx',
+                         'conditioning': base + '/artifacts/conditioning',
+                         'preview': base + '/media', 'capsule': base + '/capsule',
+                         'timeline': '/timeline?job_id=' + job.id}}
 
     def capsule(self, job_id: str, download: bool = False):
         job = _load(job_id)
@@ -217,6 +260,9 @@ class H3API:
 
     async def replay(self, job_id: str, payload: dict | None = None):
         media_dir = Path(self.get_media_dir()).resolve()
+        native_capture = (payload or {}).get('native_capture', False)
+        if type(native_capture) is not bool:
+            raise HTTPException(422, 'native_capture must be an explicit boolean')
         project_id = (payload or {}).get('project_id')
         origin_project_id = submission_project(project_id, media_dir) if project_id is not None else None
         parent = await asyncio.to_thread(_load, job_id)
@@ -227,7 +273,7 @@ class H3API:
             raise HTTPException(409, str(exc)) from exc
         except (KeyError, OSError, TypeError) as exc:
             raise HTTPException(409, 'Frozen H3 recipe or verified local inputs are unavailable or changed') from exc
-        await self.ready()
+        await self.ready(native_capture)
         if origin_project_id is None:
             origin_project_id = submission_project(None, media_dir)
         child = core.Job(id=uuid.uuid4().hex, engine=ENGINE, prompt=recipe['effective_prompt'],
@@ -240,16 +286,16 @@ class H3API:
                                                                        'fps': info['fps']}]})
         if parent.meta.get('h3_original_source'):
             child.meta['h3_original_source'] = parent.meta['h3_original_source']
-        return await _dispatch(self.dispatch_job, child, source, references, recipe, media_dir)
+        return await _dispatch(self.dispatch_job, child, source, references, recipe, media_dir, native_capture)
 
 
-def create_router(get_media_dir, max_upload_bytes, readiness_check, dispatch_job):
+def create_router(get_media_dir, max_upload_bytes, readiness_check, dispatch_job, *, native_readiness_check=None):
     """readiness_check must be H3-specific; dispatch_job must run run_h3_pipeline.
 
     Dispatch receives (core.Job, source: Path, opts: dict). Generic job GET/result
     routes can serve these jobs. No LTX checks, worker or frontend are installed.
     """
-    api = H3API(get_media_dir, max_upload_bytes, readiness_check, dispatch_job)
+    api = H3API(get_media_dir, max_upload_bytes, readiness_check, dispatch_job, native_readiness_check)
     router = APIRouter(tags=['H3 Studio'])
     router.add_api_route('/api/h3/readiness', api.readiness, methods=['GET'])
     router.add_api_route('/api/h3/jobs', api.create_job, methods=['POST'], status_code=202)
@@ -257,5 +303,6 @@ def create_router(get_media_dir, max_upload_bytes, readiness_check, dispatch_job
     router.add_api_route('/api/h3/jobs/{job_id}/reference', api.reference, methods=['GET'])
     router.add_api_route('/api/h3/jobs/{job_id}/reference/{index}', api.reference, methods=['GET'])
     router.add_api_route('/api/h3/jobs/{job_id}/capsule', api.capsule, methods=['GET'])
+    router.add_api_route('/api/h3/jobs/{job_id}/native-state', api.native_state, methods=['GET'])
     router.add_api_route('/api/h3/jobs/{job_id}/replay', api.replay, methods=['POST'], status_code=202)
     return router

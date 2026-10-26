@@ -135,7 +135,9 @@ function showSwap(entry) {
   byId('native-title').textContent=takeLabel(entry);
   byId('native-title').title='Completed Swap result';
   byId('native-geometry').textContent='Video only';
-  byId('native-state').textContent='No registered native saved state for this Swap.';
+  byId('native-state').textContent=entry.job.native_artifact_relation==='native-raw-family-and-distinct-finished-swap'
+    ?'Finished Swap · original timing and source audio. Native state is a separate version.'
+    :'No registered native saved state for this Swap.';
   byId('native-lineage').textContent='No native parent available';
   const recipe=byId('native-recipe');recipe.textContent='';
   const link=document.createElement('a');
@@ -187,7 +189,7 @@ function showLinkedNative(entry) {
   sequence.preview(entry.take.take_id);linkedTake=entry.take.take_id;linkedKind='native';
   byId('native-handoff').hidden=false;
   const existing=sequence.state().placements.filter(p=>p.take_id===linkedTake&&(p.source_kind||'native')===linkedKind);
-  byId('native-handoff-message').textContent='Your Swap and its saved state are ready to inspect. Choose where it belongs; nothing has been added.';
+  byId('native-handoff-message').textContent='This native state version retains its sampled duration and generated audio. Choose where it belongs; nothing has been added. A finished Swap can have different timing and source audio.';
   const add=byId('native-handoff-add');add.hidden=false;
   add.textContent=existing.length===1?'Open placement':existing.length>1?'Add another placement':'Add this take';
   byId('native-handoff-new').hidden=true;updateComposer();
@@ -208,6 +210,24 @@ async function openLinkedSwap(jobId) {
   choices.replaceChildren();byId('native-handoff-add').hidden=true;byId('native-handoff-new').hidden=true;
   try {
     const matches=entries.filter(entry=>entry.take&&(entry.take.origin?.source_job===jobId||entry.project_job_ids?.includes(jobId)));
+    const savedVideo=entries.find(entry=>isSwap(entry)&&sourceId(entry)===jobId);
+    if(matches.length&&savedVideo?.job.native_artifact_relation==='native-raw-family-and-distinct-finished-swap'){
+      linkedTake=null;panel.hidden=false;
+      byId('native-handoff-message').textContent='Choose a distinct version to preview. Finished Swap retains original timing and source audio; native state retains full sampled duration and generated audio. Nothing is added or generated.';
+      const addChoice=(label,select)=>{
+        const button=document.createElement('button');button.type='button';button.className='btn btn-secondary';button.textContent=label;
+        button.addEventListener('click',()=>{
+          if(!current()||!sequence.editable()||inFlight||unconfirmed)return;
+          choices.replaceChildren();select();
+        });choices.append(button);
+      };
+      addChoice('Finished Swap',()=>showLinkedVideo(savedVideo));
+      for(const entry of matches){
+        const c=entry.take.family.context;
+        addChoice(`Native state version · ${(c.delivered_frames/c.fps).toFixed(1)} s`,()=>showLinkedNative(entry));
+      }
+      updateComposer();return;
+    }
     if(matches.length===1){showLinkedNative(matches[0]);return;}
     if(matches.length>1){
       // An origin can publish several families. Recency is not the creator's choice.
@@ -217,11 +237,10 @@ async function openLinkedSwap(jobId) {
         const button=document.createElement('button');button.type='button';button.className='btn btn-secondary';
         const c=entry.take.family.context;
         button.textContent=`Preview version ${index+1} · ${(c.delivered_frames/c.fps).toFixed(1)} s`;
-        button.addEventListener('click',()=>showLinkedNative(entry));choices.append(button);
+        button.addEventListener('click',()=>{if(current()&&sequence.editable()&&!inFlight&&!unconfirmed)showLinkedNative(entry);});choices.append(button);
       }
       return;
     }
-    const savedVideo=entries.find(entry=>isSwap(entry)&&sourceId(entry)===jobId);
     if(savedVideo){showLinkedVideo(savedVideo);return;}
     const response=await fetch(`/api/jobs/${jobId}`,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(20000)});
     if(!current())return;

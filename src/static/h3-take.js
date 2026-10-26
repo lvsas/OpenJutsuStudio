@@ -99,6 +99,7 @@ export class H3Take {
   }
   clearResult() {
     this.capsule = null;
+    this.clearNativeState();
     byId('result-actions').hidden = true;
     byId('capsule-details').hidden = true;
     byId('capsule-manifest').textContent = '';
@@ -113,6 +114,42 @@ export class H3Take {
     this.active = active;
     this.onActivity(active);
     this.returnAffordance();
+  }
+  clearNativeState() {
+    byId('native-state').hidden = true;
+    byId('native-state-status').hidden = true;
+    byId('native-state-status').textContent = '';
+    byId('native-seconds').textContent = '';
+    for (const name of ['video','mctx','conditioning','timeline']) byId(`native-${name}`).removeAttribute('href');
+  }
+  async loadNativeState(epoch) {
+    if (epoch !== this.epoch) return;
+    this.clearNativeState();
+    const id=this.id, takeId=this.job?.meta?.native_take_id;
+    if (!validId(takeId)) return;
+    const status=byId('native-state-status');
+    status.textContent='Verifying private native state…';status.hidden=false;
+    try {
+      const state=await request(h3URL(id,'/native-state'));
+      if(epoch!==this.epoch || this.id!==id) return;
+      if(state.available===false)throw new Error('Native state unavailable.');
+      const root=`/api/continuity/takes/${takeId}`;
+      const expected={video:`${root}/artifacts/video`,mctx:`${root}/artifacts/mctx`,conditioning:`${root}/artifacts/conditioning`,
+        preview:`${root}/media`,capsule:`${root}/capsule`,timeline:`/timeline?job_id=${id}`};
+      if(state.available!==true || state.take_id!==takeId || state.relation!=='native-raw-family-and-distinct-finished-swap'
+          || !Number.isFinite(state.native_seconds) || state.native_seconds<=0
+          || (state.display_seconds!==null && (!Number.isFinite(state.display_seconds)||state.display_seconds<=0))
+          || Object.entries(expected).some(([key,url])=>state.urls?.[key]!==url)) throw new Error('Invalid native state response.');
+      const seconds=value=>value.toLocaleString('en',{maximumFractionDigits:2});
+      byId('native-seconds').textContent=`Native version · ${seconds(state.native_seconds)} s · Finished Swap · ${state.display_seconds===null?'duration unavailable':`${seconds(state.display_seconds)} s`}`;
+      for(const name of ['video','mctx','conditioning','timeline']) byId(`native-${name}`).href=expected[name];
+      status.hidden=true;byId('native-state').hidden=false;
+    } catch {
+      if(epoch===this.epoch) {
+        this.clearNativeState();status.hidden=false;
+        status.textContent='Native state could not be verified. The finished Swap is unchanged. Retry status to check again.';
+      }
+    }
   }
   watch(id) {
     jobURL(id);
@@ -184,6 +221,7 @@ export class H3Take {
     }
   }
   async loadCapsule(epoch) {
+    void this.loadNativeState(epoch);
     byId('capsule-status').textContent = 'Checking the frozen recipe…';
     try {
       const capsule = await request(h3URL(this.id, '/capsule'));
@@ -199,7 +237,7 @@ export class H3Take {
       byId('save-capsule').disabled = false;
       byId('replay').disabled = !this.ready || this.active;
       this.onActivity(this.active);
-      byId('capsule-status').textContent = 'Frozen H3 recipe and fingerprints verified by the studio. Replay checks local input bytes.';
+      byId('capsule-status').textContent = 'Frozen H3 recipe receipt, not a native backup. Replay checks local input bytes.';
     } catch (error) {
       if (epoch === this.epoch) byId('capsule-status').textContent = `Capsule unavailable: ${error.message} Retry status to check again.`;
     }
@@ -219,6 +257,7 @@ export class H3Take {
   }
   async replay() {
     if (!this.capsule || this.active) return;
+    const nativeCapture=byId('native-capture').checked===true;
     const epoch = ++this.epoch;
     this.setActive(true);
     byId('replay').disabled = true;
@@ -227,7 +266,7 @@ export class H3Take {
       if (epoch !== this.epoch) return;
       if (!ready) throw new Error('H3 is not ready. Resolve the availability notes above.');
       const projectId = await window.OpenGenjutsuProject?.ensure();
-      const options = projectId ? {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:projectId})} : {method:'POST'};
+      const options = {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({native_capture:nativeCapture,...(projectId?{project_id:projectId}:{})})};
       const response = await request(h3URL(this.id, '/replay'), options);
       window.OpenGenjutsuProject?.acceptJob(response.job_id, response.project_id, 'minimax-h3');
       if (epoch !== this.epoch) return;

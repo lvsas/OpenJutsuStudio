@@ -80,7 +80,8 @@ frozen prompt and renders. You can override any of it; nothing is ever invented 
 The repository guardrails below are verified continuously. The actual contest submission, demo video,
 try-it link, social-post link and feature-credit consent are **pending** until they exist as real
 artifacts; this table does not claim an entry has been submitted.
-Public-read access and reviewed integration to the default branch are also pending;
+The validated feature-branch baseline has been integrated into `main`.
+Public-read access and final jury presentation remain release gates;
 see [release gates](docs/release-readiness.md).
 
 The [current official rules](https://comfy.org/open-source-higgsfield) allow ComfyUI

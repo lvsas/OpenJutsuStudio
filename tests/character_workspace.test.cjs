@@ -447,6 +447,18 @@ test('local shuffle explores all eighteen coherent combinations before repeating
   assert.equal(app.calls.length,before,'the variety loop remains local and free of computation');
 });
 
+test('refined inspection separates base caption and frozen facial conditioning', async () => {
+  const face='Refine only the existing face. Amber eyes and a broad jaw.';
+  const app=boot({members:[member(A)],storage:{'opengenjutsu.characters.active':A},fetchHook:url=>{
+    if(url===`/api/characters/jobs/${A}`)return response({job_id:A,status:'done',face_refine:true});
+    if(url.endsWith('/capsule'))return response({recipe:{face_refine:true,face_refine_policy:2,face_refine_prompt:face}});
+  }});await flush();
+  assert.equal(app.elements.get('caption-label').textContent,'Base image caption');
+  assert.equal(app.elements.get('face-prompt-details').hidden,false);
+  assert.equal(app.elements.get('face-caption').textContent,face);
+  assert.equal(generationPayloads(app).length,0);
+});
+
 const generationPayloads = app => app.calls.filter(c=>c.url==='/api/characters/jobs' && c.options.method==='POST').map(c=>JSON.parse(c.options.body));
 const canonical = look => `An original adult ${look.being}, ${/^[aeiou]/i.test(look.role)?'an':'a'} ${look.role}: ${look.build}, ${look.hair}, ${look.face}, wearing ${look.outfit}, ${look.attitude}.`;
 

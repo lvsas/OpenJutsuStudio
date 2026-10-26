@@ -7,7 +7,7 @@ import ipaddress
 import json
 import re
 from typing import Any
-from character_refine import append_face_refine, REFINE_MODEL_ROLES
+from character_refine import append_face_refine, REFINE_MODEL_ROLES, FACE_REFINE_POLICY, face_prompt_v2
 
 from character_graphs import (
     ASPECT_RATIOS,
@@ -341,8 +341,9 @@ def make_recipe(*, job_id: str, direction: str, mode: str, trend_id: str, select
                           resolved, direction_origin, facts)
     graph = build_character_graph(request, sampler_seed, MODE_SPECS[mode]["aspect_ratio"], upsampler, job_id,
                                   upsampler_seed=upsampler_seed)
+    face_prompt = face_prompt_v2(facts, resolved) if face_refine else None
     if face_refine:
-        graph = append_face_refine(graph, seed=sampler_seed, job_id=job_id)
+        graph = append_face_refine(graph, seed=sampler_seed, job_id=job_id, face_prompt=face_prompt)
     recipe = {
         "schema_version": SCHEMA_VERSION,
         "engine": ENGINE,
@@ -366,6 +367,8 @@ def make_recipe(*, job_id: str, direction: str, mode: str, trend_id: str, select
         "graph_template": graph,
         "graph_sha256": digest_json(graph),
     }
+    if face_refine:
+        recipe.update(face_refine_policy=FACE_REFINE_POLICY, face_refine_prompt=face_prompt)
     return validate_recipe(recipe)
 
 
@@ -410,6 +413,14 @@ def _validate_recipe_shape(recipe: Any) -> int:
             raise ValueError("Character face_refine must be boolean")
     if recipe.get("schema_version") == 7:
         required.add("direction_facts")
+    if version == 7 and ("face_refine_policy" in recipe or "face_refine_prompt" in recipe):
+        required |= {"face_refine_policy", "face_refine_prompt"}
+        if (recipe.get("face_refine") is not True
+                or type(recipe.get("face_refine_policy")) is not int
+                or recipe["face_refine_policy"] != FACE_REFINE_POLICY
+                or not isinstance(recipe.get("face_refine_prompt"), str)
+                or not recipe["face_refine_prompt"].strip()):
+            raise ValueError("Character face refinement policy changed")
     if set(recipe) != required or recipe.get("engine") != ENGINE:
         raise ValueError("Unsupported Character recipe contract")
     return version
@@ -441,13 +452,23 @@ def _validate_frozen_graph(recipe: dict[str, Any]) -> None:
         ("18:3", "vae_name"): roles["vae"],
         ("18:12", "clip_name"): roles["prompt_upsampler"],
     }
-    refine_nodes = {"character_bbox", "character_sam", "character_detail", "character_refined"}
-    if set(graph) & refine_nodes != (refine_nodes if refined else set()):
+    refine_nodes = {"character_bbox", "character_sam", "character_detail", "character_refined", "character_face_positive"}
+    expected_nodes = refine_nodes - {"character_face_positive"}
+    face_only = recipe.get("face_refine_policy") == FACE_REFINE_POLICY
+    if face_only:
+        expected_nodes = refine_nodes
+    if set(graph) & refine_nodes != (expected_nodes if refined else set()):
         raise ValueError("Character frozen face_refine graph changed")
     if refined:
         controls.update({("character_bbox", "model_name"): roles["face_detector"],
                          ("character_sam", "model_name"): roles["face_sam"],
-                         ("character_detail", "seed"): recipe["sampler_seed"]})
+                         ("character_detail", "seed"): recipe["sampler_seed"],
+                         ("character_detail", "positive"): ["character_face_positive" if face_only else "18:4", 0]})
+        if face_only:
+            if graph.get("character_face_positive", {}).get("class_type") != "CLIPTextEncode":
+                raise ValueError("Character frozen face encoder changed")
+            controls.update({("character_face_positive", "text"): recipe["face_refine_prompt"],
+                             ("character_face_positive", "clip"): ["18:2", 0]})
     for (node_id, field), expected in controls.items():
         inputs = graph.get(node_id, {}).get("inputs", {})
         # JSON digests distinguish False/0, True/1 and integer/float graph literals.
@@ -476,6 +497,7 @@ def validate_frozen_recipe(recipe: Any) -> None:
     if version >= 3:
         _direction_origin(recipe["direction_origin"])
     selections = _selections(recipe["selections"], V1_AXES if version == 1 else V5_AXES)
+    facts = None
     if version == 7:
         facts = _direction_facts(recipe["direction_facts"])
         if facts != recipe["direction_facts"] or selections != recipe["selections"]:
@@ -484,6 +506,9 @@ def validate_frozen_recipe(recipe: Any) -> None:
             raise ValueError("Character direction must exactly match its source direction facts snapshot")
         if facts is None and any(value != MODEL_DECIDES for value in selections.values()):
             raise ValueError("Character refinements require a suggested proposal snapshot")
+    if recipe.get("face_refine_policy") == FACE_REFINE_POLICY:
+        if recipe["face_refine_prompt"] != face_prompt_v2(facts, selections):
+            raise ValueError("Character frozen face refinement prompt changed")
     _validate_frozen_graph(recipe)
 
 
@@ -507,6 +532,7 @@ def validate_recipe(recipe: Any) -> dict[str, Any]:
     if type(recipe.get("upsampler")) is not bool:
         raise ValueError("Character prompt upsampler contract changed")
     selections = _selections(recipe.get("selections"), axes)
+    facts = None
     if recipe["schema_version"] == V1_SCHEMA_VERSION:
         # v1 evidence predates the current framing/negative-clause contract. Its saved request is
         # the only truthful record of what reached the graph; do not reconstruct it with v2 wording.
@@ -539,7 +565,12 @@ def validate_recipe(recipe: Any) -> dict[str, Any]:
     graph = build_character_graph(request, sampler_seed, mode_specs[mode]["aspect_ratio"],
                                   recipe["upsampler"], job_id, upsampler_seed=upsampler_seed)
     if face_refine:
-        graph = append_face_refine(graph, seed=sampler_seed, job_id=job_id)
+        prompt = None
+        if recipe.get("face_refine_policy") == FACE_REFINE_POLICY:
+            prompt = face_prompt_v2(facts, selections)
+            if recipe["face_refine_prompt"] != prompt:
+                raise ValueError("Character face refinement prompt changed")
+        graph = append_face_refine(graph, seed=sampler_seed, job_id=job_id, face_prompt=prompt)
     supplied_graph = recipe.get("graph_template")
     expected_digest = digest_json(graph)
     if (not isinstance(supplied_graph, dict) or supplied_graph != graph
@@ -554,4 +585,6 @@ def validate_current_recipe(recipe: Any) -> dict[str, Any]:
     validated = validate_recipe(recipe)
     if validated["schema_version"] != SCHEMA_VERSION or validated["prompt_policy"] != PROMPT_POLICY:
         raise ValueError("This Character was frozen with an earlier policy; create a new Character instead of replaying it.")
+    if validated.get("face_refine") and validated.get("face_refine_policy") != FACE_REFINE_POLICY:
+        raise ValueError("Face refinement was frozen with an earlier policy; create a new Character instead of replaying it.")
     return validated

@@ -263,12 +263,12 @@ class RefinePolicyTests(unittest.TestCase):
         from character_graphs import build_character_graph
         base = build_character_graph(recipe["resolved_request"], 11, recipe["aspect_ratio"], True, recipe["job_id"], upsampler_seed=29)
         self.assertEqual({k:v for k,v in graph.items() if k in base}, base)
-        self.assertEqual(set(graph) - set(base), {"character_bbox", "character_sam", "character_detail", "character_refined"})
+        self.assertEqual(set(graph) - set(base), {"character_bbox", "character_sam", "character_detail", "character_refined", "character_face_positive"})
         self.assertEqual(graph["9"]["inputs"]["images"], ["18:8", 0])
         self.assertEqual(graph["character_refined"]["inputs"]["images"], ["character_detail", 0])
         self.assertNotEqual(graph["9"]["inputs"]["filename_prefix"], graph["character_refined"]["inputs"]["filename_prefix"])
         inputs = graph["character_detail"]["inputs"]
-        for key, node in {"image":"18:8", "model":"18:1", "clip":"18:2", "vae":"18:3", "positive":"18:4", "negative":"18:5"}.items():
+        for key, node in {"image":"18:8", "model":"18:1", "clip":"18:2", "vae":"18:3", "positive":"character_face_positive", "negative":"18:5"}.items():
             self.assertEqual(inputs[key], [node, 0])
         self.assertEqual([inputs[k] for k in ("guide_size", "max_size", "denoise", "seed", "steps", "cfg", "sampler_name", "scheduler")],
                          [768, 1024, .28, 11, 50, 3.5, "euler", "simple"])

@@ -175,7 +175,8 @@
   [data-engine="characters"] .recipe-panel { max-height: none; padding: .9rem; }
   #character-form { gap: .65rem; }
   [data-engine="characters"] .studio-stage { height: min(38rem, 78svh); min-height: 28rem; padding: .9rem; }
-  .composer-heading { align-items: center; display: flex; gap: .65rem; margin-bottom: .75rem; }
+  .composer-heading { align-items: center; display: flex; gap: .65rem; margin-bottom: .5rem; }
+  .idea-card { padding: .65rem; }
   .composer-heading h2 { margin: 0; }
   .composer-heading .eyebrow { display: none; }
   .idea-summary { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }

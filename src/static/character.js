@@ -570,6 +570,27 @@
     }
   }
 
+  async function loadFacePrompt(id) {
+    const refined = jobs.get(id)?.face_refine === true;
+    $("#face-prompt-details").hidden = !refined;
+    $("#caption-label").textContent = refined ? "Base image caption" : "Description used for this image";
+    if (!refined) return;
+    $("#face-caption").textContent = "Loading facial conditioning…";
+    try {
+      const response = await fetch(`/api/characters/jobs/${id}/capsule`);
+      if (!response.ok) throw new Error();
+      const capsule = await response.json();
+      const recipe = capsule.recipe;
+      if (activeId !== id) return;
+      if (!recipe || recipe.face_refine !== true) throw new Error();
+      $("#face-caption").textContent = recipe.face_refine_policy === 2 && typeof recipe.face_refine_prompt === "string"
+        ? recipe.face_refine_prompt
+        : "Legacy face pass: this existing image used the full base caption. Its frozen evidence is unchanged; new generations use face-only conditioning.";
+    } catch {
+      if (activeId === id) $("#face-caption").textContent = "Facial conditioning unavailable. Inspect the frozen capsule; the image is unchanged.";
+    }
+  }
+
   function renderActive() {
     $("#active-result").hidden = !activeId;
     $("#empty-result").hidden = Boolean(activeId);
@@ -618,6 +639,7 @@
     $("#inspect-capsule").href = `/api/characters/jobs/${activeId}/capsule`;
     $("#active-caption").textContent = "Loading caption…";
     loadCaption(activeId);
+    loadFacePrompt(activeId);
     prepareShare(activeId);
   }
 

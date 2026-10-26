@@ -5,6 +5,7 @@ from concurrent.futures import Executor
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
+from app_release import render_release
 
 
 def _h3_readiness():
@@ -48,6 +49,6 @@ def register_optional_h3(app: FastAPI, executor: Executor, get_media_dir, max_up
 
     @app.get('/h3', response_class=HTMLResponse)
     def h3_studio_page():
-        return template.read_text()
+        return render_release(template.read_text())
 
     return True

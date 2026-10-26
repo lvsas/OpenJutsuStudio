@@ -28,6 +28,7 @@ from runtime_inventory import declared_runtime_inventory
 from h3_studio_app import register_optional_h3
 from comfy_transport import make_client
 from config import comfy_base_url
+from app_release import VERSION, render_release
 from continuity_forward_api import (create_forward_router, make_forward_runner,
                                     parent_references, refine_prompt, target_fingerprint)
 from continuity_attempt_api import create_router as create_attempt_router
@@ -54,7 +55,7 @@ from continuable_take_api import create_router as create_continuity_router
 
 DEFAULT_ENGINE = "ltx25-ripple"
 
-app = FastAPI(title="OpenGenjutsu LTX", version="0.1.0")
+app = FastAPI(title="OpenGenjutsu", version=VERSION)
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 
@@ -274,7 +275,7 @@ def _page(name: str) -> str:
             content = content.replace(marker, fragment.read_text())
         cached = (stamp, content)
         _PAGE_CACHE[name] = cached
-    return cached[1]
+    return render_release(cached[1])
 
 
 @app.get("/", response_class=HTMLResponse)

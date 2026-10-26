@@ -5,6 +5,7 @@ from concurrent.futures import Executor
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
+from app_release import render_release
 
 
 def _character_readiness():
@@ -27,6 +28,6 @@ def register_optional_characters(app: FastAPI, executor: Executor, get_media_dir
 
     @app.get("/characters", response_class=HTMLResponse)
     def characters_page():
-        return template.read_text()
+        return render_release(template.read_text())
 
     return True

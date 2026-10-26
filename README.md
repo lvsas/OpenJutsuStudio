@@ -1,23 +1,52 @@
 # OpenGenjutsu — Open-Source Reality Manipulation for Video
 
-**An open-source rebuild of [Higgsfield Genjutsu](https://higgsfield.ai/genjutsu) on the [Comfy Developer Platform](https://comfy.org/platform).**
+**v0.1.0-alpha.1 · Early development preview, not a finished 1.0 product.**
 
-Genjutsu is a paid feature that transforms footage you already shot — no reshoot.
-This project rebuilds it in the open, on top of open-weight models.
+Create a character. Recast footage you already shot. Keep a take you can continue,
+not just a video you can watch.
 
-Built for the **Open Source Higgsfield Competition** (ComfyUI · NVIDIA · Runpod).
+An open-source rebuild of [Higgsfield Genjutsu](https://higgsfield.ai/genjutsu),
+extended with connected Character and generative Timeline workspaces, built on the
+[Comfy Developer Platform](https://comfy.org/platform) for the
+[Open Source Higgsfield Competition](https://comfy.org/open-source-higgsfield).
 
-**Projects:** the project picker chooses where new attempts are filed; it never adds them to the chosen sequence. Timeline lists both completed Swaps and native takes, with video-only capabilities labeled explicitly. Add/Keep is deliberate. Remove a placement from the sequence, or remove the resource from the project while retaining it in the common library. Used resources must be unplaced first. **Open project → Archive project** hides a named project without deleting its media; **Archived projects → Restore** brings it back. Restore before generating or editing an archive.
+- **Create:** FLUX 3 Klein turns an idea into a character reference. Keep a named
+  character and reuse it across the studios. Character direction, face quality and
+  ease of use are still being refined; this is not a promise of viral results.
+- **Swap:** use LTX 2.5 + Ripple or MiniMax H3 to recast existing footage, with
+  explicit references and optional directions.
+- **Continue:** opt into native-state capture for an H3 Swap, reopen its saved
+  take, and generate a child from retained state and conditioning. A real local
+  root → child → grandchild chain has been exercised; this is not a blanket
+  acceptance of every native operation or target.
+- **Choose and share:** keep results, reopen projects, build a sequence and export
+  an MP4. Share files where the browser supports it, or download with an editable
+  caption. An X intent prepares text; it does not upload the video for you.
 
-**For developers:** start with [Contributing](CONTRIBUTING.md) for setup, GPU-free tests,
-module boundaries and review requirements. The [Timeline editor guide](docs/architecture/timeline-editor.md)
-describes media editing/export; the separate [H3 artifact integrity contract](docs/architecture/timeline-artifacts.md)
-validates native-family files. Neither implies execution-proven native continuation.
-The [delivered native recovery slice](docs/validation/native-take-workspace.md) records what the
-current Work-in-progress interface actually supports and what remains unavailable.
-**Next delivery:** the [feature-complete MVP plan](docs/plans/2026-10-21-mvp-feature-complete.md)
-tracks Swap → forward, seed hunting/choice, prepend/bridge, direct creation, refine and engine
-capabilities, followed by stabilization, Cloud/SDK validation, UX polish and the two-minute demo.
+**[Install](#install) · [Executor setup](docs/executor-setup.md) ·
+[Verified scope and release gates](docs/release-readiness.md) ·
+[Contributing](CONTRIBUTING.md) · [Apache-2.0](LICENSE)**
+
+![The real alpha studio header, including its development status](docs/readme/alpha-studio-header.png)
+
+*Captured from the running app. This cropped interface view excludes personal
+project/result media; it is not a mockup or an accepted Character output.*
+
+### Versioning and maturity
+
+The application version has one source: [`src/app_release.py`](src/app_release.py).
+All four studios and OpenAPI use it. `0.1.0-alpha.N` identifies early pre-release
+snapshots; feature/compatibility milestones advance the minor version, and fixes
+can advance the patch version. A stable `1.0.0` requires accepted core journeys,
+setup and compatibility commitments; passing unit tests alone does not establish it.
+The current version is a development snapshot, not a published GitHub Release.
+
+Application SemVer is independent of recipe/capsule schemas, model versions and
+SDK versions. Existing captured recipes remain frozen and retain their historical
+readers; a version bump never silently reinterprets a saved take. LTX/H3 Swaps
+have working paths, but all studios are alpha. Character polish, wider native
+operation acceptance and actual remote/cloud execution remain explicit work in
+progress. See the [current delivery plan](docs/plans/2026-10-24-mvp-ux-stabilization.md).
 
 ---
 
@@ -36,20 +65,42 @@ The app preserves the original and sends the physically extracted video/audio to
 
 | Studio | Chain | State |
 | --- | --- | --- |
-| **LTX Studio** | source + reference(s) → FLUX 2 Klein first-frame edit → LTX 2.5 + Ripple propagation | working |
-| **H3 Studio** | source + 1–2 ordered character references → MiniMax H3 two-pass character swap at 0.9 MP | working |
+| **LTX Studio** | source + reference(s) → FLUX 2 Klein first-frame edit → LTX 2.5 + Ripple propagation | Working Swap path · alpha |
+| **H3 Studio** | source + 1–2 ordered character references → MiniMax H3 two-pass character swap at 0.9 MP | Working Swap path · alpha |
 
 Connected creative workspaces keep the generated content usable beyond one Swap:
 
 | Workspace | What you can do | Boundary |
 | --- | --- | --- |
 | **Characters — work in progress** (`/characters`) | generate with FLUX 3 Klein, select one canvas, discard recent attempts, explicitly keep a named character in the server library, download/share its PNG and use it in either Swap studio | saving/removing library membership never deletes generation artifacts; navigation never starts a render |
-| **Generative Timeline — work in progress** (`/timeline`) | recover a genuine native H3 Take, play its protected preview, inspect/download its public capsule, retain MCTX/COND and lineage, restore the selected Take; assembly/export remains a collapsed supporting tool | native creation, seed candidates and continuation remain experimental, with operation-specific acceptance still open; public capsule JSON alone is not a complete Take backup |
+| **Generative Timeline — work in progress** (`/timeline`) | capture/reopen a native H3 Take, retain MCTX/COND and lineage, continue into child takes, and assemble/export chosen clips | a local H3 root → child → grandchild chain has been exercised; native operations remain experimental and operation-specific acceptance is open; public capsule JSON alone is not a complete Take backup |
 
 The target Timeline is a **generation-first chronology of continuable Takes**: explore seeds,
 choose a candidate, generate after or before it, bridge two boundaries, and recover its frozen
 capsule/state. Assembly/export supports that journey rather than becoming a general-purpose editor.
-Those native operations are not presented as delivered by the supporting slice above.
+The exercised H3 forward chain does not validate prepend, bridge, refine, native LTX
+state, arbitrary model combinations or cloud portability. Those remain separate gates.
+
+### Why keep a continuable take instead of only an MP4?
+
+A flat video gives you pixels. A native H3 take also retains the sampled engine
+state, effective conditioning, ordered references and its frozen generation receipt:
+
+```text
+H3 Swap → native video (.mp4) + state (.mctx) + conditioning (.cond)
+                         + immutable capsule and parent lineage
+                                      ↓
+                       reopen the saved take → continue → child take
+```
+
+That lets the creator return to the actual saved state instead of pretending an
+MP4 alone can restore the sampler. The app ties explicit creative choices,
+artifact integrity, lineage, reopening and SDK retrieval into one journey.
+ComfyUI and the upstream engines provide the state/conditioning mechanisms; we
+do not claim to have invented their file formats. A finished Swap and its native
+sampler capture can differ in duration/audio; the interface keeps those versions
+distinct. [Native H3 evidence](docs/validation/native-take-workspace.md) and
+[artifact integrity](docs/architecture/timeline-artifacts.md) explain the boundary.
 
 The [visible-product evidence](docs/validation/visible-product-slices.md) separates actual browser,
 persistence and export checks from unit-test fixtures. A saved Character supplies reference context,
@@ -108,29 +159,16 @@ prepared environment and real acceptance required before we claim it works.
 The competition requires the combined techniques to be explained in the demo video:
 
 - **Comfy SDK** for every submission, plus the `comfy-api-proxy` bridge to self-hosted ComfyUI
+- **FLUX 3 Klein** (Black Forest Labs) for Character creation, including the saved selected caption
 - **FLUX 2 Klein** (Black Forest Labs) as the first-frame image editor in LTX Studio
 - **LTX 2.5 + Ripple FFAF IC-LoRA** as the motion stage in LTX Studio
 - **MiniMax H3**, two-pass sampling, with the **Character Swap LoRA `h3_character_swap_v1.5` by akatz-ai** in H3 Studio
+- native **MP4/MCTX/COND families**, frozen capsules, parent lineage and explicit H3 continuation — with upstream state mechanisms credited
 - an optional **local vision model** (`Qwen3-VL-2B-Instruct`, 4-bit quantization) that reads the H3 source clip and references to write descriptions frozen into the take
 
-> **Commercial use needs separate model licences.** The weights this project runs are not all
-> licensed for paid work, and two of them are the reason to read carefully:
->
-> - **FLUX.2 Klein 9B** (the first-frame editor) is under the **FLUX Non-Commercial License** —
->   commercial use requires a licence from Black Forest Labs.
-> - **MiniMax H3** (the H3 studio) is under the **MiniMax H3 Community License**, whose Applicable
->   Territory **excludes the European Union**, the United Kingdom, the Republic of Korea and the
->   United States, and which extends that restriction to the outputs. Operating from the EU, the H3
->   studio is not covered.
->
-> The **LTX 2.5 + Ripple** path is the one licensed for commercial work here: Lightricks grants
-> royalty-free commercial use below 10 M$ of annual revenue.
->
-> Contest eligibility is a different question: the organizers confirmed that non-commercial weights
-> qualify, because what matters is that the models can be downloaded and run locally. Read
-> [Model licences](docs/validation/model-licences.md) before selling anything produced with this
-> tool, and [the H3 license gate](docs/validation/h3-license-gate.md) for the H3 specifics.
-
+> Model usage terms are separate from the application’s Apache-2.0 licence.
+> See [Model licences](docs/validation/model-licences.md) and the
+> [H3 license gate](docs/validation/h3-license-gate.md) before redistribution or commercial use.
 
 ## Current MVP: Character Recast with LTX 2.5 + Ripple
 

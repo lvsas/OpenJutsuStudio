@@ -75,6 +75,13 @@ Connected creative workspaces keep the generated content usable beyond one Swap:
 | **Characters — work in progress** (`/characters`) | generate with FLUX 3 Klein, select one canvas, discard recent attempts, explicitly keep a named character in the server library, download/share its PNG and use it in either Swap studio | saving/removing library membership never deletes generation artifacts; navigation never starts a render |
 | **Generative Timeline — work in progress** (`/timeline`) | capture/reopen a native H3 Take, retain MCTX/COND and lineage, continue into child takes, and assemble/export chosen clips | a local H3 root → child → grandchild chain has been exercised; native operations remain experimental and operation-specific acceptance is open; public capsule JSON alone is not a complete Take backup |
 
+Characters keeps your exact wording by default; prompt rewriting remains an explicit option.
+`More control → Refine face (extra pass)` is experimental and off by default. It requires
+Impact Pack/Impact Subpack, `bbox/face_yolov8m.pt` and `sam_vit_b_01ec64.pth` on the
+selected Comfy target; readiness checks them before accepting that job. The original PNG
+remains available under result details and is hashed alongside the refined image in the
+capsule. A completed face pass does not establish improved texture or preserved identity.
+
 The target Timeline is a **generation-first chronology of continuable Takes**: explore seeds,
 choose a candidate, generate after or before it, bridge two boundaries, and recover its frozen
 capsule/state. Assembly/export supports that journey rather than becoming a general-purpose editor.

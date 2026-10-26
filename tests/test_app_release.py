@@ -19,6 +19,9 @@ class AppReleaseTests(unittest.TestCase):
         for name in ('index', 'h3', 'character', 'timeline'):
             with self.subTest(page=name):
                 raw = (ROOT / 'src/templates' / (name + '.html')).read_text()
+                self.assertEqual(raw.count('href="/static/studio-wip.css"'), 1,
+                                 'Every WIP notice must load the same shared stylesheet')
+                self.assertLess(raw.index('/static/app.css'), raw.index('/static/studio-wip.css'))
                 self.assertEqual(raw.count('class="studio-wip"'), 1)
                 self.assertIn('<strong>Work in progress</strong>', raw)
                 self.assertEqual(raw.count('<span data-app-version>v0 alpha</span>'), 1)
@@ -42,7 +45,9 @@ with TestClient(app.app) as client:
         r=client.get(path)
         assert r.status_code==200,(path,r.status_code)
         assert '<span data-app-version>v'+VERSION+'</span>' in r.text,path
+        assert r.text.count('href="/static/studio-wip.css"')==1,path
         assert 'v0 alpha</span>' not in r.text,path
+    assert client.get('/static/studio-wip.css').status_code==200
 print(json.dumps({'ok':True}))
 '''
         env = dict(os.environ, PYTHONPATH=str(ROOT / 'src'),

@@ -108,8 +108,7 @@ class CharacterAPITests(unittest.TestCase):
         self.assertEqual(generated.status_code, 202, generated.text)
         recipe = self.dispatch.call_args.args[1]["recipe"]
         self.assertEqual(recipe["direction_origin"], "generated")
-        self.assertIn("no held, carried, worn, or visible props; no object in the hands or on the body",
-                      recipe["resolved_request"])
+        self.assertIn("no hand-held or carried props", recipe["resolved_request"])
         self.dispatch.reset_mock()
         invalid = self.submit(direction_origin="system")
         self.assertEqual(invalid.status_code, 422)

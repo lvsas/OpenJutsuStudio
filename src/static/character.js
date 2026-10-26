@@ -6,69 +6,68 @@
 (() => {
   "use strict";
 
-  // Curated complete looks avoid accidental "costume" collisions from independently shuffled lists.
-  // The vocabulary is contemporary, wearable and prop-free by default; the server freezes the
-  // matching generated-origin anti-prop policy with the recipe.
+  // Believable weird adults: a distinctive physical hook, simple clothes, contrasting personality.
+  // Complete tuples stay coherent and prop-free; rendering and framing belong to the server.
   const LOOKS = [
     {
-      role: "nightlife creative", build: "tall with a relaxed athletic build",
-      hair: "a lacquered micro bob with a razor-sharp fringe", outfit: "a cropped cherry-red bomber over a sheer black layer, low-slung puddle trousers and slim trainers",
-      attitude: "standing calm and self-assured with a direct expression",
+      role: "fastidious train announcer", build: "a broad-shouldered but realistically proportioned adult body",
+      hair: "a jaw-length dense copper bob sculpted into a broad trapezoid, a completely flat horizontal top, straight heavy fringe at eyebrow level, and thick sides covering the ears and flaring outward at the jaw; a long face with a bushy dark walrus moustache drooping over the upper lip", outfit: "a pale mint short-sleeved shirt buttoned to the collar, very high-waisted chocolate-brown trousers with sharp front creases and a slightly short hem, white socks and glossy black loafers",
+      attitude: "standing with shy tucked-in elbows, raised eyebrows and a bashful closed-mouth smile",
     },
     {
-      role: "independent stylist", build: "compact and athletic",
-      hair: "a soft wolf cut with bleached face-framing pieces", outfit: "a boxy denim jacket over a graphic knit with a long cargo skirt and heavy boots",
-      attitude: "standing easy and focused with a warm, direct expression",
+      role: "self-appointed neighbourhood expert", build: "a stocky adult build with ordinary head and limb proportions",
+      hair: "a precisely geometric silver crest widening into a horizontal shelf, and a broad moustache", outfit: "a plain rust cardigan, navy trousers and brown loafers",
+      attitude: "chin lifted with a smug half-smile and one sceptically raised eyebrow",
     },
     {
-      role: "editorial producer", build: "lean and long-limbed",
-      hair: "sculpted finger waves with a clean side part", outfit: "an oversized pinstripe suit with a fitted waistcoat and pointed boots",
-      attitude: "standing composed with a subtle, knowing smile",
+      role: "unflappable cafe owner", build: "a short broad realistically proportioned adult body",
+      hair: "a single smooth auburn loop rising sharply from the forehead then folding sideways like a sculptural comma", outfit: "a plain teal T-shirt, dark jeans and simple white shoes",
+      attitude: "hands at the sides, stern pursed lips and intensely unimpressed eyes",
     },
     {
-      role: "digital art director", build: "broad-shouldered with an easy stance",
-      hair: "a platinum buzz cut with a sharp graphic shaved line", outfit: "a cropped cobalt technical jacket over a ribbed tank with wide asymmetric parachute trousers",
-      attitude: "standing relaxed, clear-eyed and quietly confident",
+      role: "overconfident dance teacher", build: "a very lean adult build with a long neck and ordinary-length legs",
+      hair: "a rigid triangular black fringe sweeping sideways over a narrow angular face", outfit: "a fitted burgundy knit, simple black trousers and flat shoes",
+      attitude: "chest proudly lifted, a theatrical arched eyebrow and a knowing crooked smile",
     },
     {
-      role: "fashion student", build: "slim with an upright posture",
-      hair: "a glossy blunt bob with a micro fringe", outfit: "an asymmetric butter-yellow knit with wide tailored trousers and platform loafers",
-      attitude: "standing still with a cool, unforced expression",
+      role: "soft-spoken book club organiser", build: "a tall narrow adult build with ordinary head size and a long angular face",
+      hair: "a precise flat silver crop with two pointed sideburns", outfit: "a plain pale-blue sweater, charcoal trousers and low trainers",
+      attitude: "shoulders drawn inward, wide attentive eyes and a sweet tentative smile",
     },
     {
-      role: "music visual director", build: "tall with a lean, balanced silhouette",
-      hair: "long lacquered braids with an exact centre part", outfit: "a cropped moto jacket over a mesh layer with low-rise trousers and square-toe boots",
-      attitude: "standing open and observant with a calm natural smile",
+      role: "fiercely competitive amateur gardener", build: "a heavyset adult build with narrow shoulders and rounded hips",
+      hair: "a tall tightly coiled copper spiral pinned upright above a small determined face", outfit: "a plain mustard sweatshirt, dark green trousers and tan shoes",
+      attitude: "feet planted, chin forward and a tight triumphant smirk beneath sharply raised brows",
     },
     {
-      role: "downtown curator", build: "compact with a solid build",
-      hair: "defined natural curls with a deep side part", outfit: "a sculptural zip-up jacket over a striped knit with wide black trousers",
-      attitude: "standing grounded, wry and completely at ease",
+      role: "cheerful local choir leader", build: "a broad-chested adult build with normal head size and ordinary feet",
+      hair: "a sculptural cloud of silver curls and an emphatic curled moustache", outfit: "a simple coral pullover, navy chinos and black shoes",
+      attitude: "an exuberant open smile, lifted cheeks and a proudly upright stance",
     },
     {
-      role: "street-style filmmaker", build: "tall and softly built",
-      hair: "long dark butterfly layers with a deep side part", outfit: "a cropped olive work jacket with an asymmetric pleated midi skirt and tall boots",
-      attitude: "standing quietly alert with a focused, natural expression",
+      role: "deadpan weekend sprinter", build: "a strongly built adult with wide shoulders, ordinary waist and natural-length legs",
+      hair: "a small circular black fringe cut into a perfectly sharp rim above a wide rectangular jaw", outfit: "a plain cobalt T-shirt, grey jogging trousers and white running shoes",
+      attitude: "arms hanging loosely, narrowed sceptical eyes and a completely serious pout",
     },
   ];
 
   const AXES = [
     ["being", "Presentation", ["a woman", "a man", "an androgynous person", "a non-binary person"]],
-    ["build", "Build", ["tall with a relaxed athletic build", "compact with a solid build", "lean and long-limbed", "broad-shouldered with an easy stance"]],
+    ["build", "Silhouette", LOOKS.map((look) => look.build)],
     ["skin_tone", "Skin tone", ["fair skin", "olive skin", "warm brown skin", "deep brown skin", "very dark brown skin"]],
-    ["hair", "Hair", ["a lacquered micro bob with a razor-sharp fringe", "a soft wolf cut with bleached face-framing pieces", "sculpted finger waves with a clean side part", "a platinum buzz cut with a sharp graphic shaved line", "a glossy blunt bob with a micro fringe", "long lacquered braids with an exact centre part"]],
-    ["face", "Expression", ["a calm closed-mouth smile", "focused clear eyes", "a wry natural expression", "a warm relaxed expression", "a cool, unforced expression", "deadpan calm"]],
-    ["outfit", "Outfit", ["a cropped cherry-red bomber over a sheer black layer with low-slung puddle trousers", "a boxy denim jacket over a graphic knit with a long cargo skirt", "an oversized pinstripe suit with a fitted waistcoat", "a cropped cobalt technical jacket over a ribbed tank with wide asymmetric parachute trousers", "an asymmetric butter-yellow knit with wide tailored trousers", "a cropped moto jacket over a mesh layer with low-rise trousers"]],
-    ["role", "Role", ["a nightlife creative", "an independent stylist", "an editorial producer", "a digital art director", "a fashion student", "a music visual director"]],
-    ["era", "Era", ["viral contemporary street style", "late-night editorial styling", "new-tailoring street style", "fashion-week off-duty styling"]],
-    ["attitude", "Energy", ["calm and focused", "wry and composed", "warm and relaxed", "cool and self-assured", "guarded but steady"]],
+    ["hair", "Signature hair", LOOKS.map((look) => look.hair)],
+    ["face", "Face and expression", ["an emphatic square jaw and a bashful smile", "a broad moustache and a smug half-smile", "stern pursed lips and unimpressed eyes", "an arched eyebrow and a crooked smile", "wide attentive eyes and a tentative smile", "lifted cheeks and an exuberant open smile"]],
+    ["outfit", "Clothes", LOOKS.map((look) => look.outfit)],
+    ["role", "Personality", LOOKS.map((look) => `a ${look.role}`)],
+    ["era", "Era", ["present-day everyday clothing", "simple 1970s casual clothing", "simple 1990s casual clothing"]],
+    ["attitude", "Posture and attitude", LOOKS.map((look) => look.attitude)],
   ];
 
   const REFINEMENTS = [
-    ["appearance", "Change the hair or expression", ["hair", "face"], "Hair and expression · model decides"],
-    ["style", "Change the style", ["outfit", "era"], "Outfit and era · model decides"],
-    ["story", "Change the story", ["role", "attitude"], "Role and energy · model decides"],
-    ["identity", "Make identity specific", ["being", "build", "skin_tone"], "Presentation and build · model decides"],
+    ["identity", "Silhouette", ["build"], "From the idea"],
+    ["appearance", "Signature hair and face", ["hair", "face"], "From the idea"],
+    ["story", "Expression and personality", ["role", "attitude"], "From the idea"],
+    ["style", "Simple clothes", ["outfit", "era"], "From the idea"],
   ];
 
   const MODE_HINTS = {
@@ -116,7 +115,9 @@
   }
 
   function syncProposalSummary() {
-    proposalSummary.textContent = directionField.value.trim();
+    proposalSummary.textContent = axisValues.size
+      ? `Overrides: ${[...axisValues.values()].join(" · ")}`
+      : "Refinements are optional. Your idea leads.";
   }
 
   function renderChoices(axisKeys, host) {
@@ -181,6 +182,7 @@
       refineListHost.append(button);
     }
     clearAxesButton.hidden = axisValues.size === 0;
+    syncProposalSummary();
   }
 
   function renderRefineOptions() {
@@ -251,7 +253,7 @@
 
   function buildDirection() {
     const look = pick(LOOKS);
-    return `A shareable contemporary editorial street-style portrait of an original ${look.role}: ${look.build}, ${look.hair}, wearing ${look.outfit}, ${look.attitude}.`;
+    return `An original adult, a ${look.role}: ${look.build}, ${look.hair}, wearing ${look.outfit}, ${look.attitude}.`;
   }
 
   function shuffle() {

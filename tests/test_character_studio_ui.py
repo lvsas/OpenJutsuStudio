@@ -42,6 +42,28 @@ class CharacterStudioUITests(unittest.TestCase):
                 order = [nav.index(f'href="{href}"') for href in ("/characters", "/", "/h3")]
                 self.assertEqual(order, sorted(order), f"{name} must list Characters before the studios")
 
+    def test_character_hero_keeps_the_shared_studio_hierarchy(self):
+        match = re.search(r'<section class="studio-intro"[^>]*>(.*?)</section>', self.page, re.S)
+        assert match is not None, 'Characters must expose the shared hero'
+        intro = match.group(1)
+        self.assertIn('<p class="eyebrow">Viral character creation</p>', intro)
+        self.assertIn('<h1>Make a character.<br><em>Give them a viral signature.</em></h1>', intro)
+        for markup in (self.index, self.h3):
+            self.assertRegex(markup, r'<h1[^>]*>[^<]+<br><em>[^<]+</em></h1>')
+        for rule in re.findall(r'\.studio-intro[^{}]*\{([^{}]*)\}', self.css):
+            self.assertNotRegex(rule, r'font-size|line-height|padding|gap|letter-spacing',
+                                'Characters must inherit shared hero typography and spacing')
+        self.assertNotRegex(self.css, r'\.studio-shell\s*\{', 'keep the shared outer gutter')
+
+    def test_primary_action_precedes_optional_refinements(self):
+        self.assertEqual(self.page.count('id="generate"'), 1)
+        self.assertLess(self.page.index('id="direction"'), self.page.index('id="generate"'))
+        self.assertLess(self.page.index('id="generate"'), self.page.index('id="refine-list"'))
+        editor = re.search(r'<label[^>]*id="direction-editor"[^>]*>', self.page)
+        assert editor is not None, 'the idea must stay editable'
+        self.assertNotIn('hidden', editor.group(0))
+        self.assertNotRegex(self.css, r'position:\s*(?:fixed|sticky)', 'no overlay to rescue CTA reachability')
+
     def test_page_loads_the_studio_shell_and_its_own_assets(self):
         self.assertIn("/static/app.css", self.page)
         self.assertIn("/static/character.css", self.page)
@@ -59,8 +81,8 @@ class CharacterStudioUITests(unittest.TestCase):
         for element_id in ("proposal-summary", "refine-list", "refine-options", "more-control"):
             with self.subTest(element_id=element_id):
                 self.assertIn(f'id="{element_id}"', self.page)
-        for label in ("Change the hair or expression", "Change the style", "Change the story",
-                      "Make identity specific"):
+        for label in ("Silhouette", "Signature hair and face", "Expression and personality",
+                      "Simple clothes"):
             with self.subTest(label=label):
                 self.assertIn(f'"{label}"', self.js)
         self.assertIn("const REFINEMENTS = [", self.js)
@@ -158,9 +180,13 @@ class CharacterStudioUITests(unittest.TestCase):
         for field in ("role", "build", "hair", "outfit", "attitude"):
             with self.subTest(field=field):
                 self.assertIn(f"look.{field}", direction_builder)
-        for signal in ("micro bob", "wolf cut", "platinum buzz", "finger waves", "cropped", "cargo", "asymmetric"):
+        for signal in ("realistically proportioned", "jaw-length dense copper bob", "geometric silver", "triangular black", "sculptural", "moustache", "smirk"):
             with self.subTest(signal=signal):
-                self.assertIn(signal, self.js.lower(), f"default looks lost contemporary visual signal: {signal!r}")
+                self.assertIn(signal, self.js.lower(), f"default looks lost physical/personality hook: {signal!r}")
+        self.assertIn("An original adult,", direction_builder)
+        self.assertNotIn("caricature", direction_builder)
+        self.assertNotRegex(self.js, r"outsized head|tiny waist|spindly legs")
+        self.assertNotRegex(direction_builder, r"editorial|street.style|photograph|studio|portrait")
         self.assertNotRegex(direction_builder, r"\b(?:holding|carrying|clutching|cradling|wheeling|balancing)\b")
 
     def test_turnaround_wording_never_sends_character_sheet(self):

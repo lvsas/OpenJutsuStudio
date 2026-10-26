@@ -26,11 +26,17 @@ V2_AXES = ("being", "build", "skin_tone", "hair", "face", "outfit", "role", "era
 V3_PROMPT_POLICY = "character-v3"
 V3_SCHEMA_VERSION = 3
 V3_AXES = V2_AXES
+V4_PROMPT_POLICY = "character-v4"
+V4_SCHEMA_VERSION = 4
+V4_AXES = V3_AXES
+V5_PROMPT_POLICY = "character-v5"
+V5_SCHEMA_VERSION = 5
+V5_AXES = V4_AXES
 DIRECTION_ORIGINS = ("generated", "user_authored")
 # Public aliases always describe recipes that can be newly created.
-PROMPT_POLICY = V3_PROMPT_POLICY
-SCHEMA_VERSION = V3_SCHEMA_VERSION
-AXES = V3_AXES
+PROMPT_POLICY = V5_PROMPT_POLICY
+SCHEMA_VERSION = V5_SCHEMA_VERSION
+AXES = V5_AXES
 MAX_TEXT = 2_000
 MAX_AXIS_TEXT = 300
 MAX_SEED = 2**64 - 1
@@ -46,7 +52,18 @@ V2_NEGATIVE_CLAUSE = ("no text, no letters, no logo, no watermark, no border, no
 # direction the user deliberately authored.
 GENERATED_NO_PROP_CLAUSE = "no held, carried, worn, or visible props; no object in the hands or on the body"
 V3_NEGATIVE_CLAUSE = f"{V2_NEGATIVE_CLAUSE}, {GENERATED_NO_PROP_CLAUSE}"
-NEGATIVE_CLAUSE = V3_NEGATIVE_CLAUSE
+V4_NEGATIVE_CLAUSE = ("no text, no letters, no logo, no watermark, no border, no frame, "
+                      "exactly one person, nothing cropped, clear eyes, coherent facial anatomy; "
+                      "preserve the intentional exaggeration of proportions, hair and expression; "
+                      "real skin and fabric detail, not a drawing, toy or plastic figurine")
+V4_GENERATED_NO_PROP_CLAUSE = "empty hands, no hand-held or carried props"
+V5_NEGATIVE_CLAUSE = (
+    "no text, no letters, no logo, no watermark, no border, no frame, exactly one person, "
+    "nothing cropped, clear eyes, coherent facial anatomy; natural adult head-to-body scale "
+    "and limb lengths unless explicitly requested in the character idea; retain the requested "
+    "distinctive hair, face, expression and build with lifelike skin pores and individual hair strands"
+)
+NEGATIVE_CLAUSE = V5_NEGATIVE_CLAUSE
 PORTRAIT_FRAMING = (
     "Studio photograph, three-quarter body, one person standing on a plain mid-grey seamless "
     "backdrop under soft even high-key lighting, sharp focus on the face, whole character in frame"
@@ -56,6 +73,16 @@ TURNAROUND_FRAMING = (
     "at equal scale on one plain mid-grey seamless backdrop, under soft even high-key lighting, "
     "showing four different viewing angles in this order — front view, three-quarter view, left "
     "profile, and back view — with identical clothing, hair and lighting in all four panels"
+)
+V4_PORTRAIT_FRAMING = (
+    "Studio photograph, full-body portrait, one original adult human character standing with both feet "
+    "visible on a plain mid-grey seamless backdrop under soft even lighting; photographic skin, "
+    "hair and fabric textures with the deliberately caricatured features described in the idea"
+)
+V5_PORTRAIT_FRAMING = (
+    "Full-length photograph of one life-sized original adult, both feet visible, natural camera "
+    "perspective on a plain mid-grey seamless backdrop under soft neutral studio light; "
+    "unretouched photographic skin texture, real hair and fabric"
 )
 MODE_SPECS = {
     "portrait": {"aspect_ratio": "3:4 (Portrait Standard)", "framing": PORTRAIT_FRAMING},
@@ -142,7 +169,8 @@ MODEL_ROLES = _model_roles()
 SYSTEM_PROMPT_SHA256 = digest_json(load_vendor_graph()["18:14"]["inputs"]["value"])
 
 
-def _request_with_clause(mode: str, direction: str, selections: dict[str, str], negative_clause: str) -> str:
+def _request_with_clause(mode: str, direction: str, selections: dict[str, str], negative_clause: str,
+                         *, framing: str | None = None, overrides: bool = False) -> str:
     if mode not in MODE_SPECS:
         raise ValueError("Unknown Character output mode")
     if "character sheet" in direction.lower():
@@ -150,7 +178,9 @@ def _request_with_clause(mode: str, direction: str, selections: dict[str, str], 
     facts = [f"{axis.replace('_', ' ')}: {value}" for axis, value in selections.items()
              if value != MODEL_DECIDES]
     # Medium and framing first, then the character, then the explicit choices, then the negatives.
-    text = ", ".join([MODE_SPECS[mode]["framing"], direction, *facts, negative_clause])
+    if overrides and facts:
+        facts.insert(0, "Explicit choices override conflicting details in the character idea")
+    text = ", ".join([framing or MODE_SPECS[mode]["framing"], direction, *facts, negative_clause])
     if "character sheet" in text.lower():
         raise ValueError("Character requests must not use the phrase 'character sheet'")
     return text
@@ -172,6 +202,23 @@ def _request_v3(mode: str, direction: str, selections: dict[str, str], direction
     return _request_with_clause(mode, direction, selections, clause)
 
 
+def _request_v4(mode: str, direction: str, selections: dict[str, str], direction_origin: str) -> str:
+    origin = _direction_origin(direction_origin)
+    clause = V4_NEGATIVE_CLAUSE
+    if origin == "generated":
+        clause += ", " + V4_GENERATED_NO_PROP_CLAUSE
+    framing = V4_PORTRAIT_FRAMING if mode == "portrait" else None
+    return _request_with_clause(mode, direction, selections, clause, framing=framing, overrides=True)
+
+
+def _request_v5(mode: str, direction: str, selections: dict[str, str], direction_origin: str) -> str:
+    clause = V5_NEGATIVE_CLAUSE
+    if _direction_origin(direction_origin) == "generated":
+        clause += ", " + V4_GENERATED_NO_PROP_CLAUSE
+    framing = V5_PORTRAIT_FRAMING if mode == "portrait" else None
+    return _request_with_clause(mode, direction, selections, clause, framing=framing, overrides=True)
+
+
 def make_recipe(*, job_id: str, direction: str, mode: str, trend_id: str, selections: dict[str, str] | None,
                 sampler_seed: int, upsampler_seed: int, upsampler: bool,
                 direction_origin: str = "generated") -> dict[str, Any]:
@@ -186,9 +233,9 @@ def make_recipe(*, job_id: str, direction: str, mode: str, trend_id: str, select
     sampler_seed, upsampler_seed = _seed(sampler_seed, "sampler seed"), _seed(upsampler_seed, "upsampler seed")
     if type(upsampler) is not bool:
         raise ValueError("Character prompt upsampler must be boolean")
-    resolved = _selections(selections, V3_AXES)
+    resolved = _selections(selections, AXES)
     direction_origin = _direction_origin(direction_origin)
-    request = _request_v3(mode, direction, resolved, direction_origin)
+    request = _request_v5(mode, direction, resolved, direction_origin)
     graph = build_character_graph(request, sampler_seed, MODE_SPECS[mode]["aspect_ratio"], upsampler, job_id,
                                   upsampler_seed=upsampler_seed)
     recipe = {
@@ -223,6 +270,10 @@ def _recipe_axes(recipe: dict[str, Any]) -> tuple[str, ...]:
         return V2_AXES
     if version == V3_SCHEMA_VERSION and policy == V3_PROMPT_POLICY:
         return V3_AXES
+    if version == V4_SCHEMA_VERSION and policy == V4_PROMPT_POLICY:
+        return V4_AXES
+    if version == V5_SCHEMA_VERSION and policy == V5_PROMPT_POLICY:
+        return V5_AXES
     raise ValueError("Unsupported Character recipe contract")
 
 
@@ -235,7 +286,7 @@ def validate_recipe(recipe: Any) -> dict[str, Any]:
         "mode", "aspect_ratio", "resolved_request", "sampler_seed", "upsampler_seed", "upsampler",
         "model_roles", "vendor_workflow_sha256", "system_prompt_sha256", "graph_template", "graph_sha256",
     }
-    if recipe.get("schema_version") == V3_SCHEMA_VERSION:
+    if recipe.get("schema_version") in (V3_SCHEMA_VERSION, V4_SCHEMA_VERSION, V5_SCHEMA_VERSION):
         required.add("direction_origin")
     if set(recipe) != required or recipe.get("engine") != ENGINE:
         raise ValueError("Unsupported Character recipe contract")
@@ -265,7 +316,8 @@ def validate_recipe(recipe: Any) -> dict[str, Any]:
             raise ValueError("Character resolved request changed")
     else:
         direction_origin = _direction_origin(recipe.get("direction_origin"))
-        request = _request_v3(mode, direction, selections, direction_origin)
+        assembler = {3: _request_v3, 4: _request_v4, 5: _request_v5}[recipe["schema_version"]]
+        request = assembler(mode, direction, selections, direction_origin)
         if recipe.get("resolved_request") != request:
             raise ValueError("Character resolved request changed")
     if recipe.get("model_roles") != MODEL_ROLES:

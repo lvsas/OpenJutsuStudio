@@ -37,10 +37,9 @@
   <aside class="studio-wip" aria-label="Development status"><strong>Work in progress</strong><span>Character creation, your saved library and studio handoffs are being refined.</span></aside>
   <main class="studio-shell">
     <section class="studio-intro">
-      <p class="eyebrow">Stage 01 · Characters</p>
-      <h1>Viral<br><em>Character Maker</em></h1>
-      <p>Start with a memorable person. Nudge only the part that matters, then create an original
-        studio photograph you can carry into either studio as a reference.</p>
+      <p class="eyebrow">Viral character creation</p>
+      <h1>Make a character.<br><em>Give them a viral signature.</em></h1>
+      <p>One memorable silhouette. A personality of their own. Create with FLUX 3, then make it yours.</p>
     </section>
 
     <div class="studio-grid">
@@ -54,28 +53,28 @@
 
         <form id="character-form">
           <section class="proposal-card" aria-labelledby="proposal-label">
-            <p class="eyebrow" id="proposal-label">Current proposal</p>
+            <label class="direction-editor" id="direction-editor">
+              <span class="field-label" id="proposal-label">Your character idea</span>
+              <textarea id="direction" name="direction" class="text-input textarea" rows="5" maxlength="2000" required
+                        placeholder="Describe their silhouette, signature hair or face, and personality…"></textarea>
+            </label>
             <p class="proposal-summary" id="proposal-summary" aria-live="polite"></p>
-            <button type="button" class="btn btn-ghost btn-small" id="shuffle">Try another</button>
           </section>
-
+          <div class="character-actions idea-actions">
+            <button type="submit" class="btn btn-primary" id="generate">Generate character</button>
+            <button type="button" class="btn btn-ghost btn-small" id="shuffle">Try another</button>
+          </div>
+          <p class="microcopy form-error" id="form-error" role="alert" hidden></p>
+          <div class="refinement-heading"><span class="field-label">Optional refinements</span><button type="button" class="btn btn-ghost btn-small" id="clear-axes" hidden>Clear refinements</button></div>
           <div class="refine-list" id="refine-list" aria-label="Refine the proposal"></div>
           <div class="refine-options" id="refine-options" aria-live="polite"></div>
 
           <details class="more-control" id="more-control">
             <summary>
               <span class="optional-label">More control</span>
-              <small>exact details, wording and output</small>
+              <small>output and fine details</small>
             </summary>
             <div class="more-control-body">
-              <details class="direction-editor" id="direction-editor">
-                <summary>Edit the wording</summary>
-                <label>
-                  <span class="field-label">Direction</span>
-                  <textarea id="direction" name="direction" class="text-input textarea" rows="5" maxlength="2000" required
-                            placeholder="Describe the person in your own words…"></textarea>
-                </label>
-              </details>
               <div class="character-row">
                 <label>
                   <span class="field-label">Output</span>
@@ -99,11 +98,6 @@
             </div>
           </details>
 
-          <div class="character-actions">
-            <button type="submit" class="btn btn-primary" id="generate">Generate character</button>
-            <button type="button" class="btn btn-ghost btn-small" id="clear-axes" hidden>Clear refinements</button>
-          </div>
-          <p class="microcopy form-error" id="form-error" role="alert" hidden></p>
         </form>
       </section>
 

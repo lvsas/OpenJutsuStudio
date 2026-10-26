@@ -34,12 +34,11 @@ class CharacterRecipeTests(unittest.TestCase):
             upsampler=True,
         )
 
-    def test_new_generated_recipes_are_v3_person_first_and_reject_v1_only_accessory(self):
-        self.assertEqual(self.recipe["schema_version"], 3)
-        self.assertEqual(self.recipe["prompt_policy"], "character-v3")
+    def test_new_generated_recipes_are_v5_weird_humans_and_reject_v1_only_accessory(self):
+        self.assertEqual(self.recipe["schema_version"], 5)
+        self.assertEqual(self.recipe["prompt_policy"], "character-v5")
         self.assertEqual(self.recipe["direction_origin"], "generated")
-        self.assertIn("no held, carried, worn, or visible props; no object in the hands or on the body",
-                      self.recipe["resolved_request"])
+        self.assertIn("no hand-held or carried props", self.recipe["resolved_request"])
         self.assertNotIn("accessory", self.recipe["selections"])
         self.assertNotIn("absurdity", self.recipe["selections"])
         with self.assertRaisesRegex(ValueError, "Unknown Character selection axis"):
@@ -96,7 +95,7 @@ class CharacterRecipeTests(unittest.TestCase):
         validate_recipe(self.recipe)
 
     def test_request_is_photographic_and_turnaround_asks_for_four_different_angles(self):
-        self.assertTrue(self.recipe["resolved_request"].startswith("Studio photograph,"))
+        self.assertTrue(self.recipe["resolved_request"].startswith("Full-length photograph"))
         turnaround = make_recipe(
             job_id="character_turnaround_1", direction="an original locksmith", mode="turnaround",
             trend_id="original", selections={}, sampler_seed=1, upsampler_seed=1, upsampler=True)
@@ -110,7 +109,7 @@ class CharacterRecipeTests(unittest.TestCase):
             with self.subTest(angle=angle):
                 self.assertIn(angle, request)
         for negative in ("no text", "no watermark", "exactly one person",
-                         "clear eyes", "plausible facial anatomy", "unexaggerated natural expression"):
+                         "clear eyes", "coherent facial anatomy", "natural adult head-to-body scale"):
             with self.subTest(negative=negative):
                 self.assertIn(negative, request)
         with self.assertRaisesRegex(ValueError, "character sheet"):

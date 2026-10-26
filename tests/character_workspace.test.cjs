@@ -36,7 +36,12 @@ const deferred = () => { let resolve; const promise = new Promise(r => {resolve 
 async function flush() { for (let i = 0; i < 30; i++) await new Promise(resolve => setImmediate(resolve)); }
 
 function boot({storage = {}, members = [], statuses = {}, fetchHook, storageThrows = false, nativeShare = false} = {}) {
-  const elements = new Map([...html.matchAll(/id="([^"]+)"/g)].map(match => [match[1], new Element()]));
+  const elements = new Map([...html.matchAll(/<(\w+)\b([^>]*\bid="([^"]+)"[^>]*)>/g)].map(([, tag, attrs, id]) => {
+    const element = new Element(tag);
+    element.type = attrs.match(/\btype="([^"]+)"/)?.[1] || '';
+    element.hidden = /\bhidden\b/.test(attrs);
+    return [id, element];
+  }));
   const calls = [], timers = [], sharing = [];
   let library = members.map(entry => ({...entry}));
   const document = {querySelector: selector => elements.get(selector.slice(1)) || null, createElement: tag => new Element(tag)};
@@ -65,6 +70,49 @@ function boot({storage = {}, members = [], statuses = {}, fetchHook, storageThro
   return {elements, storage, calls, timers, sharing, get library() {return library;}};
 }
 const member = (id, name = 'Saved person') => ({job_id:id, name, saved_at:1, image_url:`/api/characters/jobs/${id}/image`});
+
+test('editable idea and early submit precede refinements; shuffle is local person-only weird adult', async () => {
+  const stack = []; let ideaAncestors;
+  for (const match of html.matchAll(/<\/?(?:details|textarea)\b[^>]*>/g)) {
+    if (match[0].startsWith('</details')) stack.pop();
+    else if (match[0].startsWith('<details')) stack.push(match[0]);
+    else if (match[0].includes('id="direction"')) ideaAncestors = [...stack];
+  }
+  assert.deepEqual(ideaAncestors, [], 'idea must not live in any disclosure');
+  assert.ok(html.indexOf('id="generate"') < html.indexOf('id="refine-list"'));
+  assert.ok(html.indexOf('id="generate"') < html.indexOf('id="more-control"'));
+  const app = boot(); await flush();
+  assert.equal(app.elements.get('direction').tagName, 'TEXTAREA');
+  assert.equal(app.elements.get('direction').hidden, false);
+  assert.equal(app.elements.get('generate').type, 'submit');
+  assert.equal(app.elements.get('shuffle').type, 'button');
+  const before = app.calls.length;
+  for (let i = 0; i < 30; i++) {
+    await app.elements.get('shuffle').click();
+    const idea = app.elements.get('direction').value;
+    assert.match(idea, /^An original adult,/);
+    assert.doesNotMatch(idea, /caricature|outsized head|tiny waist|spindly legs|tiny neat feet/i);
+    assert.match(idea, /flat|geometric|sculptural|triangular|precise|spiral|silver|sharp/);
+    assert.doesNotMatch(idea, /editorial|street.style|photograph|studio|portrait|holding|carrying/i);
+  }
+  assert.equal(app.calls.length, before, 'shuffle must perform zero fetches');
+  assert.match(app.elements.get('refine-list').textContent, /From the idea/);
+  const silhouette = app.elements.get('refine-list').children[0];
+  await silhouette.click();
+  const custom = app.elements.get('refine-options').querySelector('input');
+  assert.equal(custom.maxLength, 300);
+  custom.value = 'a broad triangular silhouette'; await custom.fire('change');
+  assert.match(app.elements.get('refine-list').textContent, /a broad triangular silhouette/);
+  assert.equal(app.elements.get('clear-axes').hidden, false);
+  await app.elements.get('clear-axes').click();
+  assert.equal(app.elements.get('clear-axes').hidden, true);
+  app.elements.get('direction').value = 'My own original person';
+  await app.elements.get('direction').fire('input');
+  await app.elements.get('character-form').fire('submit'); await flush();
+  const payload = JSON.parse(app.calls.find(call => call.options.method === 'POST').options.body);
+  assert.equal(payload.direction, 'My own original person');
+  assert.equal(payload.direction_origin, 'user_authored');
+});
 
 test('one cached result survives pending work, legacy attempts migrate without auto-save', async () => {
   const app = boot({storage:{'opengenjutsu.characters.jobs':JSON.stringify([A, B]), 'opengenjutsu.characters.active':A}, statuses:{[B]:'running'}});

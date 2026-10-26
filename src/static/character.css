@@ -3,17 +3,26 @@
 [data-engine="characters"] .studio-grid { grid-template-columns: minmax(21rem, .9fr) minmax(24rem, 1.1fr); }
 [data-engine="characters"] select.text-input { appearance: none; }
 
-#character-form { display: grid; gap: var(--space-3); }
+/* Keep the shared hero scale; give the longer promise room beside its caption. */
+[data-engine="characters"] .studio-intro h1 { flex-basis: 70%; }
+[data-engine="characters"] .studio-intro > p:last-child { flex-basis: 30%; }
+[data-engine="characters"] .recipe-panel { padding: 1rem; }
+[data-engine="characters"] .panel-heading { display: none; }
+#character-form { display: grid; gap: .65rem; margin-top: 0; }
+.refinement-heading { align-items: center; display: flex; justify-content: space-between; gap: .5rem; }
+.refinement-heading .field-label { margin: 0; }
+.idea-actions .btn-primary { flex: 1 1 10rem; }
+#direction { display: block; width: 100%; height: 7rem; min-height: 7rem; resize: vertical; margin-top: .5rem; font-size: .9rem; line-height: 1.45; }
 
 .proposal-card {
   background: var(--surface-raised);
   border: 1px solid var(--accent-card-line);
   border-radius: var(--radius-md);
   display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  gap: var(--space-2);
+  padding: var(--space-3);
 }
-.proposal-summary { color: var(--text); font-size: 1.05rem; letter-spacing: -.015em; line-height: 1.45; margin: 0; }
+.proposal-summary { color: var(--muted); font-size: .76rem; line-height: 1.4; margin: 0; overflow-wrap: anywhere; }
 .proposal-card .btn { justify-self: start; }
 
 .refine-list { display: grid; gap: .45rem; }
@@ -69,11 +78,7 @@
 .more-control:not([open]) > :not(summary) { display: none; }
 .more-control-body { display: grid; gap: var(--space-3); margin-top: var(--space-3); }
 
-.direction-editor { border-top: 1px solid var(--line); padding-top: var(--space-3); }
-.direction-editor > summary { color: var(--muted); cursor: pointer; font-size: .8rem; font-weight: 720; }
-.direction-editor[open] > summary { color: var(--text); margin-bottom: var(--space-3); }
-.direction-editor:not([open]) > :not(summary) { display: none; }
-.direction-editor label { display: block; }
+.direction-editor { display: block; }
 
 .character-row { display: grid; gap: var(--space-3); grid-template-columns: 1fr 1fr; }
 
@@ -137,7 +142,7 @@
 .form-error { color: var(--danger); margin: 0; }
 
 /* One result canvas, two deliberately different shelves. */
-[data-engine="characters"] .studio-stage { min-width: 0; }
+[data-engine="characters"] .studio-stage { min-width: 0; padding: 1rem; position: static; }
 [data-engine="characters"] [hidden] { display: none !important; }
 .stage-header .stage-actions { align-items: center; display: flex; gap: var(--space-2); }
 .empty-result { border: 1px dashed var(--line); border-radius: var(--radius-md); color: var(--muted); line-height: 1.7; padding: 4rem 1.5rem; text-align: center; }
@@ -171,6 +176,10 @@
   [data-engine="characters"] .studio-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
+  [data-engine="characters"] .recipe-panel { padding: .75rem; }
+  #character-form { gap: .5rem; }
+  .proposal-card { padding: .5rem; gap: .25rem; }
+  #direction { height: 5rem; min-height: 5rem; }
   .character-row { grid-template-columns: 1fr; }
   .active-result .character-actions > .btn { flex: 1 1 auto; text-align: center; }
   .canvas img { max-height: 60vh; }

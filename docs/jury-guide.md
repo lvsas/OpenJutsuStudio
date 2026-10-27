@@ -16,6 +16,12 @@ distinct Character, H3 Swap, native-continuation and LTX examples; it does not
 claim they are one end-to-end generation. Explanatory English subtitles are
 available privately, not a transcript of generated dialogue.
 
+**The creator rejected this first cut** for repetition, ordering, weak structure,
+soundtrack/narration omissions and unsuitable or outdated examples. It is a
+historical technical record, not the competition demonstration. The
+[V2 production plan](plans/2026-10-27-jury-v2.md) requires a new media selection
+and a structured, narrated edit with music.
+
 Media publication and human pacing/audio review remain open. This checkout has
 no public demo-video link; no publication or contest submission is implied.
 

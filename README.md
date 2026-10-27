@@ -148,6 +148,9 @@ engine-specific candidates and unproven operations rather than claiming H3/LTX s
 
 </details>
 
+<details>
+<summary>Earlier Swap interface captures and receipt details</summary>
+
 ![LTX Studio](docs/readme/ltx-swap.png)
 
 *LTX Studio: the source and the character references are chosen with the same picker both
@@ -165,6 +168,8 @@ the source and references and freeze those generated descriptions into the take.
 You can override them; provenance distinguishes generated text from your own.
 Optional vision dependencies and their failure warnings are not hidden prerequisites
 for every Swap. See [executor setup](docs/executor-setup.md).
+
+</details>
 
 ## Verified scope and limits
 
@@ -209,7 +214,7 @@ prepared environment and real acceptance required before we claim it works.
 | Built with **ComfyUI**, using any allowed hosting option | our chosen transport is the official `comfy_sdk`; the proxy bridges API v2 to self-hosted ComfyUI. Remote target configuration exists; real managed deployment acceptance remains pending |
 | Open-source licence and enough setup detail to run it elsewhere | [Apache-2.0](LICENSE), [local setup guide](docs/local-setup.md), `bash scripts/setup.sh --with-proxy` |
 | Workflow files | [`workflows/`](workflows/README.md) — API-format app graphs plus the pinned vendor FLUX 3 source, checked by tests |
-| Other tools, models and techniques explained in the demo video | [110-second private film rendered and technically checked](docs/validation/jury-film-2026-10-27.md), not publicly published; techniques are listed below |
+| Other tools, models and techniques explained in the demo video | [New demonstration in editorial revision](docs/plans/2026-10-27-jury-v2.md); the first private cut was not accepted. Techniques are listed below |
 | Lawful, SFW, no unlicensed IP or likenesses | demo fixtures, prompts and tracked screenshot rights: pending human review; the source-code licence is not automatic media clearance |
 | One submission per person | one final entry will be prepared; **not submitted** |
 

@@ -7,14 +7,16 @@ access are separate gates.
 ## Current presentation scope
 
 The [README](../README.md) and [jury guide](jury-guide.md) describe alpha
-`0.1.0-alpha.1`, using application baseline `e50d14d`. The presentation worktree
-is isolated on `chore/jury-presentation-20261027`; it is not evidence that this
-state is on the remote default branch or anonymously accessible. The private
-110-second film has been rendered and fully decoded; see the
-[measured film and clean-install record](validation/jury-film-2026-10-27.md).
-No public film link is established.
-Later Character work and presentation assets still require reviewed integration,
-media approval and an exact post-staging link/tracking check.
+`0.1.0-alpha.1`, using tested application baseline `e50d14d`. The review entry
+point is the repository root on default **`main`**, not a special competition
+branch. Preparation branches isolate work; they are not the final handover.
+
+The first private 110-second film was technically rendered but **rejected by
+the creator**. Its [record](validation/jury-film-2026-10-27.md) remains historical,
+not a quality endorsement. The [V2 plan](plans/2026-10-27-jury-v2.md) requires
+verified media selection, a chronological story, background music and a local
+TTS voice-over. There is no approved public film link yet. Interrupted Character
+styles remain outside the integrated release; no unfinished feature is implied.
 
 The repository-state and confidentiality records below are historical, bounded
 audits, not fresh remote reads or a current whole-suite result. For current native
@@ -80,15 +82,17 @@ rights approval is inferred from a test pass.
 
 ## Actions requiring an explicit release decision
 
-- Review and authorize integration of the tested release to default `main`.
+- Integrate the tested release on default `main`, as requested by the creator;
+  verify tests on that branch and read back the exact remote tip after pushing.
 - Decide how the historical findings are handled before public access; any Git
   history rewrite or separate public snapshot needs explicit authorization.
 - Approve the exact media and public repository access; verify anonymous read and
   clone after the authorized change. No visibility change has been made.
 - Approve a precise remote GPU/Cloud target and spending ceiling before deployment
   or paid generation. SDK compatibility and available credits are not acceptance.
-- Review the measured 110-second demo at normal speed, including pacing, audio
-  and source/reference presentation, then explicitly approve any final submission.
+- Replace the rejected first cut with the V2 demonstration; review the selected
+  results, chronological story, narration/music and transitions at normal speed.
+  A successful encode is not media acceptance or final submission approval.
 - Add only the actual approved video link, verify anonymous playback and re-run
   the presentation guards after staging the exact files. A private render does
   not establish public video availability.

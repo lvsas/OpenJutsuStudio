@@ -1,36 +1,33 @@
-# OpenGenjutsu — Open-Source Reality Manipulation for Video
+# OpenGenjutsu — Create a character. Recast a scene. Continue the take.
 
 **v0.1.0-alpha.1 · Early development preview, not a finished 1.0 product.**
 
-Create a character. Recast footage you already shot. Keep a take you can continue,
-not just a video you can watch.
+**An open-source video studio for keeping the story going, not starting over.**
+Turn an idea into a character, put them into footage you already shot, then
+reopen a saved H3 take and continue from where you left off.
+
+**[Review in two minutes](docs/jury-guide.md) · [Install and run](#install) ·
+[See verified scope and limits](#verified-scope-and-limits)**
+
+- **Create a reusable character** with FLUX 3 Klein; keep a named reference for either Swap studio.
+- **Recast your footage** with LTX 2.5 + Ripple or MiniMax H3 and up to two ordered references.
+- **Return to the take, not just the MP4.** Opt into H3 native capture, reopen it
+  in Timeline and generate a continuation while keeping the original.
 
 An open-source rebuild of [Higgsfield Genjutsu](https://higgsfield.ai/genjutsu),
 extended with connected Character and generative Timeline workspaces, built on the
 [Comfy Developer Platform](https://comfy.org/platform) for the
 [Open Source Higgsfield Competition](https://comfy.org/open-source-higgsfield).
 
-- **Create:** FLUX 3 Klein turns an idea into a character reference. Keep a named
-  character and reuse it across the studios. Character direction, face quality and
-  ease of use are still being refined; this is not a promise of viral results.
-- **Swap:** use LTX 2.5 + Ripple or MiniMax H3 to recast existing footage, with
-  explicit references and optional directions.
-- **Continue:** opt into native-state capture for an H3 Swap, reopen its saved
-  take, and generate a child from retained state and conditioning. A real local
-  root → child → grandchild chain has been exercised; this is not a blanket
-  acceptance of every native operation or target.
-- **Choose and share:** keep results, reopen projects, build a sequence and export
-  an MP4. Share files where the browser supports it, or download with an editable
-  caption. An X intent prepares text; it does not upload the video for you.
-
-**[Install](#install) · [Executor setup](docs/executor-setup.md) ·
-[Verified scope and release gates](docs/release-readiness.md) ·
-[Contributing](CONTRIBUTING.md) · [Apache-2.0](LICENSE)**
+Local-first alpha · official Comfy SDK transport · [Apache-2.0](LICENSE).
 
 ![The real alpha studio header, including its development status](docs/readme/alpha-studio-header.png)
 
 *Captured from the running app. This cropped interface view excludes personal
 project/result media; it is not a mockup or an accepted Character output.*
+
+<details>
+<summary>Alpha versioning and compatibility commitments</summary>
 
 ### Versioning and maturity
 
@@ -48,13 +45,40 @@ have working paths, but all studios are alpha. Character polish, wider native
 operation acceptance and actual remote/cloud execution remain explicit work in
 progress. See the [current delivery plan](docs/plans/2026-10-24-mvp-ux-stabilization.md).
 
+</details>
+
 ---
 
 ## What it does
 
-You bring footage you already shot and a character reference; the studio returns the same
-moment with a different character in it, and a **take capsule** that records exactly what was
-consumed so the take can be inspected, exported or re-run.
+Start in **Characters**, move into either **Swap studio**, then return to a kept
+take in **Timeline**. You can also bring your own reference and go straight to Swap.
+The goal is to keep the character, creative choices and next step together rather
+than leave you with another disconnected render.
+
+Characters has a three-zone workbench: idea controls, the selected image, and an
+Attempts/Saved shelf. Its idea generator includes **18 wardrobe variations**;
+portrait, full-body and turnaround are view choices, not separate style engines.
+Keep one named character and reuse it across projects. Character direction, face
+quality and ease of use are still being refined; this is not a promise of viral results.
+
+Choose results, reopen projects, assemble selected clips and export an MP4.
+Download with an editable caption, or share files where the browser supports it.
+An X intent prepares text; it does not upload the video for you.
+
+### Come back to a take and keep creating
+
+You do not have to treat a finished Swap as the end of the session. With native
+capture enabled for H3, keep the take, reopen it in Timeline and continue into a
+child take. The original stays available, and the parent/child relationship stays
+visible. A real local **root → child → grandchild** chain has been exercised.
+
+This is the difference between saving something to watch and saving a place to
+resume creating. It is an opt-in H3 journey, not a promise that any MP4 can be
+continued or that every engine can exchange state.
+
+<details>
+<summary>Engine paths, workspace controls and optional face refinement</summary>
 
 The studios share a consistent interface, project library and official Comfy SDK transport,
 with engine-specific pipelines and receipts—not interchangeable model state:
@@ -76,7 +100,8 @@ Connected creative workspaces keep the generated content usable beyond one Swap:
 | **Generative Timeline — work in progress** (`/timeline`) | capture/reopen a native H3 Take, retain MCTX/COND and lineage, continue into child takes, and assemble/export chosen clips | a local H3 root → child → grandchild chain has been exercised; native operations remain experimental and operation-specific acceptance is open; public capsule JSON alone is not a complete Take backup |
 
 Characters keeps your exact wording by default; prompt rewriting remains an explicit option.
-`More control → Refine face (extra pass)` is experimental and off by default. It requires
+`Output options → Refine face (extra pass)` is experimental and off by default. The
+current policy uses separate face-only conditioning; it is not an identity guarantee. It requires
 Impact Pack/Impact Subpack, `bbox/face_yolov8m.pt` and `sam_vit_b_01ec64.pth` on the
 selected Comfy target; readiness checks them before accepting that job. The original PNG
 remains available under result details and is hashed alongside the refined image in the
@@ -87,6 +112,11 @@ choose a candidate, generate after or before it, bridge two boundaries, and reco
 capsule/state. Assembly/export supports that journey rather than becoming a general-purpose editor.
 The exercised H3 forward chain does not validate prepend, bridge, refine, native LTX
 state, arbitrary model combinations or cloud portability. Those remain separate gates.
+
+</details>
+
+<details>
+<summary>How continuable H3 takes work: state, conditioning and frozen receipts</summary>
 
 ### Why keep a continuable take instead of only an MP4?
 
@@ -116,6 +146,8 @@ publishes/re-stages explicit H3 file families and has local H3 runtime evidence;
 cross-target portability is not yet accepted**. The [native LTX audit](docs/validation/timeline-ltx-capabilities.md) records
 engine-specific candidates and unproven operations rather than claiming H3/LTX state interoperability.
 
+</details>
+
 ![LTX Studio](docs/readme/ltx-swap.png)
 
 *LTX Studio: the source and the character references are chosen with the same picker both
@@ -128,9 +160,29 @@ shows one card per reference, and every description the studio wrote is frozen i
 alongside its provenance — `user` when you typed it, `generated` when the local vision model
 read it from your image.*
 
-Type nothing at all and the studio still works: it reads the clip to name what must stay
-unchanged, reads each reference image to name the replacement character, writes both into a
-frozen prompt and renders. You can override any of it; nothing is ever invented silently.
+Directions are optional. With H3 visual descriptions available, the studio can read
+the source and references and freeze those generated descriptions into the take.
+You can override them; provenance distinguishes generated text from your own.
+Optional vision dependencies and their failure warnings are not hidden prerequisites
+for every Swap. See [executor setup](docs/executor-setup.md).
+
+## Verified scope and limits
+
+| Available in this alpha | Evidence and boundary |
+| --- | --- |
+| Character creation and reusable references | Three-zone workbench, 18 wardrobe variations and explicit keep/use actions; optional face refinement remains experimental. Generation quality remains under review, with no photorealism guarantee. |
+| Two Swap engines | Local LTX 2.5 + Ripple and H3 render evidence; H3 accepts two ordered references. A completed render is not automatic approval of identity, selective editing or audio/visual quality. |
+| Reopen and continue an H3 take | Real local root → child → grandchild evidence in the [native Take report](docs/validation/native-take-workspace.md). Capture is opt-in; native and finished Swap videos may differ in duration/audio. |
+| Setup for another target | Settings includes a write-only key and target-specific Swap filename mappings. App installation does not prepare ComfyUI, custom nodes or model weights. Node inventory is not a GPU render. |
+| Explicit open gates | Before/bridge/refine and native LTX GPU acceptance, complete cross-target portability and real Cloud execution remain open. H3/LTX state is not interchangeable. |
+| Separate human decisions | Media rights, likeness permissions and visual/audio quality need human review. Public access, demo publication and contest submission are not established by repository tests. |
+
+The [jury guide](docs/jury-guide.md#evidence-read-four-levels-separately) separates
+CPU, browser, GPU and human evidence. The [release checklist](docs/release-readiness.md)
+keeps publication decisions separate from implemented features.
+
+<details>
+<summary>Competition checklist and the techniques to explain in the demo</summary>
 
 
 ## Competition requirements — repository guardrails ready, submission pending
@@ -138,7 +190,8 @@ frozen prompt and renders. You can override any of it; nothing is ever invented 
 The repository guardrails below are verified continuously. The actual contest submission, demo video,
 try-it link, social-post link and feature-credit consent are **pending** until they exist as real
 artifacts; this table does not claim an entry has been submitted.
-The validated feature-branch baseline has been integrated into `main`.
+The earlier validated baseline was integrated into `main`; later Character work
+and this presentation require a separately reviewed integration.
 Public-read access and final jury presentation remain release gates;
 see [release gates](docs/release-readiness.md).
 
@@ -156,7 +209,7 @@ prepared environment and real acceptance required before we claim it works.
 | Built with **ComfyUI**, using any allowed hosting option | our chosen transport is the official `comfy_sdk`; the proxy bridges API v2 to self-hosted ComfyUI. Remote target configuration exists; real managed deployment acceptance remains pending |
 | Open-source licence and enough setup detail to run it elsewhere | [Apache-2.0](LICENSE), [local setup guide](docs/local-setup.md), `bash scripts/setup.sh --with-proxy` |
 | Workflow files | [`workflows/`](workflows/README.md) — API-format app graphs plus the pinned vendor FLUX 3 source, checked by tests |
-| Other tools, models and techniques explained in the demo video | script/content: pending; the current list is under *Techniques the demo explains* |
+| Other tools, models and techniques explained in the demo video | [110-second private film rendered and technically checked](docs/validation/jury-film-2026-10-27.md), not publicly published; techniques are listed below |
 | Lawful, SFW, no unlicensed IP or likenesses | demo fixtures, prompts and tracked screenshot rights: pending human review; the source-code licence is not automatic media clearance |
 | One submission per person | one final entry will be prepared; **not submitted** |
 
@@ -176,6 +229,11 @@ The competition requires the combined techniques to be explained in the demo vid
 > Model usage terms are separate from the application’s Apache-2.0 licence.
 > See [Model licences](docs/validation/model-licences.md) and the
 > [H3 license gate](docs/validation/h3-license-gate.md) before redistribution or commercial use.
+
+</details>
+
+<details>
+<summary>LTX implementation background: the first working recast path</summary>
 
 ## Current MVP: Character Recast with LTX 2.5 + Ripple
 
@@ -199,6 +257,8 @@ LTX 2.5 + Ripple is an open-weight **First Frame All Frames (FFAF)** workflow: a
 
 The LTX 2.5 components and Ripple adapter have separate model licenses/terms. Review them before redistribution or commercial use; this repository does not bundle model weights.
 
+</details>
+
 
 ---
 
@@ -206,7 +266,7 @@ The LTX 2.5 components and Ripple adapter have separate model licenses/terms. Re
 
 | | |
 |---|---|
-| ComfyUI | ≥ 0.40, with the LTXVideo, VideoHelperSuite and KJNodes packs used by the workflow |
+| ComfyUI | reference executor 0.42.0; required classes and packs depend on the selected engine — see [executor setup](docs/executor-setup.md), not a measured minimum-version guarantee |
 | Comfy SDK | `comfy-sdk` 0.5.x |
 | GPU | 24 GB VRAM recommended; a real two-shot app run completed on RTX 3090 (see validation limits below) |
 | Python | 3.12 (setup creates a project-local `.venv` with `uv`) |
@@ -267,6 +327,9 @@ filenames; historical replay does not consult today's model choices.
 
 ---
 
+<details>
+<summary>Model installation, fixed-file roles and inventory checks</summary>
+
 ## Models
 
 The installer reads `dependencies.json` for **all 15 fixed Swap file roles**:
@@ -305,7 +368,7 @@ and run the dependency checker against your target. No model weights ship in Git
 | `ltx-2.5-audio-vae-bf16.safetensors` | `vae` | audio VAE |
 | `LTX25_Ripple_v11.safetensors` | `loras` | FFAF propagation adapter |
 
-The image-edit stage additionally requires the ComfyUI-compatible FLUX.2 Klein 9B checkpoint, text encoder, and VAE named in `src/core.py`. Those editor files are not auto-downloaded by this script yet; install them through the relevant official/ComfyUI model source and review their license terms. The gated LTX in/outpainting IC-LoRA is **not** required by this Ripple-based MVP.
+The image-edit stage additionally requires the ComfyUI-compatible FLUX.2 Klein 9B checkpoint, text encoder, and VAE declared in `dependencies.json`. These roles are included in the fixed-file installer; gated files still require your own authorized upstream access as described above. The gated LTX in/outpainting IC-LoRA is **not** required by this Ripple-based MVP.
 
 ### Check what a ComfyUI machine is missing
 
@@ -320,6 +383,8 @@ python3 scripts/check_dependencies.py --host <url> --include-planned   # + the c
 
 It names the pack that owns a missing node, tells an out-of-date ComfyUI apart from an incomplete
 one, and exits non-zero so it can gate a deployment.
+
+</details>
 
 
 ---
@@ -344,7 +409,7 @@ The engine switch now links to `/h3`. H3 is available by default but can be
 administratively disabled with `OPENGENJUTSU_H3_STUDIO_ENABLED=0`. Its readiness
 check is target-specific and blocks generation until the configured Comfy target
 reports the H3 graph's nodes and models as available. It accepts one continuous
-shot and one character reference, normalizes to 24 fps, derives a 32-aligned
+shot and one or two ordered character references, normalizes to 24 fps, derives a 32-aligned
 render canvas from source aspect ratio (each input edge at most 512 px), and
 upscales that canvas 2×. H3 weights and custom-node availability remain target
 requirements; a successful self-hosted render does not prove Comfy Cloud support.
@@ -358,6 +423,7 @@ The CLI in `src/genjutsu.py` is a legacy LTX 2.3 prototype and is not the curren
 
 ## Documentation
 
+- [Jury guide](docs/jury-guide.md) — a two-minute product tour, exact setup commands and evidence boundaries
 - [Local setup and troubleshooting](docs/local-setup.md) — Python 3.12, FFmpeg, opt-in proxy, remote upstream and readiness
 - [Workflow files](workflows/README.md) — the exported API-format graphs the app submits, and how their asset placeholders are substituted
 - [Documentation index](docs/README.md) — the map of everything under `docs/`, with what is current and what is historical
@@ -379,6 +445,9 @@ The CLI in `src/genjutsu.py` is a legacy LTX 2.3 prototype and is not the curren
 
 
 ---
+
+<details>
+<summary>Reference behavior, architecture and historical LTX evidence</summary>
 
 ## Character Reference Status
 
@@ -415,13 +484,15 @@ The application ignores inherited `COMFY_BASE_URL`. Its default is local; change
 
 The app has target-aware readiness for a local proxy, remote self-hosted proxy, Comfy Cloud and API v2 deployments. **Only the self-hosted path has live render evidence**; Cloud/deployment authentication branches have tests, but required nodes/models and real rendering must still be validated on the selected target. Queueing behind an existing Comfy job is allowed with an on-screen waiting notice. No specific server cache setting is required.
 
-## Current Evidence
+## Historical LTX evidence
 
 - A real two-shot run was submitted through the web form, processed by FLUX.2 Klein and LTX/Ripple, downloaded, and played through to the end in Chromium: 121 frames, 24 fps, 768×416. Shot padding is removed before assembly; the app restores source audio when present.
 - **Visual quality is not validated:** the corrected run preserves the scene cut, but recolors/armors the tiger despite instructions to preserve it. Successful execution is not a successful selective edit or a contest-ready result.
 - CPU tests are self-contained; they do not require the private development clip. They do not prove GPU quality, reference-image behavior on real footage, Cloud compatibility or licensing eligibility.
 - The Creative Studio UI is implemented and browser-checked for desktop/mobile layout, source preview and HTTP/API integration. Local Download and Copy caption are real actions; **public social sharing is not implemented** because no hosted, recipient-accessible result URL exists.
-- The public studio deliberately focuses on LTX and FLUX. Future studio modes are not named or advertised until they have a real backend and an end-to-end validation.
+- This evidence describes the earlier LTX/FLUX slice, not the current product ceiling. The H3/Character/Timeline scope and its remaining acceptance gates are summarized [above](#verified-scope-and-limits).
+
+</details>
 
 ## Contributing
 

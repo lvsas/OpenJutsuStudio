@@ -4,7 +4,23 @@ This is a release checklist, not a claim that the app has been submitted or that
 all MVP operations are accepted. Technical evidence, media approval and public
 access are separate gates.
 
-## Verified repository state
+## Current presentation scope
+
+The [README](../README.md) and [jury guide](jury-guide.md) describe alpha
+`0.1.0-alpha.1`, using application baseline `e50d14d`. The presentation worktree
+is isolated on `chore/jury-presentation-20261027`; it is not evidence that this
+state is on the remote default branch or anonymously accessible. The private
+110-second film has been rendered and fully decoded; see the
+[measured film and clean-install record](validation/jury-film-2026-10-27.md).
+No public film link is established.
+Later Character work and presentation assets still require reviewed integration,
+media approval and an exact post-staging link/tracking check.
+
+The repository-state and confidentiality records below are historical, bounded
+audits, not fresh remote reads or a current whole-suite result. For current native
+H3 scope, use the [later capture/continuation evidence](validation/native-take-workspace.md#current-alpha-status--native-h3-capture-and-forward).
+
+## Historical verified repository state
 
 At reviewed commit `b67453c7c4c9238bfd56e02322fa253ad5302b57`:
 
@@ -51,8 +67,11 @@ separate escaped-JSON coverage.
 
 ## Media approval — still open
 
-Three PNG screenshots are tracked under `docs/readme/`; the README's two linked
-images resolve to tracked files. Their Git provenance is known, **not their complete
+At the historical audit checkpoint, three PNG screenshots were tracked under
+`docs/readme/`, and the README's two linked images resolved to tracked files.
+That count is not a current asset inventory. The later alpha-header capture and
+any new jury captures require verification with the exact final README. Existing
+screenshots remain preserved. Git provenance is known, **not their complete
 source-image rights or likeness permissions**. The source-code licence does not
 clear screenshots, reference people, footage or model outputs automatically.
 Before public submission, approve the exact screenshots and film assets, including
@@ -68,7 +87,11 @@ rights approval is inferred from a test pass.
   clone after the authorized change. No visibility change has been made.
 - Approve a precise remote GPU/Cloud target and spending ceiling before deployment
   or paid generation. SDK compatibility and available credits are not acceptance.
-- Finish and measure the real 110-second demo, then approve the final submission.
+- Review the measured 110-second demo at normal speed, including pacing, audio
+  and source/reference presentation, then explicitly approve any final submission.
+- Add only the actual approved video link, verify anonymous playback and re-run
+  the presentation guards after staging the exact files. A private render does
+  not establish public video availability.
 
 Existing files, jobs, capsules and media are preserved. No repository-publication,
 contest submission, force-push, default-branch merge or paid deployment is implied

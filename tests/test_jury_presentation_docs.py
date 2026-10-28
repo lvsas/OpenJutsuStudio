@@ -19,8 +19,8 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 PAGES = (
-    "README.md", "docs/jury-guide.md", "docs/release-readiness.md",
-    "docs/local-setup.md", "docs/executor-setup.md",
+    "README.md", "ROADMAP.md", "docs/README.md", "docs/model-licences.md",
+    "docs/local-setup.md", "docs/executor-setup.md", "docs/dependencies.md",
 )
 
 
@@ -210,7 +210,7 @@ class JuryPresentationTests(unittest.TestCase):
 
     def test_above_fold_has_user_value_and_three_review_routes(self):
         intro = self.read('README.md').split('![', 1)[0]
-        for destination in ('docs/jury-guide.md', '#install', '#verified-scope-and-limits'):
+        for destination in ('ROADMAP.md', '#install', 'docs/README.md'):
             self.assertIn(destination, intro)
         for idea in ('reopen', 'continue', 'character'):
             self.assertIn(idea, intro.lower())
@@ -222,7 +222,7 @@ class JuryPresentationTests(unittest.TestCase):
                        if isinstance(node, ast.Assign)
                        and any(isinstance(target, ast.Name) and target.id == 'VERSION'
                                for target in node.targets))
-        for name in ('README.md', 'docs/jury-guide.md'):
+        for name in ('README.md', 'docs/README.md'):
             text = self.read(name)
             self.assertIn(version, text)
             self.assertIn('Apache-2.0', text)
@@ -232,7 +232,7 @@ class JuryPresentationTests(unittest.TestCase):
         self.assertIn('0.5.x', self.read('README.md'))
 
     def test_guide_commands_match_shipped_setup_and_executor_instructions(self):
-        guide = self.read('docs/jury-guide.md')
+        guide = self.read('docs/local-setup.md')
         source = self.read('README.md') + self.read('docs/executor-setup.md')
         commands = (
             'bash scripts/setup.sh --with-proxy',
@@ -288,7 +288,7 @@ class JuryPresentationTests(unittest.TestCase):
         self.assertNotIn('api_key', keys)
 
     def test_guide_separates_four_evidence_levels_and_open_acceptance(self):
-        guide = self.read('docs/jury-guide.md')
+        guide = self.read('docs/README.md')
         for level in ('CPU', 'Browser', 'GPU', 'Human'):
             self.assertRegex(guide, rf'\| \*\*{level}\*\* \|')
         for boundary in ('root → child → grandchild', 'Before', 'bridge', 'refine',
@@ -296,12 +296,12 @@ class JuryPresentationTests(unittest.TestCase):
                          'does not upload the video', 'not a complete Take backup'):
             self.assertIn(boundary, guide)
         text = self.read('README.md')
-        self.assertIn('## Verified scope and limits', text)
+        self.assertIn('## Current boundaries', text)
         self.assertIn('opt-in', text)
-        self.assertIn('18 wardrobe', text)
+        self.assertIn('18 wardrobe', self.read('docs/README.md'))
 
     def test_no_fake_video_marker_or_unqualified_maturity_claim(self):
-        for name in ('README.md', 'docs/jury-guide.md'):
+        for name in ('README.md', 'docs/README.md'):
             text = self.read(name)
             with self.subTest(page=name):
                 self.assertNotRegex(text, r'(?i)\b(?:TODO|COMING\s+SOON|perfect|production[ -]ready)\b')

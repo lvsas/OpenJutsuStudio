@@ -107,9 +107,10 @@ staging remains as a hardlink to the final file (same storage, not a second weig
 copy). The script never deletes/replaces old weights or partials. It needs POSIX
 filesystem support for no-follow directory traversal and atomic no-clobber links.
 
-Custom nodes remain a separate prerequisite: install the repositories/revisions
-listed in `dependencies.json` in the executor's ComfyUI environment, including
-the standalone capsules pack. Vision-description HF folders may be acquired by
+Custom nodes remain separate: install the selected profile's repositories and
+revisions from `dependencies.json` in the executor's environment. The standalone
+capsules and OBVPM packs are additional native-state prerequisites, not baseline
+video-only Swap requirements. Vision-description HF folders may be acquired by
 their upstream vision node and are **not** part of this fixed-file downloader.
 Characters and native continuity likewise require their separate manifest roles.
 Restart your own ComfyUI only when its work is idle, then check its actual node and
@@ -224,6 +225,15 @@ and supported alternatives. For your configured Swap aliases, **Test connection*
 and the operation's graph-based preflight are the target-aware checks.
 
 ## 5. Verify without submitting a render
+
+Setup does not install ComfyUI or its custom nodes. Settings keeps the API key
+write-only; testing a connection does not submit generation. Check each selected
+engine without inference (use your executor URL):
+
+```bash
+env -u PYTHONPATH .venv/bin/python scripts/check_dependencies.py --host http://127.0.0.1:8188 --engine h3
+env -u PYTHONPATH .venv/bin/python scripts/check_dependencies.py --host http://127.0.0.1:8188 --engine ltx
+```
 
 With the services running, these are read-only checks (curl is optional tooling):
 

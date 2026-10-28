@@ -16,6 +16,7 @@ import re
 import sys
 import unittest
 from pathlib import Path
+from release_inventory import release_files
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
@@ -36,12 +37,7 @@ WORKFLOW_FILES = {
 
 
 def shipped_files():
-    for path in ROOT.rglob('*'):
-        if not path.is_file() or path.suffix not in SHIPPED_SUFFIXES:
-            continue
-        if any(part in SKIP_PARTS for part in path.relative_to(ROOT).parts):
-            continue
-        yield path
+    yield from release_files(ROOT)
 
 
 class CompetitionRequirementsTests(unittest.TestCase):
@@ -55,6 +51,33 @@ class CompetitionRequirementsTests(unittest.TestCase):
             if PRIVATE_ADDRESS.search(text):
                 offenders.append(str(path.relative_to(ROOT)))
         self.assertEqual(offenders, [], f'Private addresses must not ship: {offenders}')
+
+    def test_only_public_documentation_is_tracked(self):
+        import subprocess
+        public = {'docs/README.md', 'docs/local-setup.md', 'docs/executor-setup.md',
+                  'docs/dependencies.md', 'docs/model-licences.md',
+                  'docs/readme/alpha-studio-header.png', 'docs/readme/h3-studio-current.png',
+                  'docs/readme/h3-swap-empty.png', 'docs/readme/h3-swap-two-references.png',
+                  'docs/readme/ltx-swap.png'}
+        tracked = subprocess.run(['git', 'ls-files', '-z', 'docs/'], cwd=ROOT,
+                                 check=True, capture_output=True).stdout.decode().split('\0')
+        self.assertEqual(sorted(set(tracked) - public - {''}), [],
+                         'Remove private documentation from the index, not from disk')
+
+    def test_public_docs_allowlist_and_private_artifacts_ignore_rules(self):
+        import subprocess
+        ignored = ['docs/plans/new.md', 'docs/validation/local.md', 'docs/audits/local.md',
+                   'docs/architecture/local.md', 'docs/jury-guide.md', 'docs/local-notes.md',
+                   'docs/readme/unapproved.png', 'src/static/jury-v2-review/index.html',
+                   'artifacts/report.md', 'reports/probe.json', 'bundle.zip', 'bundle.tar.gz']
+        public = ['docs/README.md', 'docs/local-setup.md', 'docs/executor-setup.md',
+                  'docs/dependencies.md', 'docs/model-licences.md',
+                  'docs/readme/h3-studio-current.png', 'dist/opengenjutsu-continuity.zip']
+        for target in ignored + public:
+            with self.subTest(target=target):
+                result = subprocess.run(['git', 'check-ignore', '--no-index', '-q', target],
+                                        cwd=ROOT, capture_output=True)
+                self.assertEqual(result.returncode, 0 if target in ignored else 1)
 
     def test_current_contest_rules_do_not_require_managed_cloud(self):
         readme = (ROOT / 'README.md').read_text()

@@ -198,7 +198,7 @@ class CapsulesManifestTests(unittest.TestCase):
                 self.assertIn(node, pack["nodes"])
                 self.assertIn(node, (ROOT / "custom_nodes/opengenjutsu_continuity/__init__.py").read_text())
         # A source pin is documented provenance, not something /object_info can verify.
-        evidence = (ROOT / "docs/validation/2026-10-22-restage-suffix-regression.md").read_text()
+        evidence = (ROOT / "docs/dependencies.md").read_text()
         self.assertIn(pack["pin"], evidence)
 
 

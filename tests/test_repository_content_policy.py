@@ -22,6 +22,7 @@ from pathlib import Path
 import unittest
 from unittest import mock
 import zipfile
+from release_inventory import release_files
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -56,13 +57,7 @@ def _is_archive(name):
 
 
 def _shipped_files():
-    # Prune before descending: local caches and environments are not submissions.
-    for directory, dirs, files in os.walk(ROOT, followlinks=False):
-        dirs[:] = sorted(name for name in dirs if name not in SKIP_DIRS)
-        for name in sorted(files):
-            path = Path(directory) / name
-            if path.suffix.lower() in TEXT_SUFFIXES or _is_archive(name):
-                yield path
+    yield from release_files(ROOT)
 
 
 def _bounded_read(stream, limit):
@@ -135,7 +130,11 @@ def _scan_archive(name, data, budget, depth):
 
 def _content_policy_offenders():
     offenders = []
-    for path in _shipped_files():
+    try:
+        paths = list(_shipped_files())
+    except (OSError, ValueError):
+        return ['release inventory unavailable']
+    for path in paths:
         label = str(path.relative_to(ROOT))
         try:
             limit = MAX_ARCHIVE_BYTES if _is_archive(label) else MAX_MEMBER_BYTES
@@ -186,6 +185,32 @@ class ContentPolicyRegressionTests(unittest.TestCase):
                     guard.test_no_shipped_file_names_an_adult_adapter_family()
             else:
                 guard.test_no_shipped_file_names_an_adult_adapter_family()
+
+    def test_git_delivery_ignores_untracked_private_docs_but_checks_tracked_sources(self):
+        (self.root / '.git').write_text('fixture marker, no real Git operations')
+        (self.root / 'docs' / 'plans').mkdir(parents=True)
+        (self.root / 'docs' / 'plans' / 'local.md').write_text('mys' + 'tique')
+        (self.root / 'src').mkdir()
+        source = self.root / 'src' / 'shipped.py'
+        source.write_text('safe = True')
+        result = mock.Mock(stdout=b'src/shipped.py\0', returncode=0)
+        with mock.patch('subprocess.run', return_value=result):
+            self.assert_policy(rejected=False)
+            source.write_text('mys' + 'tique')
+            self.assert_policy(rejected=True)
+
+    def test_untracked_archives_are_still_inspected_in_a_git_delivery(self):
+        (self.root / '.git').write_text('fixture marker')
+        (self.root / 'docs').mkdir()
+        (self.root / 'docs' / 'ignored.zip').write_bytes(b'corrupt archive')
+        result = mock.Mock(stdout=b'', returncode=0)
+        with mock.patch('subprocess.run', return_value=result):
+            self.assert_policy(rejected=True)
+
+    def test_git_inventory_failure_fails_closed(self):
+        (self.root / '.git').write_text('fixture marker')
+        with mock.patch('subprocess.run', side_effect=OSError('fixture')):
+            self.assert_policy(rejected=True)
 
     def test_second_spelling_in_dormant_json_metadata_is_rejected(self):
         graph = {'42': {'class_type': 'Note', 'inputs': {'enabled': False},

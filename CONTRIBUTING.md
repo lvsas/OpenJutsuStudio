@@ -1,6 +1,6 @@
 # Contributing to OpenGenjutsu
 
-Keep changes focused, testable without inference hardware, and understandable to the next contributor. Discuss changes to public APIs, graph topology, recipe policies or artifact formats before implementing them. Contributions follow the repository's [Apache-2.0 license](LICENSE); model weights and third-party assets have separate terms.
+Keep changes focused, testable without inference hardware, and understandable to the next contributor. Discuss changes to public APIs, graph topology, recipe policies or artifact formats before implementing them. Contributions follow the repository's [MIT license](LICENSE); model weights and third-party assets have separate terms.
 
 ## Set up a development checkout
 
@@ -70,7 +70,7 @@ There is no checked-in CI workflow to substitute for these local checks. Report 
 | Local H3 artifact integrity (Timeline foundation, not an editor) | `src/timeline_artifacts.py`, `src/safetensor_header.py`, `src/h3_conditioning.py`, `scripts/inspect_h3_artifacts.py` |
 | Pages, shared styles and browser behavior | `src/templates/`, `src/static/`, `tests/*ui*.py`, `tests/*.mjs` |
 
-See [UI architecture](docs/ui-architecture.md) and the [documentation index](docs/README.md) for rationale. Plans describe intended work; inspect source and tests before treating a plan as shipped behavior.
+See the [documentation index](docs/README.md) and [public roadmap](ROADMAP.md) for scope. Inspect source and tests before treating a proposed feature as shipped behavior.
 
 ### Graphs and the official SDK
 

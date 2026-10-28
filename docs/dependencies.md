@@ -1,31 +1,20 @@
 # Dependencies
 
-What this repository needs to run, verified against a live instance rather than assembled from
-memory. Read this before writing an install guide or opening the repository to anyone else.
+Prepare only the engine you intend to use. [Install the app/proxy](local-setup.md)
+separately from [ComfyUI and its custom nodes](executor-setup.md).
 
-## How this was verified
-
-| | |
-|---|---|
-| Method | `GET /object_info` on the reference instance, then a mechanical diff against every `class_type` and every `*_name` value found in `workflows/` and `src/h3_graphs.py` |
-| Instance | ComfyUI **0.40.0**, Python 3.12.1, Linux, RTX 3090 (25.3 GB), launched with `--use-pytorch-cross-attention --cache-lru 40 --fp16-intermediates --listen <lan-ip>` |
-| Inventory size | 6 007 node classes, 57 custom packs installed |
-| Fingerprint | `object_info.json` sha256 begins `5138fa807c8cd46e2e9c88f3a88594f8` (full file under `work/dep-audit/`) |
-
-The instance is a **workstation**, not a minimal install: it carries 57 packs for unrelated
-work. What matters for this repository is far smaller, and is enumerated below.
-
-## The list, by category
-
-Machine-readable in **`dependencies.json`** at the repository root; verify a machine with:
+`dependencies.json` declares node classes, file roles, public sources and pins.
+The scoped checker reads the actual Swap graph builders:
 
 ```bash
-python3 scripts/check_dependencies.py --host http://127.0.0.1:8188
-python3 scripts/check_dependencies.py --host <url> --include-planned   # also the character generator
+python3 scripts/check_dependencies.py --host http://127.0.0.1:8188 --engine h3
+python3 scripts/check_dependencies.py --host http://127.0.0.1:8188 --engine ltx
 ```
 
-It reports what is missing per category, names the pack that owns a missing node, distinguishes an
-out-of-date ComfyUI from an incomplete one, and exits non-zero so it can gate a deployment.
+The downloader covers **7 H3 Swap files** or **8 LTX Swap files**, not all features.
+It does not install custom nodes. Descriptions, Characters and native continuation
+have additional prerequisites. Inventory verifies loader choices, not CUDA
+compatibility, installed source bytes or rendering quality.
 
 ### Custom nodes — original Swap baseline
 
@@ -40,42 +29,38 @@ out-of-date ComfyUI from an incomplete one, and exits non-zero so it can gate a 
 ComfyUI core classes are also listed in `dependencies.json` so availability can be checked rather
 than guessed. The experimental native compiler adds the requirements below.
 
-### Native H3 continuity compiler — experimental, not a deployed generator
+### Native H3 continuation — additional prerequisites
 
-The pinned `workflows/h3-continuity-base.api.json` is a **parameterized template**, not a runnable
-workflow with invented model filenames. The service must bind every effective model filename and
-measured SHA-256 before compilation. No model hash or parent compatibility is inferred from a menu.
+Native capture/continuation use OBVPM mechanisms and the project-owned
+[continuity pack](../custom_nodes/opengenjutsu_continuity/README.md). These are not
+required for a video-only Swap. The upstream saver writes MP4/MCTX/COND; our
+publisher exposes them as SDK outputs and the restager makes an imported family
+available to its loader. Transport does not replace native temporal operations.
 
-| Runtime binding (not a model file) | Loader role |
+| Pack | Role |
 |---|---|
-| `__H3_BIND_UNET__` | `UNETLoader.unet_name`, diffusion model |
-| `__H3_BIND_CLIP__` | `CLIPLoader.clip_name`, text encoder |
-| `__H3_BIND_VIDEO_VAE__` | `VAELoader.vae_name`, video VAE |
-| `__H3_BIND_AUDIO_VAE__` | `VAELoader.vae_name`, audio VAE |
+| [comfyui-obvpm](https://github.com/chanon/comfyui-obvpm) | Native routing and bundle contracts. |
+| [comfyui-obvpm-timeline](https://github.com/chanon/comfyui-obvpm-timeline) | MCTX/COND loaders, pinning and saver. |
+| [ComfyUI-OpenJutsu-Capsules](https://github.com/lvsas/ComfyUI-OpenJutsu-Capsules) | `OpenGenjutsuH3PublishClip`, `OpenGenjutsuH3RestageFamily` and family publication. |
 
-These are typed `runtime_model_bindings` in the manifest, **never entries in the installable models
-list**. Tests still require every workflow model field to be declared, and separately check each
-binding's exact loader, field, folder, use and required hash capture.
+The declared capsule-pack source pin is
+`7288a04bbdde5cd793d0ec38c4de3c49a33840d0`. This is provenance, not a claim that
+inventory verifies running source bytes. See the manifest for each source pin.
+Native model filenames are frozen; a measured weight hash is optional enrichment,
+not an invented caller-supplied requirement. Runtime bindings are distinct from
+installable default files.
 
-| Provider | Native compiler requirements |
+Native graph contracts (additional classes, not base Swap installation):
+
+| Provider | Classes |
 |---|---|
-| [comfyui-obvpm](https://github.com/chanon/comfyui-obvpm) | `AudioOptionalGate (obvpm)`, `Bundle (obvpm)`, `LazyCaseSwitch (obvpm)`, `LazySwitch (obvpm)`, `ModelOptionalGate (obvpm)`, `MuteGate (obvpm)`, `Unbundle (obvpm)`, `ValuePresets (obvpm)` |
-| [comfyui-obvpm-timeline](https://github.com/chanon/comfyui-obvpm-timeline) | `H3LoadVideoWithMCtx`, `H3LoadMCtx`, `H3MCtxApplyPins`, `H3MCtxPinSpec`, `H3TrimAndSaveVideoWithMCtx`, `H3VramHeadroom` |
-| ComfyUI-KJNodes | `INTConstant`; verified in the upstream `nodes/nodes.py` implementation, not attributed to the local bundled folder |
-| ComfyUI core | `MiniMaxH3SigmaShift`, `PrimitiveBoolean`, `PrimitiveString`, `SaveText` (`comfy_extras.nodes_text`) |
+| OBVPM | `AudioOptionalGate (obvpm)`, `Bundle (obvpm)`, `LazyCaseSwitch (obvpm)`, `LazySwitch (obvpm)`, `ModelOptionalGate (obvpm)`, `MuteGate (obvpm)`, `Unbundle (obvpm)`, `ValuePresets (obvpm)` |
+| OBVPM Timeline | `H3LoadVideoWithMCtx`, `H3LoadMCtx`, `H3MCtxApplyPins`, `H3MCtxPinSpec`, `H3TrimAndSaveVideoWithMCtx`, `H3VramHeadroom` |
+| Helpers/core | `INTConstant`, `MiniMaxH3SigmaShift`, `PrimitiveBoolean`, `SaveText` |
 
-The OBVPM packs are marked optional for the existing Swap baseline; they are required before using
-the separate native compiler. GET-only class/schema checks do **not** establish rendering support.
-The application's CPU publisher/restager pack and desktop deployment gate are documented separately
-in [continuity nodes](architecture/continuity-nodes.md). Native generation is still work in progress.
-
-The project-owned pack currently registers `OpenGenjutsuH3PublishFamily`,
-`OpenGenjutsuH3RestageFamily` and `OpenGenjutsuH3PublishClip` in source, but none is installed on
-the inspected target. They are not OBVPM nodes and do not replace its H3 temporal operations.
-The [ownership audit](validation/2026-10-21-dependency-ownership-audit.md) records a central-manifest
-coverage gap and the checker's optional-pack limitation; these must be fixed together during
-extraction, not concealed as complete readiness. The [parallel Capsules/app plan](plans/2026-10-21-capsule-pack-innovation.md)
-defines the standalone pack, progressive H3 dependency replacement and separately verified LTX/FLUX adapters.
+Template binding tokens `__H3_BIND_UNET__`, `__H3_BIND_CLIP__`,
+`__H3_BIND_VIDEO_VAE__` and `__H3_BIND_AUDIO_VAE__` are resolved model roles,
+not downloadable filenames.
 
 ### Models — 12 files, in ComfyUI's own folders
 
@@ -85,7 +70,7 @@ defines the standalone pack, progressive H3 dependency replacement and separatel
 | `vae` | `minimax_h3_video_vae_fp16.safetensors` | H3 video decode |
 | `vae` | `minimax_h3_audio_vae_fp32.safetensors` | H3 audio decode |
 | `text_encoders` | `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | H3 text encoder |
-| `upscale_models` | `minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors` | H3 latent upscaler |
+| `latent_upscale_models` | `minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors` | H3 latent upscaler |
 | `diffusion_models` | `ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors` | LTX transformer |
 | `vae` | `ltx-2.5-video-vae-conv-bf16.safetensors` | LTX video decode |
 | `vae` | `ltx-2.5-audio-vae-bf16.safetensors` | LTX audio decode |
@@ -119,16 +104,10 @@ Python **3.12** is enforced by `scripts/run_app.sh`, which refuses to start on a
 
 ## 2. System
 
-| Dependency | Used for | Presence on the reference machine |
-|---|---|---|
-| `ffmpeg` | every render, the comparison reel, audio restoration | 5.1.9 (Debian 12) |
-| `ffprobe` | duration, fps and frame counting before a render | included with ffmpeg |
-| `node` | `tests/h3_studio_contract.mjs`, the front-end contract test only | present |
-| DejaVu Sans + Liberation Sans Narrow | reel typography and glyph coverage | 8 faces installed |
-
-Neither font is vendored in the repository; the reel resolves them by path and falls back to
-`Sans` if absent. Liberation Sans Narrow is the metric-compatible stand-in for the `Arial Narrow`
-the stylesheet asks for, and it lives in the `fonts-liberation` package on Debian.
+FFmpeg and ffprobe are required on the app host and executor. Node.js runs frontend
+contract tests, not inference. Reel typography uses installed DejaVu Sans and
+Liberation Sans Narrow with a Sans fallback; no proprietary font is bundled.
+See [setup](local-setup.md) for system packages.
 
 ## 3. ComfyUI core
 
@@ -157,39 +136,11 @@ savers are separate OBVPM extension contracts; core model support alone does not
 
 ## 4. Custom node packs
 
-The original Swap baseline uses the five packs below. The native compiler additionally depends on
-the OBVPM contracts listed above; availability and rendering must be checked separately.
-
-| Upstream pack | Node classes we need | Status |
-|---|---|---|
-| **ComfyUI-VideoHelperSuite** | `VHS_LoadVideo`, `VHS_VideoCombine` | own pack, installed |
-| **ComfyUI-LTXVideo** | `LTXAddVideoICLoRAGuide` | own pack, installed |
-| **ComfyUI-KJNodes** | `ImageResizeKJv2`, `PathchSageAttentionKJ`, `VAELoaderKJ`, `LTX2MemoryEfficientSageAttentionPatch` | bundled — see below |
-| **ComfyUI_Res4lyf** | `Frames Slice` | bundled — see below |
-| **ComfyUI-MiniMaxH3-LatentUpscaler** | `MinimaxH3LatentUpscaler3D` | installed, **name collision — see below** |
-
-### Finding: the workflow-encrypt bundle
-
-On the reference instance, `ImageResizeKJv2`, `PathchSageAttentionKJ`, `VAELoaderKJ`,
-`LTX2MemoryEfficientSageAttentionPatch` and `Frames Slice` are reported by `/object_info` as
-belonging to a pack named **`custom_nodes.comfyui-workflow-encrypt`**, which carries **3 543 node
-classes** — KJNodes, Res4lyf and a great deal else vendored into one folder.
-
-Consequences that matter:
-
-1. **That is a local artefact, not a dependency name.** Nobody can install
-   "comfyui-workflow-encrypt" from the registry and get `ImageResizeKJv2`. An install guide must
-   name the upstream packs — KJNodes and Res4lyf — and let the node names resolve from there.
-2. **A pack name is not a pack identity.** Verify dependencies by *node class* against
-   `/object_info`, never by folder name. `scripts/probe_wireability.py` and
-   `scripts/validate_workflow.py` in the `comfyui-workflow-audit` skill both do it this way.
-
-### Finding: two packs claim the H3 latent upscaler
-
-The instance carries both `ComfyUI-MiniMaxH3_LatentUpscaler` (9 nodes) and
-`Comfyui_Minimax_h3_latent_Upscaler` (5 nodes). Our node resolves to the second one. Which pack
-owns a class is decided by load order, so this is fragile: the install guide must pin one, and a
-startup check should assert the resolved `python_module`.
+Install standalone upstream packs, not a workstation's bundled plugins. The
+[executor guide](executor-setup.md#2-install-only-the-needed-custom-node-packs)
+provides source revisions and procedure. Avoid duplicate owners of a node class.
+Checks use the actual class and loader choices, not a local folder name. Preserve
+existing installations instead of resetting or overwriting them.
 
 ## 5. Models
 
@@ -253,55 +204,21 @@ rather than mirroring a workstation. The current fixed Swap-file installer and
 
 ## 6. Runtime configuration
 
-| Variable | Default | Note |
-|---|---|---|
-| `OPENGENJUTSU_PORT` | `8000` | |
-| `OPENGENJUTSU_HOST` | `127.0.0.1` | loopback by default; a single explicit address is allowed for a trusted LAN or a tunnel, wildcard binds are refused |
-| `OPENGENJUTSU_COMFY_BASE_URL` | `http://127.0.0.1:8189` | the SDK's `COMFY_BASE_URL` is exported from this |
-| `OPENGENJUTSU_H3_STUDIO_ENABLED` | enabled | set to `0` to hide the H3 studio |
+The app defaults to `127.0.0.1:8000` and the local API-v2 proxy on
+`http://127.0.0.1:8189`. Start the proxy explicitly, then use **Settings → Test /
+Save** for the target and compatible model-file aliases. Keys remain write-only;
+never put them in a report or Git. See [setup](local-setup.md) for overrides.
 
-**Finding: the default Comfy target is a local proxy that this machine does not run.** Nothing
-listens on `127.0.0.1:8189` here; the reachable ComfyUI is a separate machine on the local network,
-on port 8188. An address is deliberately not written down here — the repository carries none.
-Starting the app with the defaults therefore gives a studio whose readiness check fails. Two
-things follow for a third party:
+## 7. Licences and coverage
 
-- the install guide must state that a Comfy target has to be provided, either as a local proxy or
-  through `OPENGENJUTSU_COMFY_BASE_URL`;
-- `docs/local-setup.md` should describe that proxy, because as written the default points at
-  something the reader has no reason to know about.
+Apache-2.0 application code does not relicense models or third-party packs. See the
+[component licence/source map](model-licences.md) for the exact files you obtain.
 
-The app is reached over loopback and is expected to stay bound there: the maintainer's access is
-an SSH local forward (`ssh -L 8000:127.0.0.1:8000 <host>`), which fails if the bind moves to a
-LAN address. The application has no authentication, which is the other reason loopback is the
-right default.
-
-## 7. Licence status
-
-Model **files are not redistributed** by this repository — only their names appear, inside the
-workflow JSON. A user must obtain them separately, which puts the licence question on the user, but
-this project still has to answer it for two reasons: the competition requires lawful submissions, and
-the stated goal is selling work produced with these models.
-
-**The full position is in [`validation/model-licences.md`](validation/model-licences.md)**, verified
-against the publishers' own pages. Read it before invoicing anything. In one line: the LTX 2.5 +
-Ripple path is licensed for commercial work below the revenue threshold, the FLUX.2 Klein first-frame
-step is under a non-commercial licence, and the MiniMax H3 licence excludes the European Union.
-
-`docs/validation/h3-license-gate.md` holds the H3 analysis, including the organizer guidance that
-permits contest validation — which is a different question from commercial use.
-
-## 8. What a third party installs
-
-1. Python 3.12, `pip install -r requirements.txt`.
-2. `ffmpeg` and `ffprobe` on `PATH`.
-3. ComfyUI, current enough to contain `nodes_minimax_h3`.
-4. Five custom packs by upstream name: VideoHelperSuite, LTXVideo, KJNodes, Res4lyf,
-   MiniMaxH3-LatentUpscaler.
-5. The model files in section 5, placed in ComfyUI's `models/unet`, `models/vae`, `models/clip`,
-   `models/loras` (the H3 LoRA keeps its `H3/` subfolder, because the workflow names it that way).
-6. A Comfy target the app can reach, and a GPU with enough VRAM for the model in use.
-7. `bash scripts/run_app.sh`, then open the port it prints.
+Characters additionally needs FLUX 3, its conditioning encoder, prompt upsampler
+and `flux2-vae.safetensors`; this is not the first-frame editor VAE. Native H3 has
+its own reference-to-video model and prompt-refiner encoder. These paths are
+**not fully provisioned by the Swap downloader**. `--engine all` means both Swaps,
+not every application feature.
 
 ## Named by the adopted continuity and prompt workflows
 

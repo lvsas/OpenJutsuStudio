@@ -1,64 +1,53 @@
-# OpenGenjutsu — Create a character. Recast a scene. Continue the take.
+# OpenGenjutsu
 
-**v0.1.0-alpha.1 · Early development preview, not a finished 1.0 product.**
+## Create. Swap. Continue. Share.
 
-**An open-source video studio for keeping the story going, not starting over.**
-Turn an idea into a character, put them into footage you already shot, then
-reopen a saved H3 take and continue from where you left off.
+**An open-source video studio for putting your characters into footage—and keeping a take you can return to.**
 
-**[Review in two minutes](docs/jury-guide.md) · [Install and run](#install) ·
-[See verified scope and limits](#verified-scope-and-limits)**
+Create a character or bring your own reference. Swap the cast of a clip, reopen
+an H3 take to continue the story, then share a vertical comparison Reel.
 
-- **Create a reusable character** with FLUX 3 Klein; keep a named reference for either Swap studio.
-- **Recast your footage** with LTX 2.5 + Ripple or MiniMax H3 and up to two ordered references.
-- **Return to the take, not just the MP4.** Opt into H3 native capture, reopen it
-  in Timeline and generate a continuation while keeping the original.
+**v0.1.0-alpha.1 · Development preview · Local-first · Official Comfy SDK · [Apache-2.0](LICENSE)**
 
-Local-first alpha · official Comfy SDK transport · [Apache-2.0](LICENSE).
+[Install](#install) · [Creative loop](#the-creative-loop) · [Roadmap](ROADMAP.md) · [Documentation](docs/README.md)
 
 ![Current H3 Studio workspace, awaiting source video and character references](docs/readme/h3-studio-current.png)
 
-*Actual v0.1.0-alpha.1 interface, captured on 27 October 2026. This empty
-workspace shows the current controls, not a generated result or quality claim.*
+*Actual studio interface, captured on 27 October 2026. An empty workspace, not a generated-result quality claim.*
 
 ## The creative loop
 
-1. **Create a character** in `/characters`. Generate with FLUX 3 Klein, choose an
-   attempt and keep a named reference. Explore 18 wardrobe variations, or bring
-   your own reference and skip straight to Swap.
-2. **Recast a scene** in LTX Studio (`/`) or H3 Studio (`/h3`). Add your footage
-   and one or two ordered character references. Directions are optional; preview
-   the result and decide what to keep.
-3. **Continue the take** in `/timeline`. For H3, enable **Save native state too**
-   before generating, reopen the native take, then create a continuation. Keep the
-   original, follow its child takes, and assemble selected clips into an MP4.
+1. **Create or bring a character.** Open Characters (`/characters`) to generate
+   with FLUX 3 Klein, or use your own reference image.
+2. **Swap the cast.** In LTX Studio (`/`) or H3 Studio (`/h3`), add footage and
+   one or two ordered references, then preview the result.
+3. **Continue the take.** For H3, enable **Save native state too** before generating.
+   Reopen the retained take in Timeline (`/timeline`) and create a continuation.
+4. **Share the moment.** Preview and download a vertical before/after Reel.
+   Native file sharing depends on browser support; download is the fallback.
+   Sharing does not automatically publish to social platforms.
 
-### More than a video to download
+### A take is more than an MP4
 
-An opt-in H3 take keeps the native **MP4 + MCTX + COND** family, its frozen
-recipe, references and parent lineage. Reopen that saved state to continue
-creating instead of starting from an exported MP4. A real local
-**root → child → grandchild** chain has been exercised.
+The opt-in H3 path retains the **MP4 + MCTX + COND** family, references, frozen
+recipe and parent lineage. OpenGenjutsu connects native-file publication through
+the SDK, reopening and continuation in one workspace. A recipe records the render;
+**JSON alone is not the native state needed to continue it**. A social Reel is
+not a complete native backup. Upstream engines define the state formats: H3 and
+LTX state is not interchangeable.
 
-ComfyUI and the upstream engines provide the state and conditioning formats;
-OpenGenjutsu connects capture, reopening and continuation into one workspace.
-An MP4 alone cannot restore that state, and H3/LTX state is not interchangeable.
-See [native H3 evidence](docs/validation/native-take-workspace.md) and
-[artifact integrity](docs/architecture/timeline-artifacts.md).
+## Current boundaries
 
-## Verified scope and limits
+- **H3 native capture is off by default (opt-in).** Enable it before rendering;
+  an MP4-only result cannot recover missing native state afterwards.
+- **LTX native continuation is not delivered.** Timeline forward continuation is
+  experimental and engine-specific, not a promise that every editing mode works.
+- **Character/library handoffs exist.** End-to-end browser acceptance and clearer
+  navigation are ongoing work; new recipe experiments need saved-Capsule compatibility.
+- Render completion does not guarantee identity, selective editing, motion or sound
+  quality. Live Cloud execution and broad cross-target portability are not verified.
 
-| Workspace | Available in this alpha | Experimental / not accepted |
-| --- | --- | --- |
-| **Characters** | FLUX 3 Klein generation, named references and reuse in either Swap studio | Optional face refinement uses separate face-only conditioning and is off by default; identity and texture quality need review |
-| **LTX Studio** | FLUX 2 Klein first-frame edit → LTX 2.5 + Ripple propagation | Native LTX continuation and broader editing modes |
-| **H3 Studio** | MiniMax H3 two-pass character swap with 1–2 ordered references; opt-in native capture | Capture requires its own nodes/models; native and finished Swap videos can differ in duration/audio |
-| **Timeline** | Reopen saved H3 takes, continue forward, retain lineage and assemble/export clips | Before, bridge, refine, complete cross-target portability and real Cloud execution |
-
-All workspaces remain alpha. A completed render is not approval of identity,
-selective editing, motion or audio quality. The final demonstration film is not
-ready. For evidence levels and publication gates, see the [jury guide](docs/jury-guide.md)
-and [release checklist](docs/release-readiness.md).
+[Roadmap](ROADMAP.md) · [Workflow and evidence boundaries](docs/README.md)
 
 ## Requirements
 
@@ -67,10 +56,10 @@ and [release checklist](docs/release-readiness.md).
   nodes and model weights. **24 GB VRAM is recommended**, not a fit guarantee.
 - Official **Comfy SDK 0.5.x** transport; the local setup uses an API-v2 proxy.
 
-See [executor setup](docs/executor-setup.md) for engine-specific nodes/models,
-[the dependency inventory](docs/dependencies.md) for file roles, and
-[weight installation](docs/local-setup.md#prepare-fixed-swap-weights) for downloads.
-No model weights ship in this repository.
+See [executor setup](docs/executor-setup.md) for engine-specific prerequisites,
+[dependencies](docs/dependencies.md) for file roles, and
+[weight installation](docs/local-setup.md#prepare-fixed-swap-weights) for the explicit downloader.
+No model weights ship in this repository. There is no Docker installation in this preview.
 
 ## Install
 
@@ -113,14 +102,9 @@ see [local setup and troubleshooting](docs/local-setup.md).
 
 ## Documentation
 
-| Start here | Covers |
-| --- | --- |
-| [Local setup](docs/local-setup.md) | Installation, proxy, Settings and troubleshooting |
-| [Engine / executor setup](docs/executor-setup.md) | Custom nodes, model roles and readiness checks |
-| [Native H3 takes](docs/validation/native-take-workspace.md) | Capture, reopening, forward continuation and evidence boundaries |
-| [Workflows](workflows/README.md) | Exported API graphs and their source models |
-| [Jury guide](docs/jury-guide.md) · [Release checklist](docs/release-readiness.md) | Demonstration techniques, evidence and submission gates |
-| [Documentation index](docs/README.md) | Architecture, validation reports and historical plans |
+[Setup and troubleshooting](docs/local-setup.md) · [Executor preparation](docs/executor-setup.md) ·
+[Dependencies](docs/dependencies.md) · [Workflows](workflows/README.md) ·
+[Documentation](docs/README.md) · [Roadmap](ROADMAP.md)
 
 ## Built on / credits
 
@@ -132,30 +116,23 @@ transport for self-hosted execution.
 - **Black Forest Labs** — FLUX 3 Klein for Characters; FLUX 2 Klein for LTX anchors.
 - **Lightricks / Ripple** — LTX 2.5 and the Ripple FFAF IC-LoRA motion path.
 - **MiniMax / akatz-ai** — H3 and the `h3_character_swap_v1.5` Character Swap LoRA.
-- **ComfyUI and extension authors** — upstream execution and state mechanisms;
-  see [sources and dependencies](docs/dependencies.md) and the
-  [continuity pack](docs/architecture/continuity-nodes.md).
+- **ComfyUI and extension authors** — execution, state mechanisms and node packs;
+  see [sources and dependencies](docs/dependencies.md).
+- **OpenGenjutsu** — the connected studio and continuity-file publication/reopening nodes.
 
 Prepared for the [Open Source Higgsfield Competition](https://comfy.org/open-source-higgsfield).
 Entirely local execution is allowed. A deployed try-it link is optional.
-The innovation category includes novel custom node packs.
-Submission and media publication remain separate [release gates](docs/release-readiness.md).
+The innovation category includes novel custom node packs. Combined techniques:
+FLUX character/reference editing, LTX + Ripple propagation, H3 Swap/native continuation,
+SDK artifact transport and local FFmpeg Reel assembly.
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Write tests first (TDD)
-4. Run `env -u PYTHONPATH .venv/bin/python -m unittest discover -s tests -v`
-5. Commit with descriptive messages
-6. Open a PR
+See [CONTRIBUTING.md](CONTRIBUTING.md) for GPU-free checks and contribution boundaries.
+Report reproducible steps and sanitized diagnostics, not API keys or private native backups.
 
 ## License
 
-Apache-2.0 — see [LICENSE](LICENSE).
-
-The application licence does not license model weights or third-party extensions.
-Their own terms apply; **obtain any required commercial licence before commercial
-use**. See [model licences](docs/validation/model-licences.md) and the
-[H3 scope note](docs/validation/h3-license-gate.md) for component and territorial
-restrictions. No weights are bundled.
+Application code: **Apache-2.0**, see [LICENSE](LICENSE). Model weights and third-party
+extensions have separate terms; obtain any required permissions before commercial
+use or redistribution. See [component licences](docs/model-licences.md).

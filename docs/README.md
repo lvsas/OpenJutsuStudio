@@ -1,113 +1,44 @@
 # Documentation index
 
-Start with the [project README](../README.md) — what the product does, the connected workspaces,
-how to run it and how each competition requirement is met. This page is the map of everything
-under `docs/`.
+**v0.1.0-alpha.1 · Development preview · [Apache-2.0 application code](../LICENSE)**
 
-**Reading convention.** Dates do not establish delivery. Plans describe intended work;
-source, tests and explicitly scoped validation records establish implemented behavior.
-Historical and superseded documents remain available as evidence, but their assumptions
-must not override a newer validated contract. A passing mocked test is not a GPU or
-browser-quality result.
+## Start, make, share
 
----
+- [Install the app and proxy](local-setup.md).
+- [Prepare the ComfyUI executor](executor-setup.md): custom nodes and weights are separate.
+- [Dependencies and file roles](dependencies.md).
+- [Creative loop](../README.md#the-creative-loop): Create → Swap → Continue → Share.
+- [Roadmap](../ROADMAP.md), [contributing](../CONTRIBUTING.md) and [component licences](model-licences.md).
 
-## Start here
+## What to try
 
-| Document | What it answers |
-| --- | --- |
-| [Feature-complete MVP delivery plan](plans/2026-10-21-mvp-feature-complete.md) | primary delivery checklist: functional features and dependencies, then stabilization, Cloud/SDK, UX/innovation and two-minute video; supersedes older delivery ordering |
-| [Capsules pack and app — parallel innovation plan](plans/2026-10-21-capsule-pack-innovation.md) | standalone project-owned pack, H3 backend replacement, LTX/FLUX adapter boundaries and synchronized visible app milestones; proposed, not delivered |
-| [Dependency and ownership audit](validation/2026-10-21-dependency-ownership-audit.md) | earlier capsule proposal vs implemented code; current dependencies, OBVPM overlap and explicit tracking/deployment gaps |
-| [Local setup](local-setup.md) | how to run this on your own machine: Python 3.12, FFmpeg, the SDK proxy, a remote upstream, and the usual failures |
-| [Creative Studio UI architecture](ui-architecture.md) | how the interface is organised, why the two studios share one language, and where local sharing stops |
-| [Open Weights runtime contract](validation/open-weights-runtime-contract.md) | which models, nodes and transport are declared, and what "ready" actually verifies |
-| [Competition roadmap](plans/competition-roadmap.md) | the requirements checklist, what is done, and what is still open |
+Bring a reference or use Characters' **18 wardrobe** choices and optional face
+refinement. Select a short source shot in a Swap studio. For a continuable H3 take,
+enable **Save native state too before generating**, then open it in Timeline.
 
-## Current — what the product is
+The native Capsule connects the video, MCTX context, COND conditioning, references
+and lineage. The upstream engine defines these formats; H3 and LTX states are
+**not interchangeable**. Recipe JSON is not a replacement for native files.
+The [standalone pack](../custom_nodes/opengenjutsu_continuity/README.md) explains
+publication and restaging through the official SDK.
 
-| Document | What is in it |
-| --- | --- |
-| [H3 Studio runtime validation](validation/h3-studio-runtime.md) | the isolated two-pass runtime: what was rendered, at which size, with what result |
-| [H3 prompt-wording A/B](validation/h3-prompt-wording-ab.md) | the measured verdict on what makes an H3 take good: naming what must be preserved, not the phrasing |
-| [Automatic description](validation/h3-auto-description-probe.md) | how the studio writes the descriptions itself from the clip and each reference image, and what the model is forbidden to invent |
-| [H3 multi-reference plan](plans/h3-multi-reference-phase3.md) | the ordered steps that gave H3 two character references |
-| [H3/LTX UX parity plan](plans/2026-10-17-h3-ltx-ux-parity.md) | the atomic plan behind the interface work, phase by phase |
-| [Product reflection](plans/product-reflection-three-modes.md) | where the character creator and the timeline editor belong, and what makes the three modes one product |
-| [Post-MVP roadmap](plans/2026-10-18-post-mvp-roadmap.md) | the three-step product, the order of work, and the risks it accepts |
-| [Viral Character plan](plans/2026-10-18-viral-character-phase.md) | historical Phase B exploration: trend library, recipe, graph, capsule, page |
-| [Character Studio production plan](plans/2026-10-18-character-studio-production.md) | Phase 0 implementation contract for the FLUX 3 Character Studio: vendor graph adapter, SDK artifacts, recipe/capsule and async jobs |
-| [New MVP product contract](plans/2026-10-18-new-mvp-product.md) | current scope: Viral Character Maker → Character Swap → Timeline Editor, shared capsule/sidecar contracts and phased gates |
-| [Timeline SDK-native plan](plans/2026-10-20-timeline-sdk-product.md) | technical reference for H3/LTX contracts; delivery order is now governed by the feature-complete plan |
-| [Timeline SDK/H3 audit](validation/timeline-sdk-audit.md) | inspected source, artifact evidence and the remaining SDK round-trip gate |
-| [Visible product slices](validation/visible-product-slices.md) | actual Character/library/handoff and Timeline browser/persistence/export evidence, with remaining release gates |
-| [Timeline editor](architecture/timeline-editor.md) | implemented project/revision/immutable-media/import/export contract, independent of native generation |
-| [H3 SDK transport proof](validation/timeline-artifact-roundtrip.md) | measured upload/readback and the native publication/loader gap; partial proof is explicitly partial |
-| [CPU H3 continuity pack](architecture/continuity-nodes.md) | standalone publisher/restager, deterministic archive and local-family proof, not a deployed native continuation path |
-| [Native LTX capabilities](validation/timeline-ltx-capabilities.md) | official/installed candidate matrix, native state limits and next isolated root-I2V gate |
-| [H3 artifact integrity](architecture/timeline-artifacts.md) | implemented read-only MP4/MCTX/COND inspection, CLI, tests and explicit limits |
-| [Historical Timeline plan](plans/2026-10-18-timeline-latent-phase.md) | superseded assumptions; do not implement directly |
-| [Pack SDK roundtrip](validation/pack-sdk-roundtrip.md) | real job proving the installed pack publishes a downloadable family; transport only |
-| [Native Swap capture](validation/native-swap-capture.md) | first real GPU Swap with native capture: one submit, family retrieved, Take re-validated |
-| [Native forward](validation/native-forward.md) | first real continuation: restaged parent, loader consumed its state, child linked by native identity |
-| [Forward through the SDK](validation/native-forward-sdk.md) | restage → compile → GPU → SDK-collected family → child Take with lineage; trim confirmed twice |
-| [Forward UX plan](plans/2026-10-21-forward-ux.md) | états, copies, refus, critères de délice et d'acceptation avant tout code d'interface |
-| [Dependencies](dependencies.md) | every node class and model file this repository needs, verified against a live ComfyUI |
-| [`dependencies.json`](../dependencies.json) | the same list machine-readably, with `scripts/check_dependencies.py` to verify a machine |
-| [Character reference probe](validation/character-reference-probe.md) | historical visual/model experiments that established the FLUX 3 prompt and identity constraints |
-| [Character SDK multi-artifact spike](validation/character-sdk-multi-artifact-spike.md) | live proof that the official SDK retrieved the FLUX 3 PNG and saved caption from exact nodes, without `/history` |
-| [Model licences](validation/model-licences.md) | which model may be used for paid work: the LTX path is licensed, the FLUX step and MiniMax H3 are not |
-| [H3 license gate](validation/h3-license-gate.md) | contest eligibility is not a commercial or territorial licence — read before deploying or sharing output |
-| [Prompt profiles](architecture/prompt-profiles.md) | how a prompt policy is versioned and frozen per engine |
-| [H3 and the continuity capsule](architecture/h3-continuity-capsule.md) | the capsule is **live** in both studios; this records which H3 mechanisms that document proposed and we did not adopt |
+Download a vertical Reel from a completed Swap. Browser file sharing is optional;
+download is the fallback. Copying a caption **does not upload the video**.
+A social Reel is **not a complete Take backup**.
 
-## Evidence — what has been measured
+## Acceptance boundaries
 
-| Document | Question it settled |
-| --- | --- |
-| [Single-subject identity baseline](validation/2026-10-17-single-subject-identity-baseline.md) | does a first-frame edit carry identity through motion |
-| [Ripple strength A/B](validation/2026-10-17-ripple-strength-identity-ab.md) | what the strength control does to identity |
-| [Cut segmentation A/B](validation/2026-10-17-ltx-cut-segmentation-ab.md) | what happens around a hard cut |
-| [Licensed real-footage stress](validation/2026-10-17-licensed-real-motion-stress.md) | one real trailer, end to end |
-| [Multi-reference GPU validation](validation/2026-10-16-ltx-multi-reference-gpu.md) | LTX with two character references |
-| [H3 LoRA stock smoke](validation/2026-10-16-h3-stock-lora-smoke.md) | the Character Swap LoRA on an unmodified ComfyUI |
-| [Reference-first recast](validation/reference-first-no-prompt.md) | that a reference alone is enough to start |
-| [Qwen preflight](validation/qwen-local-preflight.md), [reference preflight](validation/qwen-reference-preflight.md) | what a local vision model could and could not be trusted with |
-| [Robustness protocol](validation/robustness-protocol.md) | the acceptance protocol for general editing |
-| [Local reliability](validation/local-reliability-2026-10-15.md) | the local-first reliability pass |
+Native capture is opt-in, not retroactive. Native H3 forward is experimental;
+complete chain acceptance means **root → child → grandchild**, not one saved file.
+Advanced **Before**, **bridge** and **refine** paths, **native LTX** continuation
+and live **Cloud** execution retain separate acceptance gates. Inventory is not a
+render or an artistic quality guarantee.
 
-## Audits — what was wrong and what was done about it
+| Evidence | What it establishes | What it does not establish |
+|---|---|---|
+| **CPU** | Tested input, persistence, graph and file contracts. | GPU execution. |
+| **Browser** | The served interactions actually exercised. | Every device or restored project. |
+| **GPU** | A particular graph produced verified files. | Universal quality or target compatibility. |
+| **Human** | Approval of a particular result/presentation. | Rights to unrelated media. |
 
-| Document | Outcome |
-| --- | --- |
-| [Generative workspace UX audit](audits/2026-10-22-timeline-ux-audit.md) | current page and proposed rail audited against the whole MVP; REQUEST CHANGES, with source/browser evidence and corrected design gates |
-| [Timeline UX proposal — reviewed, not approved](plans/2026-10-22-timeline-ux.md) | original proposal retained with audit notice; do not implement without resolving the audit |
-| [H3/LTX UI gaps, deep pass](audits/h3-ltx-ui-gaps-deep-2026-10-17.md) | every measured interface difference and its cause; most are now fixed |
-| [H3/LTX UI gaps](audits/h3-ltx-ui-gaps-2026-10-17.md) | the first pass, kept because it named the capsule colour and cache defects |
-| [H3 preview and capsule review](audits/h3-preview-capsule-review-2026-10-17.md) | work that was rejected and reworked; the reasoning that produced the current interface |
-| [UX parity audit](audits/h3-ltx-ux-parity-2026-10-17.md) | the original gap matrix |
-| [Competition UX gap](audits/2026-10-16-competition-ux-gap.md) | what a judge would have found missing |
-| [Genjutsu parity audit](audits/2026-10-16-genjutsu-parity-audit.md) | where this rebuild stands against the product it rebuilds |
-
-## Plans that built what exists
-
-Delivered, kept because they explain why the current architecture looks the way it does:
-
-| Document | What it delivered |
-| --- | --- |
-| [H3 studio consolidation](plans/h3-studio-consolidation.md) | the two-studio architecture: the isolated H3 graph, the H3 runner and route, the frozen H3 recipe with source/reference/result lineage, and the H3 Capsule |
-| [Creative studio UX](plans/2026-10-16-creative-studio-ux.md) | the studio interface as it stands (its own status: substantially implemented) |
-| [Share reel](plans/2026-10-16-share-reel.md) | the local 1080×1920 before/after reel a creator downloads |
-| [Multi-reference FLUX conditioning](plans/2026-10-16-multi-reference-object-swap.md) | the two-reference first-frame path, in use in LTX today |
-| [Local reliability](plans/2026-10-15-local-reliability.md) | the local-first reliability pass |
-
-## Earlier plans, superseded or not adopted
-
-| Document | Why it is not the current plan |
-| --- | --- |
-| [Local app and competition plan](plans/2026-10-15-opengenjutsu-general-product-plan.md) | superseded by the [competition roadmap](plans/competition-roadmap.md) |
-| [Reference intelligence](plans/2026-10-16-reference-intelligence.md) | the opt-in vision preflight it planned was measured and rejected; the measurements are in [Qwen preflight](validation/qwen-local-preflight.md) |
-
-## Architecture brief
-
-[Performance Recast Director](architecture/performance-recast-director.md) — the product brief.
+Opening a workspace must not start inference; generation remains explicit.

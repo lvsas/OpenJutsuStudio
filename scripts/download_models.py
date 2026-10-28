@@ -14,7 +14,7 @@ from model_download import fetch, relative_name, source_contract
 
 FOLDERS = {'UNETLoader': 'diffusion_models', 'CLIPLoader': 'text_encoders',
            'VAELoader': 'vae', 'VAELoaderKJ': 'vae', 'LoraLoaderModelOnly': 'loras',
-           'MinimaxH3LatentUpscaler3D': 'upscale_models'}
+           'MinimaxH3LatentUpscaler3D': 'latent_upscale_models'}
 
 
 def build_plan(manifest, engine='all'):

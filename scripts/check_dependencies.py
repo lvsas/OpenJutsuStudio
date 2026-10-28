@@ -36,7 +36,7 @@ LOADER_FIELD = {
     "loras": ("LoraLoaderModelOnly", "lora_name"),
     # Not a folder in the usual sense: this pack publishes its own loader and its own COMBO,
     # which is the field that actually decides whether the file is usable.
-    "upscale_models": ("MinimaxH3LatentUpscaler3D", "model_name"),
+    "latent_upscale_models": ("MinimaxH3LatentUpscaler3D", "model_name"),
 }
 
 

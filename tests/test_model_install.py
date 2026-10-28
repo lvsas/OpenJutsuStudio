@@ -37,7 +37,7 @@ class InstallerTests(unittest.TestCase):
     def manifest(self):
         folders = {'UNETLoader': 'diffusion_models', 'CLIPLoader': 'text_encoders',
                    'VAELoader': 'vae', 'VAELoaderKJ': 'vae', 'LoraLoaderModelOnly': 'loras',
-                   'MinimaxH3LatentUpscaler3D': 'upscale_models'}
+                   'MinimaxH3LatentUpscaler3D': 'latent_upscale_models'}
         return {'models': [dict(role_key=r['key'], file=r['default'], folder=folders[r['class_type']],
                                 download=dict(self.source)) for r in cli.roles()], 'loras': []}
 

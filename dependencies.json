@@ -178,7 +178,7 @@
         "h3-native-continuity-experimental"
       ],
       "required": false,
-      "note": "Required for native family publication/restaging, not the baseline Swap renderer. Pin documented in docs/validation/2026-10-22-restage-suffix-regression.md; /object_info verifies node availability, not installed commit or rendering."
+      "note": "Required for native family publication/restaging, not the baseline Swap renderer. Pin documented in docs/dependencies.md; /object_info verifies node availability, not installed commit or rendering."
     },
     {
       "name": "MiniMaxH3-joint-extras",
@@ -385,7 +385,7 @@
     },
     {
       "file": "minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors",
-      "folder": "upscale_models",
+      "folder": "latent_upscale_models",
       "loader": "MinimaxH3LatentUpscaler3D",
       "role": "H3 latent upscaler, used by the two-pass runtime",
       "engines": [
@@ -644,7 +644,7 @@
         "alternatives": [
           "flux2-vae.safetensors"
         ],
-        "note": "Shared with the FLUX 2 path; already there for the first-frame editor."
+        "note": "Required separately for Characters; the fixed Swap downloader installs a different first-frame-editor VAE."
       }
     ],
     "local_nodes_already_present": [

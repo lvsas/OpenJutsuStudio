@@ -10,7 +10,7 @@ from __future__ import annotations
 import unicodedata
 from collections.abc import Mapping
 from types import MappingProxyType
-import config
+import model_defaults
 
 
 def _role(key, label, engine, class_type, input_name, default):
@@ -19,14 +19,14 @@ def _role(key, label, engine, class_type, input_name, default):
 
 
 _ROLES = (
-    _role('flux_unet', 'FLUX Klein diffusion model', 'ltx', 'UNETLoader', 'unet_name', config.F_UNET_KLEIN),
-    _role('flux_clip', 'FLUX Klein text encoder', 'ltx', 'CLIPLoader', 'clip_name', config.F_CLIP_KLEIN),
-    _role('flux_vae', 'FLUX Klein VAE', 'ltx', 'VAELoader', 'vae_name', config.F_VAE_KLEIN),
-    _role('ltx_unet', 'LTX diffusion model', 'ltx', 'UNETLoader', 'unet_name', config.F_UNET_LTX),
-    _role('ltx_clip', 'LTX text encoder', 'ltx', 'CLIPLoader', 'clip_name', config.F_CLIP_LTX),
-    _role('video_vae', 'LTX video VAE', 'ltx', 'VAELoader', 'vae_name', config.F_VAE_VID),
-    _role('audio_vae', 'LTX audio VAE', 'ltx', 'VAELoaderKJ', 'vae_name', config.F_VAE_AUD),
-    _role('ripple_lora', 'Ripple IC-LoRA', 'ltx', 'LoraLoaderModelOnly', 'lora_name', config.F_LORA_RIPPLE),
+    _role('flux_unet', 'FLUX Klein diffusion model', 'ltx', 'UNETLoader', 'unet_name', model_defaults.F_UNET_KLEIN),
+    _role('flux_clip', 'FLUX Klein text encoder', 'ltx', 'CLIPLoader', 'clip_name', model_defaults.F_CLIP_KLEIN),
+    _role('flux_vae', 'FLUX Klein VAE', 'ltx', 'VAELoader', 'vae_name', model_defaults.F_VAE_KLEIN),
+    _role('ltx_unet', 'LTX diffusion model', 'ltx', 'UNETLoader', 'unet_name', model_defaults.F_UNET_LTX),
+    _role('ltx_clip', 'LTX text encoder', 'ltx', 'CLIPLoader', 'clip_name', model_defaults.F_CLIP_LTX),
+    _role('video_vae', 'LTX video VAE', 'ltx', 'VAELoader', 'vae_name', model_defaults.F_VAE_VID),
+    _role('audio_vae', 'LTX audio VAE', 'ltx', 'VAELoaderKJ', 'vae_name', model_defaults.F_VAE_AUD),
+    _role('ripple_lora', 'Ripple IC-LoRA', 'ltx', 'LoraLoaderModelOnly', 'lora_name', model_defaults.F_LORA_RIPPLE),
     _role('h3_unet', 'H3 diffusion model', 'h3', 'UNETLoader', 'unet_name',
           'minimax_h3_fl2va_pruned_int8_convrot.safetensors'),
     _role('h3_clip', 'H3 text encoder', 'h3', 'CLIPLoader', 'clip_name',
@@ -79,5 +79,6 @@ def effective_bindings(overrides=None) -> dict[str, str]:
     Older compute Target instances without the optional field remain supported.
     """
     if overrides is None:
+        import config
         overrides = getattr(config.compute_target(), 'model_bindings', {})
     return dict(_DEFAULTS) | validate_bindings(overrides)

@@ -208,7 +208,7 @@ def _validate(*, take_id, prompt, raw_frames, seeds, request_id, mode, second_ta
     if not 1 <= len(seeds) <= MAX_CANDIDATES:
         raise AttemptError(f'Ask for between 1 and {MAX_CANDIDATES} candidates.')
     if any(type(s) is not int or not 0 <= s < 2 ** 64 for s in seeds) or len(set(seeds)) != len(seeds):
-        raise AttemptError('Seeds must be distinct whole numbers below 2^64.')
+        raise AttemptError('Seeds must be distinct whole numbers from 0 to 2^64-1 (uint64).')
     return seeds
 
 

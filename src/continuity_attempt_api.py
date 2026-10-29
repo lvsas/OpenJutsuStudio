@@ -55,7 +55,7 @@ class AttemptRequest(BaseModel):
     @classmethod
     def distinct(cls, value: list[int]):
         if any(seed < 0 or seed >= 2 ** 64 for seed in value):
-            raise ValueError('Seeds must be below 2^64.')
+            raise ValueError('Seeds must be whole numbers from 0 to 2^64-1 (uint64).')
         if len(set(value)) != len(value):
             raise ValueError('Each candidate needs a distinct seed.')
         return value

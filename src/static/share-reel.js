@@ -15,7 +15,7 @@
     dialog.setAttribute('aria-labelledby', 'share-reel-title');
     dialog.innerHTML = `
       <div class="share-reel-header">
-        <div><p class="eyebrow">OPEN<span>GENJUTSU</span> / CHARACTER SWAP</p>
+        <div><p class="eyebrow">OPEN<span>JUTSU</span> STUDIO / CHARACTER SWAP</p>
         <h2 id="share-reel-title">Your moment. Ready to share.</h2></div>
         <button type="button" class="btn btn-ghost share-reel-close" aria-label="Close reel preview" autofocus>×</button>
       </div>

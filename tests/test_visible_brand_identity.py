@@ -74,6 +74,15 @@ class CaptionIdentity(unittest.TestCase):
         self.assertRegex(read("src/static/share-reel.js"),
                          r"Same performance\. A new identity\. Made with Open Jutsu Studio\.")
 
+    def test_share_dialog_eyebrow_words_the_product_in_two_tone_letters(self):
+        """The dialog is user-visible markup, so it cannot keep the retired word."""
+        source = read("src/static/share-reel.js")
+        eyebrow_match = re.search(r'<p class="eyebrow">(.*?)</p>', source, re.S)
+        assert eyebrow_match is not None
+        eyebrow = eyebrow_match.group(1)
+        self.assertNotIn("GENJUTSU", eyebrow)
+        self.assertEqual(re.sub(r"\s+", " ", text_of(eyebrow)), "OPENJUTSU STUDIO / CHARACTER SWAP")
+
 
 class ServedMetadata(unittest.TestCase):
     def test_openapi_title_names_the_studio(self):

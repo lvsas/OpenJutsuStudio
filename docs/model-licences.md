@@ -1,6 +1,6 @@
 # Component licences
 
-OpenGenjutsu's application code is [Apache-2.0](../LICENSE). That licence does **not**
+Open Jutsu Studio's application code is [Apache-2.0](../LICENSE). That licence does **not**
 relicense model weights, adapters, extensions, source footage or generated-media rights.
 Weights are not bundled in this repository. Obtain them through their declared
 sources and review the terms for the exact file, variant and intended use.

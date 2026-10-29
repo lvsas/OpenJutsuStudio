@@ -212,7 +212,7 @@ async function poll(id, current = epoch) {
 }
 
 async function copyCaption() {
-  const caption = 'Same moment. New character. Made with OpenGenjutsu. #OpenGenjutsu #CharacterSwap';
+  const caption = 'Same moment. New character. Made with Open Jutsu Studio. #OpenJutsuStudio #CharacterSwap';
   try {
     await navigator.clipboard.writeText(caption);
     showToast('Caption copied. Add your downloaded result before posting.');

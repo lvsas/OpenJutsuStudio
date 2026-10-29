@@ -75,7 +75,7 @@ class AppTests(unittest.TestCase):
         )
         page = self.client.get("/")
         self.assertEqual(page.status_code, 200)
-        self.assertIn("OpenGenjutsu", page.text)
+        self.assertIn("Open Jutsu Studio", page.text)
         self.assertIn("LTX Creative Studio", page.text)
         self.assertIn('<html lang="en"', page.text)
         self.assertIn("/static/design-system.css", page.text)

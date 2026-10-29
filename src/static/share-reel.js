@@ -1,8 +1,8 @@
 /* One preview-first share experience for both studios. No network publishing integration. */
 (() => {
   'use strict';
-  const CAPTION = 'Same moment. New character. Made with OpenGenjutsu. #OpenGenjutsu #CharacterSwap';
-  const CONTEST_CAPTION = 'My character swap, made with OpenGenjutsu and @ComfyUI. https://comfy.org/open-source-higgsfield';
+  const CAPTION = 'Same moment. New character. Made with Open Jutsu Studio. #OpenJutsuStudio #CharacterSwap';
+  const CONTEST_CAPTION = 'My character swap, made with Open Jutsu Studio and @ComfyUI. https://comfy.org/open-source-higgsfield';
   const X_HELP = 'Open X prefills text only. Attach downloaded MP4 in X. Nothing is published automatically.';
   const MAX_SHARE_BYTES = 100 * 1024 * 1024;
   const cache = new Map();
@@ -28,7 +28,7 @@
         <div class="share-reel-tools">
           <section class="share-reel-passport" aria-label="Take Passport">
             <p class="eyebrow">TAKE PASSPORT</p><h3>Your character.<br> Your moment.</h3>
-            <p>Same performance. A new identity. Made with OpenGenjutsu.</p>
+            <p>Same performance. A new identity. Made with Open Jutsu Studio.</p>
           </section>
           <p class="share-reel-status" role="status" aria-live="polite">Preparing your share reel…</p>
           <button type="button" class="btn btn-secondary share-reel-retry" hidden>Try again</button>
@@ -89,7 +89,7 @@
       ui.native.disabled = true;
       try {
         // File already prepared: keep the native call inside the explicit user gesture.
-        await navigator.share({files: [shareFile], title: 'My OpenGenjutsu Swap', text: ui.caption.value});
+        await navigator.share({files: [shareFile], title: 'My Open Jutsu Studio Swap', text: ui.caption.value});
         if (token === epoch) ui.status.textContent = 'Returned from your device’s share sheet.';
       } catch (error) {
         if (token === epoch) ui.status.textContent = error.name === 'AbortError'

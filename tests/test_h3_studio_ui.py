@@ -157,7 +157,7 @@ class H3StudioUITests(unittest.TestCase):
         self.assertIn("prefix = ''", progress)
         self.assertEqual('visually-hidden', self.ids['h3-video'][1]['class'])
         # The caption describes the result, not the implementation stack.
-        captions = [line for line in take.splitlines() if 'Made with OpenGenjutsu' in line]
+        captions = [line for line in take.splitlines() if 'Made with Open Jutsu Studio' in line]
         self.assertEqual(len(captions), 1)
         self.assertIn('Same moment. New character.', captions[0])
         self.assertNotIn('LTX', captions[0])

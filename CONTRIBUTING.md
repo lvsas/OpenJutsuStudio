@@ -1,4 +1,4 @@
-# Contributing to OpenGenjutsu
+# Contributing to Open Jutsu Studio
 
 Keep changes focused, testable without inference hardware, and understandable to the next contributor. Discuss changes to public APIs, graph topology, recipe policies or artifact formats before implementing them. Contributions follow the repository's [MIT license](LICENSE); model weights and third-party assets have separate terms.
 

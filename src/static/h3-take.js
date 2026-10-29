@@ -2,7 +2,7 @@ import {byId, validId, jobURL, h3URL, request, loadStageMedia} from './h3-http.j
 const STORAGE_KEY = 'opengenjutsu.h3.current-job';
 const TERMINAL = new Set(['done', 'error', 'failed', 'cancelled']);
 const COMPLETED_KEY = 'opengenjutsu.h3.completed-job';
-const CAPTION = 'Same moment. New character. Made with OpenGenjutsu. #OpenGenjutsu #CharacterSwap';
+const CAPTION = 'Same moment. New character. Made with Open Jutsu Studio. #OpenJutsuStudio #CharacterSwap';
 
 function saveCapsule(capsule, id) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(capsule, null, 2)], {type: 'application/json'}));

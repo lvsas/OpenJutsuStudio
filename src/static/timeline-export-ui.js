@@ -40,7 +40,7 @@ export class TimelineExport {
     $('share-export').disabled=false;
     $('export-video').pause();$('export-video').removeAttribute('src');$('export-video').hidden=true;
     for (const id of ['download-export','share-export','retry-export','open-export-x']) $(id).hidden=true;
-    $('export-caption').value=`${project.title}\nMade with OpenGenjutsu. #OpenGenjutsu`;
+    $('export-caption').value=`${project.title}\nMade with Open Jutsu Studio. #OpenJutsuStudio`;
     $('export-status').textContent='Preparing your cut. You can close this preview while it works.';
     const dialog=$('timeline-export-dialog');if (!dialog.open) dialog.showModal();
     try {

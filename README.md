@@ -1,4 +1,4 @@
-# OpenGenjutsu
+# Open Jutsu Studio
 
 ## Create. Swap. Continue. Share.
 
@@ -30,7 +30,7 @@ an H3 take to continue the story, then share a vertical comparison Reel.
 ### A take is more than an MP4
 
 The H3 path retains the **MP4 + MCTX + COND** family, references, frozen
-recipe and parent lineage. OpenGenjutsu connects native-file publication through
+recipe and parent lineage. Open Jutsu Studio connects native-file publication through
 the SDK, reopening and continuation in one workspace. A recipe records the render;
 **JSON alone is not the native state needed to continue it**. A social Reel is
 not a complete native backup. Upstream engines define the state formats: H3 and
@@ -118,7 +118,7 @@ transport for self-hosted execution.
 - **MiniMax / akatz-ai** — H3 and the `h3_character_swap_v1.5` Character Swap LoRA.
 - **ComfyUI and extension authors** — execution, state mechanisms and node packs;
   see [sources and dependencies](docs/dependencies.md).
-- **OpenGenjutsu** — the connected studio and continuity-file publication/reopening nodes.
+- **Open Jutsu Studio** — the connected studio and continuity-file publication/reopening nodes.
 
 Prepared for the [Open Source Higgsfield Competition](https://comfy.org/open-source-higgsfield).
 Entirely local execution is allowed. A deployed try-it link is optional.

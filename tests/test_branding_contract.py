@@ -95,7 +95,7 @@ class BrandingContract(unittest.TestCase):
                 self.assertNotIn("style", svg.attrib)
                 self.assertIn(".wordmark .brand-mark { color: var(--accent)",
                               (ROOT / "src/static/app.css").read_text())
-                self.assertEqual(re.sub(r"<[^>]+>", "", wordmark), "OPENGENJUTSU")
+                self.assertEqual(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", wordmark)).strip(), "OPENJUTSU STUDIO")
 
     def test_favicon_accents_match_linked_studio_styles(self):
         for name, (_, _, expected) in PAGES.items():

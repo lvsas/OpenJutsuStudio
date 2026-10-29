@@ -56,7 +56,7 @@ from continuable_take_api import create_router as create_continuity_router
 
 DEFAULT_ENGINE = "ltx25-ripple"
 
-app = FastAPI(title="OpenGenjutsu", version=VERSION)
+app = FastAPI(title="Open Jutsu Studio", version=VERSION)
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 

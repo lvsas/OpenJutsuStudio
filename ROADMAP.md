@@ -1,4 +1,4 @@
-# OpenGenjutsu Roadmap
+# Open Jutsu Studio Roadmap
 
 The direction stays simple: **Create → Swap → Continue → Share**, with reliable
 saved work and less friction between studios. These are upcoming milestones,

@@ -13,7 +13,7 @@ an H3 take to continue the story, then share a vertical comparison Reel.
 
 ![Current H3 Studio workspace, awaiting source video and character references](docs/readme/h3-studio-current.png)
 
-*Actual studio interface, captured on 27 October 2026. An empty workspace, not a generated-result quality claim.*
+*Actual studio interface, captured on 29 October 2026 in the running application. An empty workspace, not a generated-result quality claim.*
 
 ## The creative loop
 

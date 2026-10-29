@@ -18,7 +18,8 @@ import re
 import stat
 from pathlib import Path
 
-_ID = re.compile(r'[0-9a-f]{32}\Z')
+# Job identifiers exist in two real shapes: 32 hex characters, and a dashed UUID.
+_ID = re.compile(r'(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\Z')
 _MAX_JSON = 1 << 20
 _ACTIVE = {'queued', 'running', 'submitting', 'propagating'}
 

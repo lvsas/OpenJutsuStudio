@@ -76,6 +76,13 @@ class JobDeletionRules(JobFixture):
         self.assertEqual(result['takes_orphaned'], ['c' * 32])
         self.assertFalse((self.work / 'jobs' / (JOB + '.json')).exists())
 
+    def test_dashed_uuid_identifiers_are_accepted(self):
+        dashed = 'b08fab51-9c28-45d7-88bd-1d31b0b19713'
+        self.job(dashed)
+        result = delete_job(self.work, dashed)
+        self.assertEqual(result['deleted'], dashed)
+        self.assertFalse((self.work / 'jobs' / (dashed + '.json')).exists())
+
     def test_other_jobs_are_untouched(self):
         self.job()
         self.job(LIVE)

@@ -162,35 +162,20 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
       row.draggable=true;row.dataset.takeId=id;row.dataset.sourceKind=kind;row.dataset.sourceKey=key;
       row.addEventListener('dragstart',event=>{event.dataTransfer.setData('text/plain',isSwap(entry)?JSON.stringify({kind,id}):id);event.dataTransfer.effectAllowed='copy';});
       row.append(preview,append);
-      if(!commonLibrary&&window.OpenGenjutsuProject?.remove) {
-        const remove=action('Remove',async()=>{
-          remove.disabled=true;
-          try {await window.OpenGenjutsuProject.remove(isSwap(entry)?'job':'take',id);el('native-search').focus({preventScroll:true});}
-          catch(error){onError(error.message);remove.disabled=false;}
-        },'btn btn-ghost library-remove');
-        // Wording, not a bare glyph: this only detaches the item from the project.
-        remove.title='Remove from this project only · the media stays in your library';
-        remove.setAttribute('aria-label',`Remove ${label(entry)} from this project only; the media stays in your library`);
-        row.append(remove);
-        const erase=action('Delete',async()=>{
-          const what=isSwap(entry)?'Swap':'Take';
-          if(!confirm(`Delete this ${what} permanently? Its files are removed from the server and this cannot be undone.`))return;
-          erase.disabled=true;
-          try {
-            const path=isSwap(entry)?`/api/jobs/${id}`:`/api/continuity/takes/${id}`;
-            let response=await fetch(path,{method:'DELETE',credentials:'same-origin'});
-            let payload=await response.json().catch(()=>({}));
-            if(response.status===409&&/branch|origin of/.test(payload.detail||'')){
-              if(!confirm(payload.detail+'\n\nDelete it anyway?'))return;
-              const suffix=isSwap(entry)?'?break_lineage=true':'?cascade=true';
-              response=await fetch(path+suffix,{method:'DELETE',credentials:'same-origin'});
-              payload=await response.json().catch(()=>({}));
-            }
-            if(!response.ok)throw new Error(payload.detail||`This ${what.toLowerCase()} could not be deleted.`);
-            onError(`Deleted · ${(Number(payload.bytes||0)/1e6).toFixed(1)} MB reclaimed.`);
-            await refresh();
-          } catch(error){onError(error.message);erase.disabled=false;}
-        },'btn btn-ghost library-delete');
+      if(window.OpenGenjutsuProject?.remove) {
+        if(!commonLibrary) {
+          const remove=action('Remove',async()=>{
+            remove.disabled=true;
+            try {await window.OpenGenjutsuProject.remove(isSwap(entry)?'job':'take',id);el('native-search').focus({preventScroll:true});}
+            catch(error){onError(error.message);remove.disabled=false;}
+          },'btn btn-ghost library-remove');
+          // Wording, not a bare glyph: this only detaches the item from the project.
+          remove.title='Remove from this project only · the media stays in your library';
+          remove.setAttribute('aria-label',`Remove ${label(entry)} from this project only; the media stays in your library`);
+          row.append(remove);
+        }
+        // The common library is where unfinished Swaps pile up, so erasing belongs in both scopes.
+        const erase=action('Delete',()=>eraseSource(isSwap(entry)?'job':'take',id,label(entry),erase),'btn btn-ghost library-delete');
         erase.title='Delete permanently from the server · cannot be undone';
         erase.setAttribute('aria-label',`Delete ${label(entry)} permanently from the server`);
         row.append(erase);
@@ -200,6 +185,26 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
     if(!filtered.length) {const text=document.createElement('li');text.className='microcopy';text.textContent=scoped.length?'No matching sources.':commonLibrary?'No saved takes or Swaps yet.':'No sources in this project yet. Browse the common library or create a new take.';container.append(text);}
     if(focusKey)[...container.children].find(row=>row.dataset.sourceKey===focusKey)?.children[focusIndex]?.focus({preventScroll:true});
   }
+  async function eraseSource(kind,id,name,button) {
+    const what=kind==='job'?'Swap':'Take';
+    if(!confirm(`Delete this ${what} permanently? Its files are removed from the server and this cannot be undone.`))return;
+    button.disabled=true;
+    try {
+      const path=kind==='job'?`/api/jobs/${id}`:`/api/continuity/takes/${id}`;
+      let response=await fetch(path,{method:'DELETE',credentials:'same-origin'});
+      let payload=await response.json().catch(()=>({}));
+      if(response.status===409&&/branch|origin of/.test(payload.detail||'')){
+        if(!confirm(payload.detail+'\n\nDelete it anyway?'))return;
+        const suffix=kind==='job'?'?break_lineage=true':'?cascade=true';
+        response=await fetch(path+suffix,{method:'DELETE',credentials:'same-origin'});
+        payload=await response.json().catch(()=>({}));
+      }
+      if(!response.ok)throw new Error(payload.detail||`This ${what.toLowerCase()} could not be deleted.`);
+      onError(`Deleted ${name} · ${(Number(payload.bytes||0)/1e6).toFixed(1)} MB reclaimed.`);
+      await refresh();
+    } catch(error){onError(error.message);button.disabled=false;}
+  }
+
   function droppedSource(event) {
     const raw=event.dataTransfer.getData('text/plain');
     let source={id:raw,kind:'native'};

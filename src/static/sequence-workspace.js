@@ -193,8 +193,7 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
         },'btn btn-ghost library-delete');
         erase.title='Delete permanently from the server · cannot be undone';
         erase.setAttribute('aria-label',`Delete ${label(entry)} permanently from the server`);
-        return;
-        row.append(remove);
+        row.append(erase);
       }
       container.append(row);
     }

@@ -74,6 +74,37 @@ test('storage failure refuses new submission before network activity',async()=>{
  let calls=0;const c=createAttemptClient({storage:store,fetcher:async()=>{calls++;},onState:()=>{},onView:()=>{},onMessage:()=>{}});
  await assert.rejects(()=>c.submit({...anchor,request_id:REQUEST,body:body()}));assert.equal(calls,0);
 });
+test('confirmed precheck refusal releases receipt and permits a corrected draft',async()=>{
+ for(const status of [400,422]) {
+  const h=harness({fetcher:async()=>response({detail:'The saved anchor could not be read. No generation was created.'},status)});
+  await h.client.submit({...anchor,request_id:REQUEST,body:body()});
+  assert.equal(h.store.value(),null);assert.equal(h.client.blocked(),false);
+  assert.equal(h.states.at(-1).phase,'idle');assert.equal(h.states.at(-1).canDismiss,false);
+  assert.match(h.messages.at(-1),/No generation was created/);
+  await assert.rejects(()=>h.client.retrySubmission(),/without resubmitting/);
+  await h.client.submit({...anchor,request_id:'f'.repeat(32),body:body()});
+  assert.equal(h.calls.length,2,'a corrected explicit submission is no longer blocked');
+ }
+});
+test('generic 500 and recovery 404 cannot dismiss unknown work; exact retry can confirm refusal',async()=>{
+ for(const postStatus of [500,404]) {
+  let refused=false;
+  const h=harness({fetcher:async(url,opts)=>opts.method==='POST'
+   ?response({detail:refused?'No generation was created.':'Unknown outcome'},refused?422:postStatus)
+   :response({},404)});
+  await h.client.submit({...anchor,request_id:REQUEST,body:body()});
+  const original=h.store.value();assert.ok(original);assert.equal(h.client.blocked(),true);
+  assert.throws(()=>h.client.dismiss(),/not confirmed finished/);
+  await h.client.recover();assert.equal(h.states.at(-1).phase,'not-found');
+  assert.equal(h.states.at(-1).canDismiss,false);assert.equal(h.store.value(),original);
+  assert.throws(()=>h.client.dismiss(),/not confirmed finished/);
+  assert.deepEqual(h.calls.map(c=>c.method),['POST','GET'],'404 never automatically retries');
+  refused=true;await h.client.retrySubmission();
+  assert.equal(h.calls.at(-1).body,body(),'explicit retry preserves literal uint64 body and request id');
+  assert.equal(h.store.value(),null);assert.equal(h.client.blocked(),false);
+  assert.equal(h.states.at(-1).phase,'idle');
+ }
+});
 test('invalid browser JSON is visible and never causes automatic POST',async()=>{
  const h=harness({initial:'{broken',fetcher:async()=>{throw Error('must not fetch');}});
  await h.client.recover();assert.equal(h.states.at(-1).phase,'invalid');assert.equal(h.calls.length,0);

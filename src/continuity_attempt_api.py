@@ -108,6 +108,13 @@ def create_router(get_root, *, worker=None, create=None, precheck=None,
                         anchors['frozen_audio_context'] = validate_audio_context(audio_context)
                 except ValueError as error:
                     raise HTTPException(422, str(error)) from None
+                except OSError:
+                    # This read-only check precedes persistence and queueing, so
+                    # refusal is certain. Never apply it to creation errors,
+                    # whose outcome may be unknown, or expose private paths.
+                    raise HTTPException(422, 'The saved anchor could not be read. '
+                                        'Select an available saved take and try again. '
+                                        'No generation was created.') from None
             attempt, created = (create or attempts.create_or_get)(
                 get_root(), take_id=take_id, request_id=request.request_id, prompt=request.prompt,
                 raw_frames=request.raw_frames, seeds=request.seeds, **anchors,

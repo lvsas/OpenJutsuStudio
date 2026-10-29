@@ -1,19 +1,34 @@
 /* Read-only comparison: one explicit, lazy player, never a sequence selection. */
 import {exactSeed} from './sequence-state.js';
 const validId = value => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
+function requestSeeds(body) {
+  if (typeof body !== 'string') return [];
+  // JSON.parse validates syntax/shape only; never use its rounded seed Numbers.
+  const parsed = JSON.parse(body);
+  if (!parsed || Array.isArray(parsed) || !Array.isArray(parsed.seeds)) return [];
+  // Tokenize strings atomically (including escaped quotes), then inspect only
+  // top-level member keys. Prompt text and nested objects cannot supply seeds.
+  const tokens = body.match(/"(?:\\[\s\S]|[^"\\])*"|[{}\[\],:]|[^\s{}\[\],:"]+/g);
+  let depth = 0, seeds = null;
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (depth === 1 && token.startsWith('"') && tokens[i + 1] === ':' && JSON.parse(token) === 'seeds') {
+      if (seeds !== null || tokens[i + 2] !== '[') throw new Error('Ambiguous seed list.');
+      seeds = tokens.slice(i + 3, tokens.indexOf(']', i + 3))
+        .filter(value => value !== ',').map(value => exactSeed(value));
+    }
+    if (token === '{' || token === '[') depth++;
+    if (token === '}' || token === ']') depth--;
+  }
+  return seeds?.length === parsed.seeds.length ? seeds : [];
+}
 export function candidateSeed(candidate, index, frozen = {}) {
   // The API emits uint64 JSON integers. response.json() may already have rounded
   // them. Prefer the original literal request (same ordered candidates), never
   // stringify an unsafe Number and present it as an exact seed.
   try {
-    const match = typeof frozen.body === 'string'
-      && frozen.body.match(/"seeds"\s*:\s*\[([0-9,\s]*)\]\s*}$/);
-    if (match) {
-      const seeds = match[1].split(',').map(value => exactSeed(value.trim()));
-      const parsed = JSON.parse(frozen.body);
-      if (Array.isArray(parsed.seeds) && parsed.seeds.length === seeds.length && seeds[index] != null)
-        return seeds[index];
-    }
+    const seeds = requestSeeds(frozen.body);
+    if (Number.isInteger(index) && index >= 0 && seeds[index] != null) return seeds[index];
   } catch { /* Legacy recovery can lack the original literal request. */ }
   try {
     if (typeof candidate.seed === 'string') return exactSeed(candidate.seed);

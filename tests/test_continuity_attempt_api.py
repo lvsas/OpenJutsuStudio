@@ -237,6 +237,64 @@ class AttemptRouteTests(unittest.TestCase):
         for bad in ('c' * 31, 'C' * 32):
             self.assertEqual(self.client.get('/api/continuity/attempts/' + bad).status_code, 422)
 
+    def _precheck_client(self, check, create):
+        from types import SimpleNamespace
+        app = FastAPI()
+        app.include_router(create_router(
+            lambda: Path(self.tmp.name) / 'attempts',
+            worker=SimpleNamespace(start=self.started.append), create=create,
+            precheck=check, anchored_precheck=check))
+        return TestClient(app, raise_server_exceptions=False)
+
+    def test_missing_anchor_real_precheck_is_a_deterministic_refusal(self):
+        from unittest.mock import Mock
+        from continuity_pipeline import precheck_request
+        root = Path(self.tmp.name)
+        create = Mock(side_effect=AssertionError('Creation must not run'))
+        client = self._precheck_client(lambda take, raw: precheck_request(root, take, raw), create)
+        url = f'/api/continuity/takes/{TAKE}/attempts'
+        for _ in range(2):
+            response = client.post(url, json=BODY)
+            self.assertEqual(response.status_code, 422, response.text)
+            self.assertEqual(response.json()['detail'],
+                             'The saved anchor could not be read. Select an available saved take and try again. No generation was created.')
+        self.assertEqual(client.get(url + '/by-request/' + BODY['request_id']).status_code, 404)
+        create.assert_not_called()
+        self.assertEqual(self.started, [])
+        self.assertEqual(list(root.rglob('*')), [])
+
+    def test_precheck_oserrors_refuse_safely_for_each_anchor_mode(self):
+        import errno
+        from unittest.mock import Mock, patch
+        from continuity_pipeline import precheck_request
+        for error in (PermissionError(errno.EACCES, 'PRIVATE secret', '/private/SECRET'),
+                      OSError(errno.EIO, 'PRIVATE secret', '/private/SECRET')):
+            for extra in ({}, {'reference_ids': ['d' * 32]}, {'mode': 'prepend'},
+                          {'mode': 'bridge', 'second_take_id': 'c' * 32}):
+                with self.subTest(error=type(error).__name__, extra=extra):
+                    create = Mock(side_effect=AssertionError('Creation must not run'))
+                    client = self._precheck_client(
+                        lambda take, raw, **_: precheck_request(Path(self.tmp.name), take, raw), create)
+                    with patch('continuity_pipeline.get_validated_family', side_effect=error):
+                        response = client.post(f'/api/continuity/takes/{TAKE}/attempts', json=BODY | extra)
+                    self.assertEqual(response.status_code, 422, response.text)
+                    self.assertIn('No generation was created.', response.json()['detail'])
+                    self.assertNotIn('SECRET', response.text)
+                    self.assertNotIn('PRIVATE', response.text)
+                    create.assert_not_called()
+        self.assertEqual(self.started, [])
+        self.assertEqual(list(Path(self.tmp.name).rglob('*')), [])
+
+    def test_only_precheck_oserrors_are_confirmed_refusals(self):
+        from unittest.mock import Mock
+        for check, create in ((Mock(side_effect=RuntimeError('unexpected bug')), Mock()),
+                              (Mock(return_value=None), Mock(side_effect=OSError('uncertain persistence')))):
+            with self.subTest(check=check):
+                client = self._precheck_client(check, create)
+                response = client.post(f'/api/continuity/takes/{TAKE}/attempts', json=BODY)
+                self.assertEqual(response.status_code, 500, response.text)
+        self.assertEqual(self.started, [])
+
     def test_an_unconfigured_instance_refuses_variants(self):
         app = FastAPI()
         app.include_router(create_router(lambda: Path(self.tmp.name), worker=None))

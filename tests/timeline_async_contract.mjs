@@ -428,6 +428,37 @@ test('reloaded lost-response receipt reconnects by request without hiding setup 
   assert.equal(backend.calls.some(c=>c.method==='POST'),false);
   assert.equal(JSON.parse(app.storage.get('opengenjutsu.sequence.pending-generation')).attempt_id,attempt);
 });
+test('terminal continuation recovers with a video-only Swap or no current selection',async()=>{
+  for(const selected of ['swap','none']) {
+    const swap='d'.repeat(32),nativePlacement='1'.repeat(32),swapPlacement='2'.repeat(32),attempt='3'.repeat(32);
+    const saved={project_id:C,title:'Mixed recovery',revision:4,
+      placements:[{placement_id:nativePlacement,take_id:A},{placement_id:swapPlacement,take_id:swap,source_kind:'swap'}],
+      selected_placement_id:selected==='swap'?swapPlacement:null,drafts:{}};
+    const receipt={version:2,project_id:C,after:nativePlacement,take_id:A,request_id:'4'.repeat(32),
+      attempt_id:attempt,status:'running',body:'{"seeds":[7]}'};
+    const view={attempt_id:attempt,take_id:A,status:'done',error:null,candidates:[{status:'done',take_id:B,seed:7}]};
+    const backend=nativeBackend({saved,extra:async url=>url===`/api/continuity/attempts/${attempt}`?response(view):null});
+    const app=await environment(backend.fetcher,`?project_id=${C}`,{
+      'opengenjutsu.sequence.pending-generation':JSON.stringify(receipt)},'timeline.html',
+      [{job_id:swap,engine:'ltx25-ripple',status:'done'}]);
+    await app.entry('continuity-studio.js');await flush();const e=app.elements;
+    assert.equal(e.get('native-takes').children.length,3,'native and video-only sources loaded together');
+    if(selected==='swap')assert.equal(e.get('native-video').src,`/api/jobs/${swap}/result`);
+    else assert.ok(!e.get('native-video').src,'no selection remains empty');
+    assert.equal(e.get('candidate-tray').hidden,false,`${selected}: recovered result must be visible`);
+    assert.equal(e.get('attempt-recovery').hidden,true,'terminal success is not a network incident');
+    const keep=e.get('candidate-list').children[0].children.find(c=>c.textContent==='Keep');
+    assert.ok(keep);assert.equal(keep.disabled,false);
+    assert.equal(JSON.parse(app.storage.get('opengenjutsu.sequence.pending-generation')).status,'done');
+    assert.equal(backend.calls.some(c=>c.method!=='GET'),false,'recovery is read-only');
+    await keep.click();await flush();
+    assert.deepEqual(backend.saved().placements.map(p=>p.take_id),[A,B,swap],'Keep follows frozen native anchor, not current selection');
+    assert.equal(backend.saved().placements[2].source_kind,'swap');
+    assert.equal(backend.calls.some(c=>c.method==='POST'),false,'Keep does not generate');
+    assert.equal(app.storage.has('opengenjutsu.sequence.pending-generation'),false);
+  }
+});
+
 test('late references from a previous preview never overwrite the selected take setup',async()=>{
   const first=deferred();
   const backend=nativeBackend({extra:async url=>url===`/api/continuity/takes/${A}/references`?first.promise:null});
@@ -476,6 +507,86 @@ test('candidate comparison is explicit, read-only, stable through polls and clea
   assert.equal(player.src,'');assert.equal(panel.hidden,true,'different attempt releases old media');
   comparison.update({...view,candidates:[{status:'done',take_id:'../../etc',seed:1}]},frozen);
   comparison.preview(0);assert.equal(player.src,'');
+});
+
+test('page forward submission displays the exact uint64 from its final project-scoped body',async()=>{
+  const p='1'.repeat(32),attempt='3'.repeat(32),max='18446744073709551615';let sent=null;
+  const saved={project_id:C,title:'Forward seed',revision:1,placements:[{placement_id:p,take_id:A}],
+    selected_placement_id:p,drafts:{[p]:{prompt:'Keep moving',seed:max,raw_frames:158}}};
+  const backend=nativeBackend({saved,extra:async(url,options)=>{
+    if(url===`/api/continuity/takes/${A}/attempts`&&options.method==='POST') {
+      sent=options.body;
+      return response({attempt_id:attempt,take_id:A,status:'done',error:null,
+        candidates:[{status:'done',take_id:B,seed:JSON.parse(max)}]});
+    }
+  }});
+  const app=await environment(backend.fetcher,`?project_id=${C}`);
+  await app.entry('continuity-studio.js');await flush();const e=app.elements;
+  await e.get('forward-form').fire('submit');await flush();
+  assert.ok(sent);assert.equal(JSON.parse(sent).project_id,C);
+  assert.ok(sent.includes(`"seeds":[${max}],"project_id"`),'test the completed body, not just attemptBody');
+  const row=e.get('candidate-list').children[0];
+  assert.ok(row.children.some(child=>child.textContent.includes(max)),'candidate card keeps exact seed');
+  await row.children.find(child=>child.textContent==='Preview video / audio').click();
+  assert.ok(e.get('candidate-preview-label').textContent.includes(max),'comparison keeps exact seed');
+  assert.equal(backend.calls.filter(c=>c.method==='POST').length,1);
+});
+
+test('candidate seeds stay exact in complete project, mode and reference request bodies',async()=>{
+  const app=await environment(()=>assert.fail('Building a frozen request must not fetch'));
+  const {mountPositionGeneration}=await app.entry('position-generation.js');
+  const {candidateSeed}=await app.entry('candidate-comparison.js');
+  const expected=['18446744073709551615','0','1','2'];
+  for(const mode of ['root','forward','prepend','bridge']) {
+    let draft={prompt:'Escaped "seeds":[99] and nested {"seeds":[88]} \\ end',seed:expected[0],
+      raw_frames:158,count:4,reference_ids:[C],reference_mode:'custom',width:1024,height:576};
+    const state={project_id:C,placements:[{placement_id:A,take_id:A},{placement_id:B,take_id:B}]};
+    const seq={state:()=>state,setPositionDraft:changes=>{draft={...draft,...changes};},positionDraft:()=>draft};
+    const composer=mountPositionGeneration({sequence:seq,byId:id=>app.elements.get(id),
+      duration:{reset:frames=>{app.elements.get('forward-length').value=frames;},ready(){},valid:()=>true},
+      getJSON:async()=>({available:true}),onUpdate(){},onMessage(){}});
+    const gap=mode==='prepend'?{mode,left:null,right:A}:mode==='forward'?{mode,left:B,right:null}:{mode,left:A,right:B};
+    await composer.open(gap,draft);
+    const frozen=composer.request('f'.repeat(32)),parsed=JSON.parse(frozen.body);
+    assert.equal(parsed.project_id,C);assert.deepEqual(Array.from(parsed.reference_ids),[C]);
+    if(mode!=='root')assert.equal(parsed.mode,mode);
+    if(mode==='bridge')assert.equal(parsed.second_take_id,B);
+    for(let i=0;i<expected.length;i++)
+      assert.equal(candidateSeed({seed:parsed.seeds[i]},i,frozen),expected[i],`${mode}, candidate ${i}`);
+  }
+});
+
+test('exact seed lookup ignores escaped strings and nested keys at any field order',async()=>{
+  const app=await environment(()=>assert.fail('Seed lookup is pure'));
+  const {candidateSeed}=await app.entry('candidate-comparison.js');
+  const {attemptBody}=await app.entry('sequence-state.js');
+  const max='18446744073709551615',base=attemptBody({request_id:A,prompt:'A "seeds":[42] \\ quote',raw_frames:158,seed:max});
+  const bodies=[base,base.slice(0,-1)+',"project_id":"'+C+'"}',
+    '{"seeds":['+max+'],"prompt":"after"}',
+    '{"nested":{"seeds":[9]},"seeds":['+max+'],"after":[{"seeds":[10]}]}',
+    '{"s\\u0065eds":['+max+'],"prompt":"escaped key"}',
+    '{"seeds":[9007199254740991,9007199254740992,9007199254740993,18446744073709551615],"mode":"bridge"}'];
+  for(const body of bodies) {
+    const parsed=JSON.parse(body),expected=body===bodies.at(-1)
+      ?['9007199254740991','9007199254740992','9007199254740993',max]:[max];
+    for(let i=0;i<expected.length;i++)assert.equal(candidateSeed({seed:parsed.seeds[i]},i,{body}),expected[i]);
+  }
+});
+
+test('malformed or ambiguous frozen seed tokens never invent exact provenance',async()=>{
+  const app=await environment(()=>assert.fail('Seed lookup is pure'));
+  const {candidateSeed}=await app.entry('candidate-comparison.js');
+  const invalid=['{broken','{"seeds":[7],}', '{"seeds":[7,]}',
+    '{"prompt":"\\\"seeds\\\":[7]"}', '{"nested":{"seeds":[7]}}', '[{"seeds":[7]}]',
+    '{"seeds":["7"]}', '{"seeds":[true]}', '{"seeds":[null]}', '{"seeds":[-1]}',
+    '{"seeds":[1.5]}', '{"seeds":[1e2]}', '{"seeds":[18446744073709551616]}',
+    '{"seeds":[007]}', '{"seeds":[]}', '{"seeds":{}}', '{"seeds":[[7]]}',
+    '{"seeds":[7],"seeds":[8]}', '{"seeds":[7],"s\\u0065eds":[8]}'];
+  for(const body of invalid) {
+    assert.equal(candidateSeed({seed:18446744073709551615},0,{body}),'unavailable (exact value not provided)',body);
+    assert.equal(candidateSeed({seed:'23'},0,{body}),'23','valid API string remains a safe fallback');
+  }
+  assert.equal(candidateSeed({seed:7},3,{body:'{"seeds":[1]}'}),'7','missing candidate index uses safe fallback');
 });
 
 test('recovered candidates preview without changing draft or sequence; Keep uses frozen anchor only',async()=>{

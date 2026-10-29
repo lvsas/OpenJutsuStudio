@@ -331,7 +331,7 @@ async function loadReferences(takeId) {
     const response = await fetch(`/api/continuity/takes/${takeId}/references`,
       {credentials: 'same-origin', cache: 'no-store'});
     const data = await response.json().catch(() => ({}));
-    if(token!==epoch||active?.take.take_id!==takeId)return;
+    if(token!==epoch||active?.take?.take_id!==takeId)return;
     if (!response.ok) {
       const hint = document.createElement('span');
       hint.className = 'microcopy';
@@ -394,7 +394,7 @@ async function changeReference(takeId, index, file) {
       forwardState(data.detail || 'The reference could not be changed.');
       return;
     }
-    if(active?.take.take_id===takeId)await loadReferences(takeId);
+    if(active?.take?.take_id===takeId)await loadReferences(takeId);
     forwardState(file ? 'Reference added for the next shot.' : 'Reference removed.');
   } catch { forwardState('The reference could not be changed.'); }
 }
@@ -523,7 +523,7 @@ function recoveryState(state) {
 }
 const attemptClient=createAttemptClient({onState:recoveryState,onMessage:forwardState,
   onView:async(view,frozen)=>{
-    if(view.take_id===active?.take.take_id&&frozen.project_id===sequence.state().project_id
+    if(view.take_id===active?.take?.take_id&&frozen.project_id===sequence.state().project_id
         &&frozen.after===activePlacement?.placement_id&&view.candidates.length>0&&view.candidates.length<=3)
       byId('forward-variants').value=String(view.candidates.length);
     if(view.candidates.some(c=>c.status==='done'))await refresh();
@@ -559,7 +559,7 @@ byId('forward-form').addEventListener('submit', async event => {
     // when Generate outran the debounced workspace save.
     inFlight=true;updateComposer();
     const saved=await sequence.flush();
-    if(active?.take.take_id!==frozen.take_id||activePlacement?.placement_id!==frozen.after
+    if(active?.take?.take_id!==frozen.take_id||activePlacement?.placement_id!==frozen.after
         ||(frozen.project_id&&saved.project_id!==frozen.project_id))
       throw new Error('The selected take changed. Review this draft before generating.');
     comparison.clear();byId('candidate-tray').hidden=true;

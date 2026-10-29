@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Path as ApiPath
 from fastapi.responses import FileResponse, JSONResponse
 
 from continuable_take import get_take, get_validated_family, list_takes
+from continuable_take_delete import TakeDeletionRefused, delete_take
 from continuable_take_preview import prepare_preview, prepare_poster, PreviewUnavailable
 
 
@@ -54,6 +55,18 @@ def create_router(get_work_dir: Callable[[], Path]) -> APIRouter:
     def detail(take_id: TakeId):
         record = _read(get_take, get_work_dir(), take_id)
         return JSONResponse(_entry(record), headers=_PRIVATE)
+
+    @router.delete('/{take_id}')
+    def delete(take_id: TakeId, cascade: bool = False):
+        """Permanent removal, with an explicit guard for descendants and live work."""
+        try:
+            result = delete_take(get_work_dir(), take_id, cascade=cascade)
+        except TakeDeletionRefused as exc:
+            status = 404 if str(exc) == 'Unknown Take.' else 409
+            raise HTTPException(status, str(exc)) from None
+        except OSError:
+            raise HTTPException(503, 'Native Take storage is unavailable') from None
+        return JSONResponse({'deleted': result['deleted'], 'bytes': result['bytes']}, headers=_PRIVATE)
 
     @router.get('/{take_id}/capsule')
     def capsule(take_id: TakeId, download: bool = False):

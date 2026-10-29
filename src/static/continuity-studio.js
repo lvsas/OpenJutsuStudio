@@ -174,6 +174,7 @@ function choose(entry) {
   video.hidden = false; video.pause(); video.dataset.takeId = record.take_id;
   video.src = entry.media_url; video.load();
   const link = byId('native-capsule-download'); link.href = entry.capsule_url + '?download=true'; link.hidden = false;
+  const remove = byId('native-delete'); if (remove) { remove.dataset.takeId = record.take_id; remove.hidden = false; }
   byId('native-capsule-json').textContent = 'Open to inspect the public recipe receipt.';
   if (capsule.open) inspect();
   getJSON(`/api/continuity/takes/${record.take_id}/readiness`).then(result => {
@@ -248,6 +249,34 @@ async function openLinkedSwap(jobId) {
     panel.hidden=false;byId('native-handoff-new').hidden=false;
   } catch(error){if(current())notice(error.message||'The linked Swap could not be opened. Your project is unchanged.');}
 }
+byId('native-delete')?.addEventListener('click', async () => {
+  const takeId = byId('native-delete').dataset.takeId;
+  if (!validId(takeId)) return;
+  if (!confirm('Delete this Take permanently? Its native files are removed from the server and this cannot be undone.')) return;
+  const button = byId('native-delete');
+  if (!button) return;
+  button.disabled = true;
+  try {
+    let response = await fetch('/api/continuity/takes/' + takeId, {method: 'DELETE', credentials: 'same-origin'});
+    let payload = await response.json().catch(() => ({}));
+    if (response.status === 409 && /later Take/.test(payload.detail || '')) {
+      if (!confirm(payload.detail + '\n\nDelete the whole branch?')) return;
+      response = await fetch('/api/continuity/takes/' + takeId + '?cascade=true', {method: 'DELETE', credentials: 'same-origin'});
+      payload = await response.json().catch(() => ({}));
+    }
+    if (!response.ok) throw new Error(payload.detail || 'This Take could not be deleted.');
+    const megabytes = (Number(payload.bytes || 0) / 1e6).toFixed(1);
+    notice('Deleted ' + (payload.deleted || []).length + ' Take(s) · ' + megabytes + ' MB reclaimed.');
+    button.hidden = true;
+    button.dataset.takeId = '';
+    await refresh();
+  } catch (error) {
+    notice(error.message);
+  } finally {
+    button.disabled = false;
+  }
+});
+
 byId('native-handoff-add').addEventListener('click',async()=>{
   if(!linkedTake||!sequence.editable()||inFlight||unconfirmed)return;
   try {

@@ -31,6 +31,7 @@ from config import comfy_base_url
 from app_release import VERSION, render_release
 from continuity_forward_api import (create_forward_router, make_forward_runner,
                                     parent_references, refine_prompt, refine_continuation_prompt, target_fingerprint)
+from job_delete import JobDeletionRefused, delete_job
 from continuity_attempt_api import create_router as create_attempt_router
 from continuity_attempts import Worker
 from continuity_pipeline import precheck_request, preflight_continuation, submit_forward
@@ -360,6 +361,20 @@ def compare_frames(job_id: str, segment: int = 0) -> dict[str, Any]:
 @app.get("/api/jobs")
 def list_jobs() -> list[dict[str, Any]]:
     return [_public_job(j) for j in core.Job.all()]
+
+
+@app.delete("/api/jobs/{job_id}")
+def delete_job_route(job_id: str, break_lineage: bool = False):
+    """Permanent removal of one Swap and the media named after it."""
+    try:
+        result = delete_job(core.WORK, job_id, break_lineage=break_lineage)
+    except JobDeletionRefused as exc:
+        status = 404 if str(exc) == 'Unknown Swap.' else 409
+        raise HTTPException(status_code=status, detail=str(exc)) from None
+    except OSError:
+        raise HTTPException(status_code=503, detail="Job storage is unavailable") from None
+    return {"deleted": result["deleted"], "bytes": result["bytes"],
+            "takes_orphaned": result["takes_orphaned"]}
 
 
 @app.get("/api/jobs/{job_id}")

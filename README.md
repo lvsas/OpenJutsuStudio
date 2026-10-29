@@ -67,8 +67,8 @@ Repository access may require your own authorized GitHub account.
 
 ```bash
 # Install uv and FFmpeg first: see docs/local-setup.md
-git clone https://github.com/lvsas/Open-Source-Higgsfield-Competition.git
-cd Open-Source-Higgsfield-Competition
+git clone https://github.com/lvsas/OpenJutsuStudio.git
+cd OpenJutsuStudio
 bash scripts/setup.sh --with-proxy
 ```
 

@@ -163,13 +163,37 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
       row.addEventListener('dragstart',event=>{event.dataTransfer.setData('text/plain',isSwap(entry)?JSON.stringify({kind,id}):id);event.dataTransfer.effectAllowed='copy';});
       row.append(preview,append);
       if(!commonLibrary&&window.OpenGenjutsuProject?.remove) {
-        const remove=action('×',async()=>{
+        const remove=action('Remove',async()=>{
           remove.disabled=true;
           try {await window.OpenGenjutsuProject.remove(isSwap(entry)?'job':'take',id);el('native-search').focus({preventScroll:true});}
           catch(error){onError(error.message);remove.disabled=false;}
         },'btn btn-ghost library-remove');
-        remove.title='Remove from project · keep in common library';
-        remove.setAttribute('aria-label',`Remove ${label(entry)} from project; keep in common library`);
+        // Wording, not a bare glyph: this only detaches the item from the project.
+        remove.title='Remove from this project only · the media stays in your library';
+        remove.setAttribute('aria-label',`Remove ${label(entry)} from this project only; the media stays in your library`);
+        row.append(remove);
+        const erase=action('Delete',async()=>{
+          const what=isSwap(entry)?'Swap':'Take';
+          if(!confirm(`Delete this ${what} permanently? Its files are removed from the server and this cannot be undone.`))return;
+          erase.disabled=true;
+          try {
+            const path=isSwap(entry)?`/api/jobs/${id}`:`/api/continuity/takes/${id}`;
+            let response=await fetch(path,{method:'DELETE',credentials:'same-origin'});
+            let payload=await response.json().catch(()=>({}));
+            if(response.status===409&&/branch|origin of/.test(payload.detail||'')){
+              if(!confirm(payload.detail+'\n\nDelete it anyway?'))return;
+              const suffix=isSwap(entry)?'?break_lineage=true':'?cascade=true';
+              response=await fetch(path+suffix,{method:'DELETE',credentials:'same-origin'});
+              payload=await response.json().catch(()=>({}));
+            }
+            if(!response.ok)throw new Error(payload.detail||`This ${what.toLowerCase()} could not be deleted.`);
+            onError(`Deleted · ${(Number(payload.bytes||0)/1e6).toFixed(1)} MB reclaimed.`);
+            await refresh();
+          } catch(error){onError(error.message);erase.disabled=false;}
+        },'btn btn-ghost library-delete');
+        erase.title='Delete permanently from the server · cannot be undone';
+        erase.setAttribute('aria-label',`Delete ${label(entry)} permanently from the server`);
+        return;
         row.append(remove);
       }
       container.append(row);

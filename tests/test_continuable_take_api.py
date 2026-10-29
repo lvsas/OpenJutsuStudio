@@ -175,12 +175,16 @@ class ContinuableTakeApiTests(unittest.TestCase):
         self.assertEqual(self.fixture.video.read_bytes(), source, 'Native source must stay byte-identical')
         self.assertEqual(response.headers['x-opengenjutsu-media'], 'metadata-stripped-preview')
 
-    def test_no_browser_import_deletion_or_private_evidence_routes(self):
+    def test_no_browser_import_or_private_evidence_routes(self):
         self.imported()
         original = self.fixture.video.read_bytes()
-        for method in ('post', 'patch', 'put', 'delete'):
+        # Permanent deletion exists, but only through its guarded DELETE contract.
+        for method in ('post', 'patch', 'put'):
             response = getattr(self.client, method)(self.url)
             self.assertEqual(response.status_code, 405)
+        self.assertEqual(self.client.delete('/api/continuity/takes').status_code, 405,
+                         'Deletion is per Take, never a collection-wide sweep')
+        self.assertEqual(self.client.delete('/api/continuity/takes/not-a-take').status_code, 422)
         self.assertEqual(self.client.post('/api/continuity/takes', json={
             'path': '/private/anything.mp4'}).status_code, 405)
         for suffix in ('capture.private.json', 'mctx', 'conditioning'):

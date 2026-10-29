@@ -30,8 +30,8 @@ ffprobe -version
 ## 2. Fresh checkout and environment
 
 ```bash
-git clone https://github.com/lvsas/Open-Source-Higgsfield-Competition.git
-cd Open-Source-Higgsfield-Competition
+git clone https://github.com/lvsas/OpenJutsuStudio.git
+cd OpenJutsuStudio
 bash scripts/setup.sh
 ```
 

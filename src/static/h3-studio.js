@@ -50,11 +50,11 @@ async function checkReadiness() {
   badge.textContent = 'Checking local studio…';
   notes.hidden = true;
   try {
-    const report = await request('/api/h3/readiness' + (byId('native-capture').checked ? '?native_capture=true' : ''), {signal: AbortSignal.timeout(20000)});
+    const report = await request('/api/h3/readiness', {signal: AbortSignal.timeout(20000)});
     if (epoch !== readinessEpoch) return false;
-    ready = report.ready === true && (!byId('native-capture').checked || report.native_capture_supported === true);
-    if (byId('native-capture').checked && report.native_capture_supported !== true) {
-      report.issues = ['This application has not confirmed native capture support. Retry availability after the backend update, or uncheck native state.'];
+    ready = report.ready === true && report.native_capture_supported === true;
+    if (report.native_capture_supported !== true) {
+      report.issues = ['This application has not confirmed saved-state support. Check the backend before generating. Your inputs are kept.'];
     }
     clip.setLimit(report.limits?.max_clip_seconds);
     badge.classList.toggle('live', ready);
@@ -157,6 +157,7 @@ function submission() {
   }
   if (!form.reportValidity()) return null;
   const data = new FormData(form);
+  data.set('native_capture', 'true');
   clip.appendTo(data);
   if (!byId('directions').open) {
     data.delete('edit_prompt');
@@ -174,8 +175,8 @@ async function submit(event) {
   update();
   byId('run-overlay').hidden = false;
   try {
-    if (data.get('native_capture') === 'true' && !await checkReadiness()) {
-      throw new Error('Native state capture is not confirmed. Check availability or uncheck native state.');
+    if (!await checkReadiness()) {
+      throw new Error('Native state capture is not confirmed. Check availability; your inputs are kept.');
     }
     const projectId = await window.OpenGenjutsuProject?.ensure();
     if (projectId) data.set('project_id', projectId);
@@ -198,7 +199,6 @@ async function submit(event) {
 }
 form.addEventListener('submit', submit);
 byId('directions').addEventListener('toggle', update);
-byId('native-capture').addEventListener('change', () => { if (!pending && !take.active) checkReadiness(); });
 for (const [field, kind] of [['video', 'source'], ['reference', 'reference'],
                              ['reference-2', 'reference']]) {
   byId(field).addEventListener('change', () => {

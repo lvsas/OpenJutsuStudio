@@ -40,7 +40,16 @@ class ForwardRouteTests(unittest.TestCase):
         response = app_with(runner).post('/api/continuity/takes/' + 'b' * 32 + '/forward',
                                          json=BODY)
         self.assertEqual(response.status_code, 422)
-        self.assertIn('too short', response.json()['detail'])
+        self.assertIn('could not be continued', response.json()['detail'])
+
+    def test_private_runner_errors_are_never_echoed_to_the_browser(self):
+        marker = 'PRIVATE_' + 'PROMPT_TOKEN /private/source.wav'
+        def runner(*args):
+            raise ValueError(marker)
+        response = app_with(runner).post('/api/continuity/takes/' + 'b' * 32 + '/forward', json=BODY)
+        self.assertEqual(response.status_code, 422)
+        self.assertNotIn(marker, response.text)
+        self.assertNotIn('/private/', response.text)
 
     def test_an_unknown_take_is_a_404(self):
         def runner(work, take_id, request):

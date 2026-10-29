@@ -179,6 +179,8 @@ def run_h3_pipeline(job, video_path, opts):
     try:
         if job.engine != ENGINE:
             raise ValueError('H3 runner accepts only minimax-h3 jobs')
+        if opts.get('native_capture', True) is not True:
+            raise ValueError('Every H3 generation must save its complete continuation state.')
         media_dir = Path(opts.get('media_dir', core.WORK / 'media')).resolve()
         source = contained(video_path, media_dir)
         source_info = require_short_source(source)
@@ -204,18 +206,16 @@ def run_h3_pipeline(job, video_path, opts):
             raise ValueError('Replay conditioning audio differs from the frozen recipe')
         if recipe['source_frames_24fps'] not in (None, count):
             raise ValueError('Replay normalization differs from the frozen recipe')
-        native = opts.get('native_capture') is True
-        if native:
-            preview = (bind_frames(recipe, count, source_audio=prepared_audio)
-                       if recipe['source_frames_24fps'] is None else recipe)
-            graph = native_inventory_graph(preview, operation_id=native_operation_id(job),
-                                           weights=_weight_profile(opts, preview))
-            try:
-                missing_nodes, missing_models = missing_dependencies(graph)
-            except Exception:
-                raise ValueError('Native state inventory could not be verified. No inference was submitted.') from None
-            if missing_nodes or missing_models:
-                raise ValueError('Native state dependencies are unavailable. No inference was submitted.')
+        preview = (bind_frames(recipe, count, source_audio=prepared_audio)
+                   if recipe['source_frames_24fps'] is None else recipe)
+        graph = native_inventory_graph(preview, operation_id=native_operation_id(job),
+                                       weights=_weight_profile(opts, preview))
+        try:
+            missing_nodes, missing_models = missing_dependencies(graph)
+        except Exception:
+            raise ValueError('Native state inventory could not be verified. No inference was submitted.') from None
+        if missing_nodes or missing_models:
+            raise ValueError('Native state dependencies are unavailable. No inference was submitted.')
         client = make_client()
         if recipe['source_frames_24fps'] is None:
             recipe, reference_warning = _complete_reference_descriptions(
@@ -249,20 +249,14 @@ def run_h3_pipeline(job, video_path, opts):
         graph['155']['inputs']['video'] = video_ref
         for index, image_ref in enumerate(image_refs):
             graph[str(REFERENCE_NODE + index)]['inputs']['image'] = image_ref
-        graph['156']['inputs']['filename_prefix'] = f'OpenGenjutsu/h3-{job.id}'
-        # The native capture is an explicit opt-in. It appends publication nodes to
-        # the same graph, so the Swap is still sampled exactly once.
-        submitted = graph
-        if native:
-            # The capture contract owns the server-side output prefix: it must
-            # match the operation the Take is registered under.
-            operation_id = native_operation_id(job)
-            graph['156']['inputs']['filename_prefix'] = f'OpenGenjutsu/h3-{operation_id}'
-            capture = build_swap_native_capture(
-                recipe, graph, operation_id=operation_id,
-                weights=_weight_profile(opts, recipe), publish_family=True)
-            submitted = capture.graph
-            job.meta['native_capture_digest'] = capture.digest
+        # One sampling job publishes the display result and complete continuation state.
+        operation_id = native_operation_id(job)
+        graph['156']['inputs']['filename_prefix'] = f'OpenGenjutsu/h3-{operation_id}'
+        capture = build_swap_native_capture(
+            recipe, graph, operation_id=operation_id,
+            weights=_weight_profile(opts, recipe), publish_family=True)
+        submitted = capture.graph
+        job.meta['native_capture_digest'] = capture.digest
         remote = _submit(client, submitted)
         rendered = _published_mp4(remote, folder)
         if ffprobe(rendered)['frames'] < count:
@@ -274,10 +268,9 @@ def run_h3_pipeline(job, video_path, opts):
         if any(digest_file(path) != input_hashes[role] for role, path in inputs):
             raise ValueError('An H3 input changed during rendering')
         freeze_capsule(job, recipe, source, references, result, media_dir)
-        if native:
-            job.meta['native_take_id'] = _publish_native_take(
-                job, remote, folder, media_dir, submitted, references=references)
-            job.meta['native_artifact_relation'] = NATIVE_ARTIFACT_RELATION
+        job.meta['native_take_id'] = _publish_native_take(
+            job, remote, folder, media_dir, submitted, references=references)
+        job.meta['native_artifact_relation'] = NATIVE_ARTIFACT_RELATION
         job.result, job.status, job.step, job.progress = str(result.resolve()), 'done', 'done', 1.0
     except Exception as exc:
         job.status, job.step = 'error', 'h3_error'

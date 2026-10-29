@@ -3,8 +3,10 @@ import {attemptBody} from './sequence-state.js';
 import {positionLabel,resolvePosition} from './sequence-positions.js';
 const uuid=()=>crypto.randomUUID().replace(/-/g,'');
 export function mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate,onMessage}) {
-  let position=null,draft=null,available=false,inherited=[],token=0,busy=false,referenceLimit=null,referenceError=false;
+  let position=null,draft=null,available=false,inherited=[],token=0,busy=false,referenceLimit=null,referenceError=false,referenceLoading=false;
   const custom=()=>position?.mode==='root'||draft?.reference_mode==='custom';
+  const referenceBlocked=()=>!position||busy||(!custom()&&(referenceLoading||referenceError));
+  function update() {onUpdate();}
   const referenceCount=()=>custom()?(draft?.reference_ids?.length||0):inherited.length;
   const save=changes=>{sequence.setPositionDraft(changes);draft=sequence.positionDraft();};
   const fields=()=>({prompt:byId('forward-prompt').value,seed:byId('forward-seed').value.trim(),
@@ -18,31 +20,35 @@ export function mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate
     return result.reference_id;
   }
   async function inheritedIds(skip=-1) {
-    const ids=[];
-    for(let i=0;i<inherited.length;i++) {
+    const ids=[],current=token,urls=[...inherited];
+    for(let i=0;i<urls.length;i++) {
       if(i===skip)continue;
-      const response=await fetch(inherited[i],{credentials:'same-origin',cache:'no-store'});
+      if(current!==token)throw new Error('Position changed.');
+      const response=await fetch(urls[i],{credentials:'same-origin',cache:'no-store'});
       if(!response.ok)throw new Error('The inherited reference could not be read.');
-      const blob=await response.blob();ids.push(await upload(new File([blob],'reference',{type:blob.type})));
+      const blob=await response.blob();
+      if(current!==token)throw new Error('Position changed.');
+      ids.push(await upload(new File([blob],'reference',{type:blob.type})));
     }
+    if(current!==token)throw new Error('Position changed.');
     return ids;
   }
   async function editReferences(transform) {
-    if(busy||!position)return;
-    const current=token;busy=true;onUpdate();
+    if(referenceBlocked())return;
+    const current=token;busy=true;update();
     try {
       const ids=await transform();
       if(current!==token)return;
       save({reference_ids:ids,reference_mode:'custom'});referenceError=false;renderReferences();
       onMessage('References saved for this position only. Original takes are unchanged.');
     } catch(error){if(current===token)onMessage(error.message);}
-    finally{if(current===token){busy=false;onUpdate();}}
+    finally{if(current===token){busy=false;update();}}
   }
   function renderReferences() {
     const list=byId('forward-reference-list');list.replaceChildren();
     byId('forward-references').hidden=false;
     const urls=custom()?(draft.reference_ids||[]).map(id=>`/api/continuity/root-references/${id}`):inherited;
-    byId('forward-reference-count').textContent=` · ${urls.length}${custom()?'':' inherited'}`;
+    byId('forward-reference-count').textContent=referenceLoading&&!custom()?' · checking…':` · ${urls.length}${custom()?'':' inherited'}`;
     if(referenceError)byId('native-readiness').textContent='References could not be loaded. Reopen this position to retry; timing and your draft are kept. No generation will start.';
     else if(available)byId('native-readiness').textContent=referenceLimit!==null&&urls.length>referenceLimit
       ?`This target accepts up to ${referenceLimit} references. Remove a reference to continue.`
@@ -64,7 +70,7 @@ export function mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate
   }
   function close(){++token;position=null;draft=null;available=false;busy=false;inherited=[];byId('root-settings').hidden=true;}
   async function open(next,saved) {
-    const current=++token;position=next;draft=structuredClone(saved);available=false;busy=false;inherited=[];referenceLimit=null;referenceError=false;
+    const current=++token;position=next;draft=structuredClone(saved);available=false;busy=false;inherited=[];referenceLimit=null;referenceError=false;referenceLoading=!custom();
     byId('forward-form').hidden=false;
     byId('forward-prompt').value=draft.prompt;byId('forward-seed').value=draft.seed;
     byId('forward-variants').value=String(draft.count??1);duration.reset(draft.raw_frames);
@@ -79,14 +85,15 @@ export function mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate
       right=state.placements.find(p=>p.placement_id===position.right);
     const anchors=position.mode==='root'?[]:position.mode==='prepend'?[right]:position.mode==='bridge'?[left,right]:[left];
     if(anchors.some(anchor=>anchor?.source_kind==='swap')) {
-      duration.unavailable();renderReferences();
-      byId('native-readiness').textContent='This Swap is video only. Choose New take for an independent generation; no native saved state is available.';
-      onUpdate();return;
+      duration.ready({available:false,mode:position.mode,duration_options:[],reason_code:'video_only'});
+      renderReferences();
+      byId('native-readiness').textContent='This result is video only. Choose a saved take from Your takes to continue.';
+      update();return;
     }
     const query=new URLSearchParams({mode:position.mode});
     if(position.mode!=='root')query.set('take_id',(position.mode==='prepend'?right:left).take_id);
     if(position.mode==='bridge')query.set('second_take_id',right.take_id);
-    renderReferences();onUpdate();
+    renderReferences();update();
     try {
       const ready=await getJSON('/api/continuity/composer-readiness?'+query);
       if(current!==token)return;
@@ -100,27 +107,31 @@ export function mountPositionGeneration({sequence,getJSON,byId,duration,onUpdate
           const refs=await getJSON(`/api/continuity/takes/${id}/references`);
           if(current!==token)return;
           inherited=refs.references.map(r=>`/api/continuity/takes/${id}/references/${r.index}`);
-          renderReferences();
-        } catch(error){if(current===token)referenceError=true;}
+          referenceLoading=false;renderReferences();
+        } catch(error){if(current===token){referenceLoading=false;referenceError=true;}}
       }
     } catch(error){if(current===token){available=false;duration.unavailable();byId('native-readiness').textContent='Timing check request failed. Reopen this position to retry; your draft is kept.';}}
-    finally{if(current===token){renderReferences();onUpdate();}}
+    finally{if(current===token){renderReferences();update();}}
   }
   byId('root-size').addEventListener('change',()=>{
     if(!position||position.mode!=='root')return;
     const [width,height]=byId('root-size').value.split('x').map(Number);save({width,height});
   });
-  return {open,close,active:()=>!!position,
-    valid:()=>!!position&&available&&!referenceError&&!busy&&referenceCount()>0
+  return {open,close,active:()=>!!position,referenceBlocked,
+    valid:()=>!!position&&available&&!referenceBlocked()&&referenceCount()>0
       &&(referenceLimit===null||referenceCount()<=referenceLimit)&&duration.valid(),
     saveFields(){if(position)save(fields());},
     add:file=>editReferences(async()=>[...(custom()?draft.reference_ids:await inheritedIds()),await upload(file)]),
     async useCharacter(){
-      const image=byId('native-character-image');
+      if(referenceBlocked())return;
+      const current=token,image=byId('native-character-image');
       if(!image.getAttribute('src'))return;
       const response=await fetch(image.src,{credentials:'same-origin'});
+      if(current!==token)return;
       if(!response.ok){onMessage('The character reference could not be read.');return;}
-      const blob=await response.blob();return this.add(new File([blob],'character',{type:blob.type}));
+      const blob=await response.blob();
+      if(current!==token)return;
+      return this.add(new File([blob],'character',{type:blob.type}));
     },
     request(request_id=uuid()) {
       const state=sequence.state(),gap=resolvePosition(state,position);save(fields());

@@ -257,7 +257,6 @@ export class H3Take {
   }
   async replay() {
     if (!this.capsule || this.active) return;
-    const nativeCapture=byId('native-capture').checked===true;
     const epoch = ++this.epoch;
     this.setActive(true);
     byId('replay').disabled = true;
@@ -266,7 +265,7 @@ export class H3Take {
       if (epoch !== this.epoch) return;
       if (!ready) throw new Error('H3 is not ready. Resolve the availability notes above.');
       const projectId = await window.OpenGenjutsuProject?.ensure();
-      const options = {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({native_capture:nativeCapture,...(projectId?{project_id:projectId}:{})})};
+      const options = {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({native_capture:true,...(projectId?{project_id:projectId}:{})})};
       const response = await request(h3URL(this.id, '/replay'), options);
       window.OpenGenjutsuProject?.acceptJob(response.job_id, response.project_id, 'minimax-h3');
       if (epoch !== this.epoch) return;

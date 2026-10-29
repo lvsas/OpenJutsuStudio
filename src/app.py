@@ -30,12 +30,13 @@ from comfy_transport import make_client
 from config import comfy_base_url
 from app_release import VERSION, render_release
 from continuity_forward_api import (create_forward_router, make_forward_runner,
-                                    parent_references, refine_prompt, target_fingerprint)
+                                    parent_references, refine_prompt, refine_continuation_prompt, target_fingerprint)
 from continuity_attempt_api import create_router as create_attempt_router
 from continuity_attempts import Worker
 from continuity_pipeline import precheck_request, preflight_continuation, submit_forward
 from h3_recipe import H3Models
 from h3_continuity_graphs import H3ContinuityModels, Weight
+from h3_source_audio import precheck_source_audio
 
 
 def _continuity_models() -> H3ContinuityModels:
@@ -92,8 +93,10 @@ _HUNT_ROOT = Path(core.WORK) / 'native-attempts'
 
 
 def _hunt_refine(prompt, take_id, *, mode='forward', second_take_id=None,
-                 root_context=None, reference_ids=None, reference_paths=None):
+                 root_context=None, reference_ids=None, reference_paths=None,
+                 audio_context=None, raw_frames=277):
     from continuity_root_pipeline import resolve_root_references, preflight_root
+    checked_audio = None
     if mode == 'root':
         paths = resolve_root_references(core.WORK, root_context)
         preflight_root(models=_continuity_models(), direction=prompt,
@@ -102,7 +105,7 @@ def _hunt_refine(prompt, take_id, *, mode='forward', second_take_id=None,
         paths = (tuple(Path(path) for path in reference_paths) if reference_paths is not None else
                  resolve_root_references(core.WORK, {'reference_ids': reference_ids, 'width':32, 'height':32})
                  if reference_ids is not None else parent_references(core.WORK, take_id))
-        options = {}
+        options: dict[str, Any] = {'raw_frames': raw_frames}
         if mode != 'forward':
             from continuity_composer import operation_options
             ready = operation_options(core.WORK, mode, take_id, second_take_id)
@@ -110,15 +113,23 @@ def _hunt_refine(prompt, take_id, *, mode='forward', second_take_id=None,
                 raise ValueError(ready['reason'])
             options = {'mode': mode, 'second_take_id': second_take_id,
                        'raw_frames': ready['duration_options'][0]['raw_frames']}
-        preflight_continuation(core.WORK, take_id, models=_continuity_models(),
+        checked_audio = preflight_continuation(core.WORK, take_id, models=_continuity_models(),
                                direction=prompt, reference_count=len(paths), **options)
+    if checked_audio != audio_context:
+        raise ValueError('The original soundtrack no longer matches the frozen extension.')
+    if audio_context is not None:
+        precheck_source_audio(core.WORK, audio_context)
     client = make_client()
     references = [client.assets.from_file(path).as_reference() for path in paths]
-    return refine_prompt(client, prompt, references)
+    if mode == 'root':
+        return refine_prompt(client, prompt, references)
+    return refine_continuation_prompt(client, core.WORK, take_id, prompt, references,
+        mode=mode, preserve_source_audio=audio_context is not None)
 
 
 def _hunt_submit(operation_id, refined, seed, raw_frames, take_id, *, mode='forward',
-                 second_take_id=None, root_context=None, reference_ids=None, reference_paths=None):
+                 second_take_id=None, root_context=None, reference_ids=None, reference_paths=None,
+                 audio_context=None):
     from continuity_requests import PreparedH3Request
     import uuid as _uuid
     client = make_client()
@@ -137,6 +148,8 @@ def _hunt_submit(operation_id, refined, seed, raw_frames, take_id, *, mode='forw
                    target_fingerprint=target_fingerprint(comfy_base_url(), H3Models()),
                    work_root=Path(core.WORK) / 'native-operations', reference_paths=paths,
                    operation_id=operation_id)
+    if mode == 'forward':
+        options['audio_context'] = audio_context  # None freezes generated-audio intent too.
     if mode == 'root':
         from continuity_root_pipeline import submit_root
         view = submit_root(core.WORK, request, root_context=root_context, **options)
@@ -162,7 +175,7 @@ def _anchored_precheck(take_id, raw, *, mode='forward', second_take_id=None, ref
     from continuity_root_pipeline import resolve_root_references
     paths = (resolve_root_references(core.WORK, {'reference_ids':reference_ids, 'width':32, 'height':32})
              if reference_ids is not None else parent_references(core.WORK, take_id))
-    preflight_continuation(core.WORK, take_id, models=_continuity_models(),
+    return preflight_continuation(core.WORK, take_id, models=_continuity_models(),
                            direction='Read-only dependency check', reference_count=len(paths),
                            raw_frames=raw, mode=mode, second_take_id=second_take_id)
 

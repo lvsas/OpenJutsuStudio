@@ -16,7 +16,7 @@ import re
 import sys
 import unittest
 from pathlib import Path
-from release_inventory import release_files
+from release_inventory import release_files, release_paths
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
@@ -53,14 +53,13 @@ class CompetitionRequirementsTests(unittest.TestCase):
         self.assertEqual(offenders, [], f'Private addresses must not ship: {offenders}')
 
     def test_only_public_documentation_is_tracked(self):
-        import subprocess
         public = {'docs/README.md', 'docs/local-setup.md', 'docs/executor-setup.md',
                   'docs/dependencies.md', 'docs/model-licences.md',
                   'docs/readme/alpha-studio-header.png', 'docs/readme/h3-studio-current.png',
                   'docs/readme/h3-swap-empty.png', 'docs/readme/h3-swap-two-references.png',
                   'docs/readme/ltx-swap.png'}
-        tracked = subprocess.run(['git', 'ls-files', '-z', 'docs/'], cwd=ROOT,
-                                 check=True, capture_output=True).stdout.decode().split('\0')
+        tracked = [str(path.relative_to(ROOT)) for path in release_paths(ROOT)
+                   if path.relative_to(ROOT).parts[0] == 'docs']
         self.assertEqual(sorted(set(tracked) - public - {''}), [],
                          'Remove private documentation from the index, not from disk')
 
@@ -73,11 +72,17 @@ class CompetitionRequirementsTests(unittest.TestCase):
         public = ['docs/README.md', 'docs/local-setup.md', 'docs/executor-setup.md',
                   'docs/dependencies.md', 'docs/model-licences.md',
                   'docs/readme/h3-studio-current.png', 'dist/opengenjutsu-continuity.zip']
-        for target in ignored + public:
-            with self.subTest(target=target):
-                result = subprocess.run(['git', 'check-ignore', '--no-index', '-q', target],
-                                        cwd=ROOT, capture_output=True)
-                self.assertEqual(result.returncode, 0 if target in ignored else 1)
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            fixture = Path(folder)
+            subprocess.run(['git', 'init', '-q', str(fixture)], check=True, capture_output=True)
+            (fixture / '.gitignore').write_bytes((ROOT / '.gitignore').read_bytes())
+            for target in ignored + public:
+                with self.subTest(target=target):
+                    result = subprocess.run(['git', '-c', 'core.excludesFile=/dev/null',
+                        'check-ignore', '--no-index', '-q', target],
+                        cwd=fixture, capture_output=True)
+                    self.assertEqual(result.returncode, 0 if target in ignored else 1)
 
     def test_current_contest_rules_do_not_require_managed_cloud(self):
         readme = (ROOT / 'README.md').read_text()
@@ -135,7 +140,7 @@ class CompetitionRequirementsTests(unittest.TestCase):
 
     def test_readme_images_exist_and_are_tracked(self):
         """A README that points at an untracked image shows a broken repository."""
-        import subprocess
+        distributed = set(release_paths(ROOT))
         readme = (ROOT / 'README.md').read_text()
         referenced = re.findall(r'!\[[^\]]*\]\(([^)]+)\)', readme)
         self.assertTrue(referenced, 'the README must show the running app')
@@ -144,14 +149,12 @@ class CompetitionRequirementsTests(unittest.TestCase):
                 continue
             with self.subTest(target=target):
                 self.assertTrue((ROOT / target).is_file(), f'{target} is referenced but missing')
-                tracked = subprocess.run(['git', 'ls-files', '--error-unmatch', target],
-                                         cwd=ROOT, capture_output=True)
-                self.assertEqual(tracked.returncode, 0,
-                                 f'{target} is referenced by the README but not tracked by git')
+                self.assertIn(ROOT / target, distributed,
+                              f'{target} is referenced by the README but not distributed')
 
     def test_documentation_links_resolve_to_tracked_files(self):
         """A documentation index with dead links is worse than no index."""
-        import subprocess
+        distributed = set(release_paths(ROOT))
         for name in ('README.md', 'docs/README.md'):
             page = ROOT / name
             self.assertTrue(page.is_file(), f'{name} must exist')
@@ -162,10 +165,8 @@ class CompetitionRequirementsTests(unittest.TestCase):
                     resolved = (page.parent / target).resolve()
                     self.assertTrue(resolved.is_file(), f'{name} links to a missing file: {target}')
                     relative = str(resolved.relative_to(ROOT))
-                    tracked = subprocess.run(['git', 'ls-files', '--error-unmatch', relative],
-                                             cwd=ROOT, capture_output=True)
-                    self.assertEqual(tracked.returncode, 0,
-                                     f'{name} links to an untracked file: {target}')
+                    self.assertIn(resolved, distributed,
+                                  f'{name} links to an undistributed file: {relative}')
 
     def test_no_local_paths_ship_in_the_workflows(self):
         for name in WORKFLOW_FILES:

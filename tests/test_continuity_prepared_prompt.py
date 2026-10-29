@@ -60,7 +60,7 @@ class PreparedPromptTests(unittest.TestCase):
         target = {'value': 'first-target'}
         request = ForwardRequest(**self.fields('Keep the motion'))
         with patch.object(forward, 'parent_references', return_value=[Path('/synthetic-reference.png')]), \
-             patch.object(forward, 'refine_prompt', return_value='Prepared direction'), \
+             patch.object(forward, 'refine_continuation_prompt', return_value='Prepared direction'), \
              patch.object(forward, 'submit_forward', return_value={'status': 'done'}) as submit:
             runner = forward.make_forward_runner(client_factory=lambda: client,
                 models_factory=lambda: MODELS, fingerprint=lambda: target['value'],

@@ -13,8 +13,9 @@
 ## What to try
 
 Bring a reference or use Characters' **18 wardrobe** choices and optional face
-refinement. Select a short source shot in a Swap studio. For a continuable H3 take,
-enable **Save native state too before generating**, then open it in Timeline.
+refinement. Select a short source shot in a Swap studio. Every new H3 Swap and
+re-run saves its continuation state automatically. Open **Keep creating in Timeline**
+to continue the selected take; there is no separate capture switch.
 
 The native Capsule connects the video, MCTX context, COND conditioning, references
 and lineage. The upstream engine defines these formats; H3 and LTX states are
@@ -28,7 +29,7 @@ A social Reel is **not a complete Take backup**.
 
 ## Acceptance boundaries
 
-Native capture is opt-in, not retroactive. Native H3 forward is experimental;
+Native capture is automatic for new H3 generations, not retroactive. Native H3 forward is experimental;
 complete chain acceptance means **root → child → grandchild**, not one saved file.
 Advanced **Before**, **bridge** and **refine** paths, **native LTX** continuation
 and live **Cloud** execution retain separate acceptance gates. Inventory is not a

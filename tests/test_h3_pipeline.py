@@ -69,6 +69,7 @@ class SourceGuardPipelineTests(unittest.TestCase):
         child = core.Job('child', engine='minimax-h3', video=str(source),
                          meta={'parent_job_id': parent.id, 'h3_original_source': str(self.source)})
         client = MagicMock()
+        client.assets.from_file.return_value.as_reference.return_value={'__type':'core/ASSET','info':{'id':'mock-asset'}}
         output = MagicMock()
         output.name = 'render.mp4'
         output.to_file.side_effect = lambda destination: Path(destination).write_bytes(b'mocked-render')
@@ -79,6 +80,9 @@ class SourceGuardPipelineTests(unittest.TestCase):
         before = digest_file(self.source)
         frozen = copy.deepcopy(recipe)
         with patch.object(pipeline, 'make_client', return_value=client), \
+                patch.object(pipeline, 'missing_dependencies', return_value=([], [])), \
+                patch.object(pipeline, 'download_h3_artifacts', side_effect=lambda remote,node,folder:folder.mkdir()), \
+                patch.object(pipeline, 'import_family', return_value=MagicMock(take_id='c'*32)), \
                 patch.object(pipeline, 'prepare_source', return_value=(excerpt, 72, 73)) as prepare, \
                 patch.object(pipeline, 'has_audio', return_value=False), \
                 patch.object(pipeline, 'ffprobe', return_value={'frames': 73}), \

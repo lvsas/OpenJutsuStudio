@@ -107,13 +107,13 @@
             </div>
           </fieldset>
           <details class="advanced-settings">
-            <summary>Advanced controls <span>Seed · native state</span></summary>
+            <summary>Advanced controls <span>Seed</span></summary>
             <label class="field-label" for="h3-seed">Seed</label>
             <input id="h3-seed" name="seed" class="text-input" type="text" inputmode="numeric" pattern="[0-9]{1,20}" value="302929098223082" required aria-describedby="h3-seed-help">
             <p id="h3-seed-help" class="field-help">Unsigned 64-bit integer. Replays use the frozen recipe, not this form.</p>
-            <label class="field-label" for="h3-native-capture"><input id="h3-native-capture" type="checkbox" name="native_capture" value="true"> Save native state too</label>
-            <p class="field-help">Optional private video, MCTX and conditioning. Applies to the next generation or re-run, not the saved parent.</p>
+            <input id="h3-native-capture" type="hidden" name="native_capture" value="true">
           </details>
+          <p class="field-help" id="h3-saved-state-policy">Every swap saves its video and continuation state automatically. Keep creating in Timeline.</p>
           <button id="h3-submit" class="btn btn-primary generate-button" type="submit" disabled><span>Generate swap</span><span aria-hidden="true">→</span></button>
           <p id="h3-form-help" class="field-help">Add a source and one reference. H3 must be ready to submit.</p>
           <p id="h3-notices" class="field-help" role="status" hidden></p>

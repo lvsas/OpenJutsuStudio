@@ -269,11 +269,12 @@ class JuryPresentationTests(unittest.TestCase):
         self.assertIn('Refine only the existing face.', refine)
         self.assertIn('character_face_positive', refine)
 
-    def test_native_capture_opt_in_and_write_only_key_match_source(self):
+    def test_native_capture_is_automatic_and_key_stays_write_only(self):
         h3 = (ROOT / 'src/templates/h3.html').read_text()
         capture = re.search(r'<input[^>]+id="h3-native-capture"[^>]*>', h3)
-        assert capture is not None, 'Native capture control must exist'
-        self.assertNotRegex(capture[0], r'\bchecked\b')
+        assert capture is not None, 'Canonical native capture field must exist'
+        self.assertRegex(capture[0], r'type="hidden"')
+        self.assertRegex(capture[0], r'value="true"')
         settings = ast.parse((ROOT / 'src/compute_settings.py').read_text())
         target = next(node for node in settings.body
                       if isinstance(node, ast.ClassDef) and node.name == 'Target')
@@ -297,7 +298,8 @@ class JuryPresentationTests(unittest.TestCase):
             self.assertIn(boundary, guide)
         text = self.read('README.md')
         self.assertIn('## Current boundaries', text)
-        self.assertIn('opt-in', text)
+        self.assertIn('always retain native state', text)
+        self.assertNotIn('Save native state too', text)
         self.assertIn('18 wardrobe', self.read('docs/README.md'))
 
     def test_no_fake_video_marker_or_unqualified_maturity_claim(self):

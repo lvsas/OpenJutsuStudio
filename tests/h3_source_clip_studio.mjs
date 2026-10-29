@@ -53,6 +53,7 @@ export async function checkSourceClipStudio({el, calls, response, settle, File, 
   assert.equal(media.currentTime, 5); assert.ok(media.pauses > 0); assert.equal(postCount(), before);
   let payload, release;
   setHandler((url, options) => {
+    if (url.startsWith('/api/h3/readiness')) return response({ready:true,native_capture_supported:true});
     if (url === '/api/h3/jobs') { payload = options.body; return new Promise(resolve => { release = resolve; }); }
     return response({...base, id: child, status: 'queued'});
   });
@@ -86,7 +87,7 @@ export async function checkSourceClipStudio({el, calls, response, settle, File, 
   assert.equal(whole.has('clip_start_seconds'), false); assert.equal(whole.has('clip_end_seconds'), false);
   let shortPayload;
   setHandler((url, options) => url === '/api/h3/jobs'
-    ? (shortPayload = options.body, response({detail: 'Controlled test refusal'}, 422)) : response({ready: true}));
+    ? (shortPayload = options.body, response({detail: 'Controlled test refusal'}, 422)) : response({ready: true,native_capture_supported:true}));
   await submit(); assert.equal(shortPayload.has('clip_start_seconds'), false); assert.equal(shortPayload.has('clip_end_seconds'), false);
   assert.match(el('clip-limit').textContent, /15/); assert.match(el('clip-summary').textContent, /Selected: 8 s/);
   select('bad.mp4'); media.currentSrc = media.src; media.events.error();

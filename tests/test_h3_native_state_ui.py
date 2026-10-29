@@ -8,10 +8,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class H3NativeStateUITests(unittest.TestCase):
-    def test_native_capture_has_h3_scoped_touch_target(self):
-        css = (ROOT / 'src/static/h3-studio.css').read_text()
-        self.assertRegex(css, r'\[data-engine="h3"\] label\[for="h3-native-capture"\][^{]*\{[^}]*min-height:\s*44px')
-        self.assertRegex(css, r'\[data-engine="h3"\] #h3-native-capture[^\{]*\{[^}]*width:\s*20px')
+    def test_native_capture_is_always_on_not_an_advanced_choice(self):
+        html = (ROOT / 'src/templates/h3.html').read_text()
+        self.assertRegex(html, r'id="h3-native-capture" type="hidden" name="native_capture" value="true"')
+        self.assertIn('Every swap saves its video and continuation state automatically.', html)
+        self.assertNotIn('Save native state too', html)
 
     @unittest.skipUnless(shutil.which('node'), 'Node is required')
     def test_native_state_and_distinct_version_contract(self):

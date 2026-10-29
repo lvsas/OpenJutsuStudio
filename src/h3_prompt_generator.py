@@ -1,7 +1,7 @@
 """Turn a human direction into a structured H3 R2VA prompt.
 
-The policy already exists as a ComfyUI workflow: a local Qwen3-4B reads the
-Full-Reference Mode guide, the direction and one reference image, and writes the
+The policy already exists as a ComfyUI workflow: a local vision Qwen 4B reads the
+Full-Reference Mode guide, the direction and ordered images, and writes the
 prompt. This module only fills the user-owned slot, keeps the policy text byte for
 byte, and captures the produced text through an actual SDK output.
 
@@ -47,6 +47,13 @@ REFERENCE_DECLARATION = (
     'whose appearance must be preserved.')
 
 
+# Measured on the existing node/model; the authored guide stays unchanged.
+CONTINUATION_SYSTEM_PROMPT = '''You faithfully adapt the user's creative direction into the supplied reference guide's output format. The guide specifies notation, not a new story or an obligatory shot count. The user's explicit choices of shot structure, timing, camera motion, casting, setting, style and soundtrack are hard constraints.
+A shot is one uninterrupted camera recording. Changes of pose, action, framing, or a continuous camera move are phases within that shot, not reasons to create another shot. When the user requests a single continuous shot or no cuts, use only [Shot 1] throughout all sections, with no cut timestamp or preliminary static establishing shot. Keep the complete requested camera move inside that shot.
+When the user explicitly requests multiple shots, honor the requested number, order and cut times; do not force a single shot. Do not introduce extra cuts or reset the scene. Reference-guide examples are examples, never additional user instructions.
+Describe the actual supplied subjects and source context. Cite only references supplied to the target video model; the last context-only image has no target Picture number. Multiple views of the same person do not request clones. Preserve all other explicit inclusions and exclusions. Output only the requested model prompt.'''
+
+
 def _asset(value):
     info = value.get('info') if isinstance(value, dict) else None
     identifier = info.get('id') if isinstance(info, dict) else None
@@ -61,9 +68,56 @@ def policy_text() -> str:
     return json.loads(TEMPLATE.read_text())['5833_26']['inputs']['string']
 
 
+def _continuation_input(direction: str, reference_count: int, preserve_source_audio: bool) -> str:
+    """Describe input roles in the user slot, never rewrite the authored guide.
+
+    Only the caller's direction is subject to MAX_DIRECTION. This private
+    envelope adds context without truncating the original words or pretending
+    that a still frame supplies an observation of motion or audio.
+    """
+    roles = [f'<Picture {i}> is ordered reference {i}; use its identity or detail '
+             'only for the requested change, not its reference-sheet background.'
+             for i in range(1, reference_count + 1)]
+    roles.append('The last attached image is the source scene context, '
+                 'not a new actor/reference background. It is a frame of the saved '
+                 'take being continued, not an additional character reference for H3. '
+                 'It has no H3 Picture number. Describe the visible existing performers '
+                 'and actual setting in words before applying the requested change; '
+                 'never cite this context attachment as an H3 reference. '
+                 'A reference sheet showing multiple views of the same individual '
+                 'does not request duplicate performers.')
+    audio = (
+        'Preserve the source song and lyrics from <Audio 1>, the supplied source '
+        'audio: continue its music, vocals, timing and performance with matching '
+        'lip-sync; do not replace the song or invent lyrics.'
+        if preserve_source_audio else
+        'Maintain continuity of inherited music/song and voices; do not replace '
+        'the soundtrack or invent lyrics. A still frame cannot reveal the audio; '
+        'no audio reference is declared here.')
+    return '\n'.join([
+        'CONTINUATION of the saved source scene, not a new scene from a character sheet.',
+        *roles,
+        'Use the source frame as context for the existing casting, environment, '
+        'visual style, lighting, framing and ongoing action. Keep all existing '
+        'performers and their appearance unless the user explicitly changes them. '
+        'Apply additional references only for the change requested by the user: '
+        'this is not a new set or a blank-sheet composition. Do not replace the '
+        'scene with a white/reference-sheet background or impose a new style. '
+        'Do not invent actions or motion observations that the still frame cannot show.',
+        audio,
+        'Do not invent cuts, shot counts, timed transitions or a storyboard. '
+        'Allow camera or shot changes only within the permission in the user '
+        'direction; permission to change the shot is not a request for multiple cuts. '
+        'Continue the inherited action and performance while applying that direction.',
+        'Original user direction (preserve its complete meaning):',
+        direction,
+    ])
+
+
 def build_prompt_graph(direction: str, references, *, mode: str = 'from-prompt',
                        clip_name: str | None = None,
-                       filename_prefix: str = 'OpenGenjutsu/prompts/h3') -> dict:
+                       filename_prefix: str = 'OpenGenjutsu/prompts/h3',
+                       continuation_frame=None, preserve_source_audio=False) -> dict:
     """Compile the prompt job exactly as the authored workflow runs it.
 
     ``from-prompt`` is the authored mode: the guide builds its six sections from
@@ -80,31 +134,40 @@ def build_prompt_graph(direction: str, references, *, mode: str = 'from-prompt',
         raise ValueError(f'Mode must be one of {MODES}')
     if isinstance(references, (dict, str)):
         references = [references]
-    if not isinstance(references, (list, tuple)) or not references:
+    if not isinstance(references, (list, tuple)) or (not references and continuation_frame is None):
         raise ValueError('At least one reference image is required')
+    images = list(references)
+    if continuation_frame is not None:
+        # Qwen-only context follows the N unchanged references. Never mutate the
+        # caller's list: H3 must still receive exactly its N character references.
+        images.append(continuation_frame)
     graph = copy.deepcopy(json.loads(TEMPLATE.read_text()))
 
-    # The operator's words go in untouched; empty is legitimate, the guide
-    # describes the pictures on its own.
-    graph[DIRECTION_NODE]['inputs']['string'] = direction.strip()
+    # Root behavior stays unchanged. Only a real source frame enables the
+    # continuation envelope; do not invent a visual observation when absent.
+    graph[DIRECTION_NODE]['inputs']['string'] = (
+        _continuation_input(direction, len(references), preserve_source_audio)
+        if continuation_frame is not None else direction.strip())
+    if continuation_frame is not None:
+        graph[GENERATE_NODE]['inputs']['system_prompt'] = CONTINUATION_SYSTEM_PROMPT
     graph[MODE_NODE]['inputs']['choice'] = mode
     if clip_name is not None:
         if not isinstance(clip_name, str) or not _MODEL.fullmatch(clip_name):
             raise ValueError('clip_name must be a plain model filename')
         graph[CLIP_NODE]['inputs']['clip_name'] = clip_name
-    graph[REFERENCE_NODE]['inputs']['image'] = _asset(references[0])
+    graph[REFERENCE_NODE]['inputs']['image'] = _asset(images[0])
 
     # The installed ImageBatchMulti requires at least two images. With one
     # reference the same asset fills both slots; with several, each is attached.
     batch = graph[BATCH_NODE]['inputs']
-    extra = list(references[1:])
+    extra = images[1:]
     for position, asset in enumerate(extra, start=2):
         graph[f'{REFERENCE_NODE}_{position}'] = {
             'class_type': 'LoadImage', 'inputs': {'image': _asset(asset)}}
-    batch['inputcount'] = max(2, len(references))
+    batch['inputcount'] = max(2, len(images))
     batch['image_1'] = [REFERENCE_NODE, 0]
     batch['image_2'] = [f'{REFERENCE_NODE}_2', 0] if extra else [REFERENCE_NODE, 0]
-    for position in range(3, len(references) + 1):
+    for position in range(3, len(images) + 1):
         batch[f'image_{position}'] = [f'{REFERENCE_NODE}_{position}', 0]
     for node in (*PREVIEW_NODES, *UNUSED_NODES):
         graph.pop(node, None)
@@ -115,6 +178,54 @@ def build_prompt_graph(direction: str, references, *, mode: str = 'from-prompt',
         'filename_prefix': filename_prefix,
     }}
     return graph
+
+
+_MEDIA_REFERENCE = re.compile(r'<\s*(Picture|Audio|Video)\s+([0-9]+)\s*>', re.IGNORECASE)
+# Scan role prefixes, then distinguish a numbered tag from ordinary angle prose.
+_MEDIA_REFERENCE_START = re.compile(r'<\s*(?:Picture|Audio|Video)', re.IGNORECASE)
+
+
+def _looks_like_media_reference(text: str, end: int) -> bool:
+    """Recognize an immediate digit after separators, or a bare closed role.
+
+    Stop at words and angle brackets: <Picture frame 2> is prose, not a
+    reference. Non-ASCII digits are ambiguous, not valid H3 indices.
+    """
+    i = end
+    while i < len(text):
+        char = text[i]
+        if char.isdigit():
+            return True
+        if char == '>':
+            return text[end:i].isspace() or i == end
+        if char == '<' or char.isalnum() or char == '_':
+            return False
+        i += 1
+    return False
+
+
+def validate_continuation_prompt_references(text: str, reference_count: int, *,
+                                            preserve_source_audio=False) -> str:
+    """Close generated roles over actual H3 inputs; never rewrite model output.
+
+    A Qwen-only context image is not an H3 Picture. Native pinning is not a
+    supplied Video reference either. Reject ambiguity before any video sampling;
+    do not silently substitute another role, truncate, or run a second refiner.
+    """
+    supplied = {'picture': range(1, reference_count + 1),
+                'audio': (1,) if preserve_source_audio else (), 'video': ()}
+    for start in _MEDIA_REFERENCE_START.finditer(text):
+        if not _looks_like_media_reference(text, start.end()):
+            continue
+        match = _MEDIA_REFERENCE.match(text, start.start())
+        if match is None:
+            raise ValueError('The continuation prompt contains a malformed media reference. '
+                             'Your take is unchanged.')
+        role, index = match.group(1).lower(), int(match.group(2))
+        if index not in supplied[role]:
+            raise ValueError('The continuation prompt refers to inputs that were not supplied. '
+                             'Your take is unchanged.')
+    return text
 
 
 class _BoundedText:

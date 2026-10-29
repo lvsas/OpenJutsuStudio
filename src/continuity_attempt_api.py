@@ -102,7 +102,10 @@ def create_router(get_root, *, worker=None, create=None, precheck=None,
             check = precheck if request.mode == 'forward' and request.reference_ids is None else anchored_precheck
             if check is not None:
                 try:
-                    check(take_id, request.raw_frames, **anchors)
+                    audio_context = check(take_id, request.raw_frames, **anchors)
+                    if audio_context is not None:
+                        from h3_source_audio import validate_audio_context
+                        anchors['frozen_audio_context'] = validate_audio_context(audio_context)
                 except ValueError as error:
                     raise HTTPException(422, str(error)) from None
             attempt, created = (create or attempts.create_or_get)(

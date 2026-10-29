@@ -75,6 +75,27 @@ class ReadinessTests(unittest.TestCase):
         self.assertTrue(seen[-1].endswith('/api/v2/health'))
         self.assertFalse(any('H3' in url for url in seen))
 
+    def test_image_batch_inputcount_obeys_target_int_schema(self):
+        graph = {'1': {'class_type': 'ImageBatchMulti', 'inputs': {'inputcount': 3}}}
+        def inventory(spec, value=3):
+            graph['1']['inputs']['inputcount'] = value
+            return readiness._inventory({'ImageBatchMulti': {'input': {'required': {'inputcount': spec}}}}, graph)
+
+        with self.assertRaisesRegex(ValueError, 'outside the target integer bounds'):
+            inventory(['INT', {'min': 2, 'max': 2}])
+        with self.assertRaisesRegex(ValueError, 'linked or malformed.*cannot be verified'):
+            inventory(['INT', {'min': 2, 'max': 1000}], ['42', 0])
+        for value in (2, 3, 1000):
+            self.assertEqual(inventory(['INT', {'min': 2, 'max': 1000}], value), ([], []))
+        for value in (1, 1001, True, 3.0, '3'):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                inventory(['INT', {'min': 2, 'max': 1000}], value)
+        for spec in (None, ['FLOAT', {'min': 2, 'max': 1000}], ['INT'],
+                     ['INT', {'min': 2}], ['INT', {'min': 2, 'max': True}],
+                     ['INT', {'min': 3, 'max': 2}]):
+            with self.subTest(spec=spec), self.assertRaises(ValueError):
+                inventory(spec)
+
     def test_ready_with_models_and_nodes(self):
         with patch.object(readiness, "_json_get", side_effect=self.responses), \
              patch.object(readiness.shutil, "which", return_value="/bin/tool"):

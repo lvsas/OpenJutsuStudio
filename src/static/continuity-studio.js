@@ -5,11 +5,11 @@ import {attemptBody} from './sequence-state.js';
 import {createAttemptClient} from './continuity-attempt-client.js';
 import {mountCandidateComparison, candidateSeed} from './candidate-comparison.js';
 import {createDurationPicker} from './continuity-duration.js';
-import {parseProjectContext} from './project-context.js';
+import {parseProjectContext,workspaceLink} from './project-context.js';
 import {mountNativeExport} from './native-sequence-export.js';
 import {positionLabel,positionsOf} from './sequence-positions.js';
 import {mountPositionGeneration} from './position-generation.js';
-import {mergeSequenceLibrary} from './sequence-library.js';
+import {mergeSequenceLibrary,nativeVersionsForSwap} from './sequence-library.js';
 import {isSwap,sourceId,sourceKind} from './sequence-sources.js';
 const byId = id => document.getElementById(id);
 const validId = id => typeof id === 'string' && /^[a-f0-9]{32}$/.test(id);
@@ -40,11 +40,14 @@ function updateComposer() {
   open.disabled=!active||locked;
   byId('forward-submit').disabled=locked||(selectedPosition?!positionComposer.valid():
     !activePlacement||!canExtend||!referencesReady||!duration.valid());
-  byId('position-new').disabled=locked;byId('position-character').disabled=locked;
+  byId('position-new').disabled=locked;
   byId('native-handoff-add').disabled=locked||!linkedTake;byId('native-handoff-new').disabled=locked;
   for(const control of byId('forward-form').querySelectorAll('textarea,input,select'))control.disabled=locked;
   duration.setLocked(locked);nativeExport?.update();
-  for(const button of byId('forward-reference-list').querySelectorAll('button'))button.disabled=locked;
+  const referencesLocked=locked||(!!selectedPosition&&positionComposer.referenceBlocked());
+  byId('forward-reference-input').disabled=referencesLocked;
+  byId('position-character').disabled=referencesLocked;
+  for(const button of byId('forward-reference-list').querySelectorAll('button'))button.disabled=referencesLocked;
 }
 const sequence = mountSequence({onSelect: showSelection,onLockChange:updateComposer,
   onContextChange:()=>{++epoch;byId('native-handoff').hidden=true;linkedTake=null;notice();},
@@ -186,12 +189,13 @@ function choose(entry) {
 }
 /* A studio link is an inspection request, never a placement or a computation. */
 function showLinkedNative(entry) {
-  sequence.preview(entry.take.take_id);linkedTake=entry.take.take_id;linkedKind='native';
+  showPosition(null);sequence.preview(entry.take.take_id);linkedTake=entry.take.take_id;linkedKind='native';
   byId('native-handoff').hidden=false;
-  const existing=sequence.state().placements.filter(p=>p.take_id===linkedTake&&(p.source_kind||'native')===linkedKind);
-  byId('native-handoff-message').textContent='This native state version retains its sampled duration and generated audio. Choose where it belongs; nothing has been added. A finished Swap can have different timing and source audio.';
+  const placements=sequence.state().placements;
+  const existing=placements.filter(p=>p.take_id===linkedTake&&(p.source_kind||'native')==='native');
+  byId('native-handoff-message').textContent='Continue this Swap using its saved state. Your original download stays unchanged. Opening this link does not add a clip or start generation.';
   const add=byId('native-handoff-add');add.hidden=false;
-  add.textContent=existing.length===1?'Open placement':existing.length>1?'Add another placement':'Add this take';
+  add.textContent=existing.length===1?'Continue this take':'Add take & continue';
   byId('native-handoff-new').hidden=true;updateComposer();
 }
 function showLinkedVideo(entry) {
@@ -209,26 +213,9 @@ async function openLinkedSwap(jobId) {
   const panel=byId('native-handoff'),choices=byId('native-handoff-choices');
   choices.replaceChildren();byId('native-handoff-add').hidden=true;byId('native-handoff-new').hidden=true;
   try {
-    const matches=entries.filter(entry=>entry.take&&(entry.take.origin?.source_job===jobId||entry.project_job_ids?.includes(jobId)));
-    const savedVideo=entries.find(entry=>isSwap(entry)&&sourceId(entry)===jobId);
-    if(matches.length&&savedVideo?.job.native_artifact_relation==='native-raw-family-and-distinct-finished-swap'){
-      linkedTake=null;panel.hidden=false;
-      byId('native-handoff-message').textContent='Choose a distinct version to preview. Finished Swap retains original timing and source audio; native state retains full sampled duration and generated audio. Nothing is added or generated.';
-      const addChoice=(label,select)=>{
-        const button=document.createElement('button');button.type='button';button.className='btn btn-secondary';button.textContent=label;
-        button.addEventListener('click',()=>{
-          if(!current()||!sequence.editable()||inFlight||unconfirmed)return;
-          choices.replaceChildren();select();
-        });choices.append(button);
-      };
-      addChoice('Finished Swap',()=>showLinkedVideo(savedVideo));
-      for(const entry of matches){
-        const c=entry.take.family.context;
-        addChoice(`Native state version · ${(c.delivered_frames/c.fps).toFixed(1)} s`,()=>showLinkedNative(entry));
-      }
-      updateComposer();return;
-    }
+    const matches=nativeVersionsForSwap(entries,jobId);
     if(matches.length===1){showLinkedNative(matches[0]);return;}
+    const savedVideo=entries.find(entry=>isSwap(entry)&&sourceId(entry)===jobId);
     if(matches.length>1){
       // An origin can publish several families. Recency is not the creator's choice.
       panel.hidden=false;
@@ -264,10 +251,18 @@ async function openLinkedSwap(jobId) {
 byId('native-handoff-add').addEventListener('click',async()=>{
   if(!linkedTake||!sequence.editable()||inFlight||unconfirmed)return;
   try {
-    const matches=sequence.state().placements.filter(p=>p.take_id===linkedTake&&(p.source_kind||'native')===linkedKind);
-    if(matches.length===1)sequence.openPlacement(matches[0].placement_id);
-    else sequence.place(linkedTake,null,null,linkedKind);
-    await sequence.flush();byId('native-handoff').hidden=true;linkedTake=null;
+    const id=linkedTake,kind=linkedKind,state=sequence.state();
+    const matches=state.placements.filter(p=>p.take_id===id&&(p.source_kind||'native')===kind);
+    let placementId;
+    if(matches.length===1){placementId=matches[0].placement_id;sequence.openPlacement(placementId);}
+    else {sequence.place(id,null,null,kind);placementId=sequence.selected().placement_id;}
+    if(kind==='native'){
+      const gap=positionsOf(sequence.state()).find(p=>p.left===placementId&&p.right===null);
+      if(gap)sequence.openPosition(gap);else sequence.compose();
+    }
+    await sequence.flush();
+    history.replaceState(null,'',workspaceLink('/timeline',{project_id:sequence.state().project_id}));
+    byId('native-handoff').hidden=true;linkedTake=null;
   }catch(error){notice(error.message);}
 });
 byId('native-handoff-new').addEventListener('click',()=>{

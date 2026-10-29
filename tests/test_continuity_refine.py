@@ -51,7 +51,7 @@ class PumpTests(unittest.TestCase):
             models_factory=lambda: 'models', fingerprint='f' * 64,
             work_root='/ops', preflight=preflight)
         with patch.object(api, 'parent_references', return_value=[Path('/ref.png')]), \
-             patch.object(api, 'refine_prompt') as refine, \
+             patch.object(api, 'refine_continuation_prompt') as refine, \
              patch.object(api, 'submit_forward') as submit:
             with self.assertRaises(TargetMissingDependencies):
                 runner('/work', 'b' * 32, FakeRequest(request_id='a' * 32, prompt=DIRECTION, seed=7, raw_frames=158))
@@ -63,15 +63,15 @@ class PumpTests(unittest.TestCase):
     def test_the_refined_text_is_what_reaches_the_graph(self):
         request = FakeRequest(request_id='a' * 32, prompt=DIRECTION, seed=7, raw_frames=158)
         with patch.object(api, 'parent_references', return_value=[Path('/ref.png')]), \
-             patch.object(api, 'refine_prompt', return_value=REFINED) as refine, \
+             patch.object(api, 'refine_continuation_prompt', return_value=REFINED) as refine, \
              patch.object(api, 'submit_forward', return_value={'take_id': 'f' * 32}) as submit:
             self.runner(fake_client())('/work', 'b' * 32, request)
         self.assertEqual(submit.call_args.args[2].prompt, REFINED)
-        self.assertEqual(refine.call_args.args[1], DIRECTION)
+        self.assertEqual(refine.call_args.args[3], DIRECTION)
 
     def test_a_failed_refiner_stops_before_any_video_work(self):
         with patch.object(api, 'parent_references', return_value=[Path('/ref.png')]), \
-             patch.object(api, 'refine_prompt', side_effect=ValueError('could not be prepared')), \
+             patch.object(api, 'refine_continuation_prompt', side_effect=ValueError('could not be prepared')), \
              patch.object(api, 'submit_forward') as submit:
             with self.assertRaises(ValueError):
                 self.runner(fake_client())(
@@ -82,24 +82,24 @@ class PumpTests(unittest.TestCase):
     def test_several_references_reach_the_refiner_and_the_graph_in_order(self):
         with patch.object(api, 'parent_references',
                           return_value=[Path('/a.png'), Path('/b.png')]), \
-             patch.object(api, 'refine_prompt', return_value=REFINED) as refine, \
+             patch.object(api, 'refine_continuation_prompt', return_value=REFINED) as refine, \
              patch.object(api, 'submit_forward', return_value={'take_id': 'f' * 32}) as submit:
             self.runner(fake_client())(
                 '/work', 'b' * 32,
                 FakeRequest(request_id='a' * 32, prompt=DIRECTION, seed=7, raw_frames=158))
-        self.assertEqual(len(refine.call_args.args[2]), 2)
+        self.assertEqual(len(refine.call_args.args[4]), 2)
         self.assertEqual(len(submit.call_args.kwargs['references']), 2)
         self.assertEqual(submit.call_args.kwargs['reference_paths'],
                          [Path('/a.png'), Path('/b.png')])
 
     def test_an_explicit_empty_context_is_forwarded_without_indexing_a_first_image(self):
         with patch.object(api, 'parent_references', return_value=[]), \
-             patch.object(api, 'refine_prompt', return_value=REFINED) as refine, \
+             patch.object(api, 'refine_continuation_prompt', return_value=REFINED) as refine, \
              patch.object(api, 'submit_forward', return_value={'take_id': 'f' * 32}) as submit:
             self.runner(fake_client())(
                 '/work', 'b' * 32,
                 FakeRequest(request_id='a' * 32, prompt=DIRECTION, seed=7, raw_frames=158))
-        self.assertEqual(refine.call_args.args[2], [])
+        self.assertEqual(refine.call_args.args[4], [])
         self.assertEqual(submit.call_args.kwargs['references'], [])
         self.assertEqual(submit.call_args.kwargs['reference_paths'], [])
 

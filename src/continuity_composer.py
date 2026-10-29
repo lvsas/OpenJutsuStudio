@@ -3,9 +3,10 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 from typing import Annotated, Literal, cast
 from continuable_take import get_validated_family
-from h3_av_state import state_from_family, child_state, tail_fits
+from h3_av_state import AVState, state_from_family, child_state, tail_fits
 from h3_native_boundaries import prepare_operation, source_pin, NativeBoundaryError
 from continuity_pipeline import _anchor_ids
+from h3_source_audio import source_for_family, plan_source_audio
 
 Identifier=Annotated[str|None,Query(pattern=r'^[0-9a-f]{32}$',min_length=32,max_length=32)]
 
@@ -16,6 +17,8 @@ class CapabilityError(ValueError):
 
 def operation_options(work,mode,take_id=None,second_take_id=None):
     """Read states once; never restage, upload, refine, submit or mutate files."""
+    soundtrack=None
+    states: tuple[AVState, ...]=()
     if mode=='root':
         from continuity_root_pipeline import root_state
         project=lambda raw:root_state(raw)
@@ -40,20 +43,26 @@ def operation_options(work,mode,take_id=None,second_take_id=None):
         states=tuple(s for s in measured if s is not None)
         if mode!='prepend':source_pin(states[0],'tail','before')
         if mode!='forward':source_pin(states[-1],'head','after')
+        if mode=='forward':soundtrack=source_for_family(work,families[0])
         project=(lambda raw:child_state(states[0],raw)) if mode=='forward' else (
             lambda raw:prepare_operation(mode,states,raw).child)
     options=[];codes=set()
     for raw in range(5,3601,17):
         try:
             state=project(raw)
-            if tail_fits(state):options.append({'raw_frames':raw,'seconds':state.delivered_frames/24})
+            if tail_fits(state):
+                if soundtrack is not None:plan_source_audio(soundtrack,states[0],raw)
+                options.append({'raw_frames':raw,'seconds':state.delivered_frames/24})
         except NativeBoundaryError as exc:codes.add(exc.code)
         except ValueError:continue
-    code=None if options else ('audio_phase_conflict' if 'audio_phase_conflict' in codes else 'no_compatible_duration')
+    code=None if options else ('source_audio_exhausted' if soundtrack is not None else
+        'audio_phase_conflict' if 'audio_phase_conflict' in codes else 'no_compatible_duration')
     reason=None if options else (str(NativeBoundaryError('audio_phase_conflict')) if code=='audio_phase_conflict' else
             'No compatible duration is available for this operation. Choose another anchor or start an independent take; originals are unchanged.')
+    if code=='source_audio_exhausted':reason='The original soundtrack ends here. Choose another anchor; no replacement song or silence was generated.'
     return {'available':bool(options),'verified':True,'mode':mode,'geometry':geometry,
-            'duration_options':options,'reason_code':code,'reason':reason}
+            'duration_options':options,'reason_code':code,'reason':reason,
+            'audio_policy':'original-source' if soundtrack is not None else 'native-generated'}
 
 
 def create_router(get_work):

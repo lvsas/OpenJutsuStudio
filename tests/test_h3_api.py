@@ -67,7 +67,7 @@ class APITests(unittest.TestCase):
         self.assertEqual(response.status_code, 202, response.text)
         job, source, opts = self.dispatch.call_args.args
         self.assertEqual(self.client.get('/api/h3/readiness').json(),
-                         {'ready': True, 'issues': [], 'limits': {'max_clip_seconds': 15}})
+                         {'ready': True, 'issues': [], 'native_capture_supported': True, 'limits': {'max_clip_seconds': 15}})
         self.assertEqual(self.client.get(f'/api/h3/jobs/{job.id}/source').content, b'video')
         self.assertEqual(self.client.get(f'/api/h3/jobs/{job.id}/reference').content, b'image')
         self.assertEqual(job.engine, 'minimax-h3')

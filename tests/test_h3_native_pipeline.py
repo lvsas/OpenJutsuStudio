@@ -81,16 +81,15 @@ class NativePipelineTests(unittest.TestCase):
     def submitted_graph(self):
         return self.client.run.call_args.args[0]
 
-    def test_legacy_swap_never_builds_or_downloads_a_native_family(self):
+    def test_default_worker_always_builds_and_collects_a_complete_family(self):
         job = self.run_job()
-        self.assertEqual(job.status, 'done')
+        self.assertEqual(job.status, 'done',job.error)
         self.assertEqual(self.client.run.call_count, 1)
-        graph = self.submitted_graph()
-        self.assertNotIn('native_swap_save', graph)
-        self.assertNotIn('native_swap_family', graph)
-        self.download.assert_not_called()
-        self.import_family.assert_not_called()
-        self.assertNotIn('native_take_id', job.meta)
+        self.assertIn('native_swap_save',self.submitted_graph())
+        self.assertIn('native_swap_family',self.submitted_graph())
+        self.download.assert_called_once()
+        self.import_family.assert_called_once()
+        self.assertEqual(job.meta['native_take_id'],'c'*32)
 
     def test_native_capture_submits_once_and_reads_every_output_from_that_job(self):
         job = self.run_job(native_capture=True, weights=self.weights)
@@ -130,13 +129,14 @@ class NativePipelineTests(unittest.TestCase):
                             'a Take id is not the displayed file')
         self.assertEqual(job.result, str((self.media / f"h3-{job.id}" / 'result.mp4').resolve()))
 
-    def test_native_capture_is_opt_in_and_never_enabled_implicitly(self):
+    def test_video_only_or_malformed_worker_options_refuse_before_client(self):
         for value in (False, 'true', 1, None):
             with self.subTest(value=value):
-                self.setUp()
                 job = self.run_job(native_capture=value, weights=self.weights)
-                self.assertEqual(job.status, 'done')
-                self.assertNotIn('native_swap_save', self.submitted_graph())
+                self.assertEqual(job.status, 'error')
+                pipeline.make_client.assert_not_called()
+                self.download.assert_not_called()
+                self.assertFalse((self.media/f'h3-{self.job.id}').exists())
 
     def test_a_failed_family_publication_does_not_report_a_native_success(self):
         self.download.side_effect = ValueError('SDK node has not published the complete family')

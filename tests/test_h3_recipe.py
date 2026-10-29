@@ -101,6 +101,23 @@ class H3DimensionsTests(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 make_recipe(source_width=1920, source_height=1080, **bad)
 
+    def test_frozen_graph_enforces_the_entire_canonical_topology(self):
+        from h3_recipe import bind_frames
+        recipe=bind_frames(make_recipe(source_width=960,source_height=544),362,source_audio=True)
+        mutations=[('136','ref_video_audios.ref_video_audio_0',['155',0]),
+                   ('156','audio',['155',0]),('124','steps',99),
+                   ('126','model',['127',0]),('176','model',['127',0]),
+                   ('125','latent_image',['137',0])]
+        for node,field,value in mutations:
+            with self.subTest(node=node,field=field):
+                broken=copy.deepcopy(recipe)
+                broken['graph_template'][node]['inputs'][field]=value
+                with self.assertRaises(ValueError):validate_recipe(broken)
+        broken=copy.deepcopy(recipe)
+        broken['graph_template']['unapproved']={'class_type':'Unknown','inputs':{}}
+        with self.assertRaises(ValueError):validate_recipe(broken)
+        self.assertEqual(validate_recipe(recipe),recipe)
+
     def test_capacity_is_shared_across_graph_recipe_and_api(self):
         from h3_graphs import REFERENCE_SLOTS as graph_slots
         self.assertEqual(REFERENCE_SLOTS, graph_slots)

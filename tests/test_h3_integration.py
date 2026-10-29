@@ -34,7 +34,7 @@ class H3IntegrationTests(unittest.TestCase):
             def asset(path):
                 assets.append(Path(path))
                 result = MagicMock()
-                result.as_reference.return_value = f'uploaded-{len(assets)}'
+                result.as_reference.return_value = {'__type': 'core/ASSET', 'info': {'id': f'uploaded-{len(assets)}'}}
                 return result
             client.assets.from_file.side_effect = asset
             graph_box = {}
@@ -52,7 +52,11 @@ class H3IntegrationTests(unittest.TestCase):
             app = FastAPI()
             app.include_router(h3_api.create_router(lambda: media, 1024*1024,
                                lambda: {'ready': True}, h3_pipeline.run_h3_pipeline))
-            with patch.object(core, 'WORK', root), patch.object(h3_pipeline, 'make_client', return_value=client):
+            # Native GPU exports are deliberately mocked too; real family collection has separate contracts.
+            with patch.object(core, 'WORK', root), patch.object(h3_pipeline, 'make_client', return_value=client), \
+                    patch.object(h3_pipeline, 'missing_dependencies', return_value=([], [])), \
+                    patch.object(h3_pipeline, 'download_h3_artifacts', side_effect=lambda remote, node, folder: folder.mkdir()), \
+                    patch.object(h3_pipeline, 'import_family', return_value=MagicMock(take_id='f'*32)):
                 with TestClient(app) as http:
                     response = http.post('/api/h3/jobs', data={'edit_prompt': '  exact user text\n'},
                                          files={'video': ('input.mp4', source.read_bytes(), 'video/mp4'),

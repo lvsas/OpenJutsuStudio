@@ -33,12 +33,16 @@ class BackendTests(unittest.TestCase):
         self.opts = {'recipe': self.recipe, 'reference_images': [self.reference],
                      'media_dir': self.media}
         self.client = MagicMock()
-        self.client.assets.from_file.return_value.as_reference.return_value = 'asset-ref'
+        self.client.assets.from_file.return_value.as_reference.return_value = {'__type':'core/ASSET','info':{'id':'asset-ref'}}
         image, video = MagicMock(), MagicMock()
         image.name, video.name = 'preview.png', '../../movie.mp4'
         video.to_file.side_effect = lambda p: Path(p).write_bytes(b'movie')
         self.client.run.return_value.get_outputs.return_value = [image, video]
         self.video = video
+        # These exports are GPU fixtures; actual family collection is covered separately.
+        patch.object(pipeline, 'missing_dependencies', return_value=([], [])).start()
+        patch.object(pipeline, 'download_h3_artifacts', side_effect=lambda remote,node,folder:folder.mkdir()).start()
+        patch.object(pipeline, 'import_family', return_value=MagicMock(take_id='c'*32)).start()
         patch.object(pipeline, 'require_short_source', return_value={'frames': 23, 'fps': 24, 'duration': 23/24, 'width': 640, 'height': 360}).start()
         patch.object(pipeline, 'make_client', return_value=self.client).start()
         patch.object(pipeline, 'prepare_source', return_value=(self.source, 23, 39)).start()

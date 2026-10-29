@@ -155,7 +155,7 @@ class AnchoredAttemptsTests(unittest.TestCase):
             self.assertEqual(submitted.kwargs, {'mode': 'bridge', 'second_take_id': SECOND})
 
     def test_http_modes_exact_forward_hooks_and_anchored_precheck(self):
-        worker, legacy, anchored = Mock(), Mock(), Mock()
+        worker, legacy, anchored = Mock(), Mock(return_value=None), Mock(return_value=None)
         with self.client(worker=worker, precheck=legacy, anchored_precheck=anchored) as client:
             for index, (mode, second) in enumerate([('forward', None), ('prepend', None),
                                                   ('bridge', SECOND)]):

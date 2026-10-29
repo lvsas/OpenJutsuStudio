@@ -23,12 +23,12 @@ class NativeCaptureAPITests(unittest.TestCase):
     setUp = fixture.APITests.setUp
     submit = fixture.APITests.submit
 
-    def configured(self, report=None):
+    def configured(self, report=None, *, supported=True):
         self.client.close()
         self.native_ready = MagicMock(return_value=report or {'ready':True,'issues':[]})
         app = FastAPI()
-        app.include_router(h3_api.create_router(lambda:self.media,4096,self.ready,self.dispatch,
-                           native_readiness_check=self.native_ready))
+        app.include_router(h3_api.create_router(lambda:self.media,4096,
+                           self.native_ready if supported else None,self.dispatch))
         app.include_router(continuable_take_api.create_router(lambda:self.root))
         self.client = TestClient(app)
         self.addCleanup(self.client.close)
@@ -42,12 +42,34 @@ class NativeCaptureAPITests(unittest.TestCase):
         job.save()
         return job,source,opts
 
-    def test_legacy_submission_stays_video_only(self):
+    def test_default_submission_always_requests_a_complete_family(self):
+        self.configured()
         response = self.submit()
         self.assertEqual(response.status_code,202,response.text)
-        self.assertIsNot(self.dispatch.call_args.args[2].get('native_capture'),True)
+        self.assertIs(self.dispatch.call_args.args[2]['native_capture'],True)
+        job=self.dispatch.call_args.args[0]
+        self.assertIs(core.Job.load(job.id).meta['native_capture_requested'],True)
+
+    def test_video_only_submission_is_refused_before_any_work(self):
+        self.configured()
+        reply=self.submit(data={'native_capture':'false'})
+        self.assertEqual(reply.status_code,422,reply.text)
+        self.dispatch.assert_not_called()
+        self.native_ready.assert_not_called()
+        self.assertEqual(list(self.media.iterdir()),[])
+        self.assertFalse((self.root/'jobs').exists())
+
+    def test_default_request_requires_configured_capture_before_any_work(self):
+        self.configured(supported=False)
+        reply=self.submit()
+        self.assertEqual(reply.status_code,503,reply.text)
+        self.dispatch.assert_not_called()
+        self.ready.assert_not_called()
+        self.assertEqual(list(self.media.iterdir()),[])
+        self.assertFalse((self.root/'jobs').exists())
 
     def test_native_request_requires_configured_preflight_before_upload_or_job(self):
+        self.configured(supported=False)
         self.assertEqual(self.submit(data={'native_capture':'true'}).status_code,503)
         self.dispatch.assert_not_called()
         self.assertEqual(list(self.media.iterdir()),[])
@@ -90,14 +112,14 @@ class NativeCaptureAPITests(unittest.TestCase):
         with patch.object(h3_api,'replay_inputs',return_value=(recipe,source,references)):
             reply=self.client.post(f'/api/h3/jobs/{job.id}/replay',json={})
             self.assertEqual(reply.status_code,202,reply.text)
-            self.assertIsNot(self.dispatch.call_args.args[2].get('native_capture'),True)
+            self.assertIs(self.dispatch.call_args.args[2]['native_capture'],True)
             reply=self.client.post(f'/api/h3/jobs/{job.id}/replay',json={'native_capture':True})
             self.assertEqual(reply.status_code,202,reply.text)
             self.assertIs(self.dispatch.call_args.args[2]['native_capture'],True)
         self.assertEqual(job.path.read_bytes(),before)
 
     def test_replay_rejects_non_boolean_capture(self):
-        for bad in ('true',1,None):
+        for bad in (False,'true',1,None):
             with self.subTest(value=bad):
                 reply=self.client.post('/api/h3/jobs/'+'b'*32+'/replay',json={'native_capture':bad})
                 self.assertEqual(reply.status_code,422,reply.text)

@@ -9,7 +9,8 @@ TEXT = {'.py', '.js', '.mjs', '.json', '.md', '.html', '.css', '.yaml', '.yml',
         '.sh', '.txt', '.svg'}
 
 
-def release_files(root):
+def release_paths(root):
+    """All shipped paths, including documented images; no parent Git discovery."""
     root = Path(root)
     indexed = (root / '.git').is_file() or (root / '.git/HEAD').is_file()
     candidates = set()
@@ -37,7 +38,13 @@ def release_files(root):
             if not indexed or name.lower().endswith(ARCHIVES):
                 candidates.add(path)
     for path in sorted(candidates):
+        if path.is_symlink() or any(parent.is_symlink() for parent in path.parents if parent != root):
+            raise ValueError('Release file traverses a symbolic link')
+        yield path
+
+
+def release_files(root):
+    """Text/archive subset for content checks, using the same release boundary."""
+    for path in release_paths(root):
         if path.suffix.lower() in TEXT or str(path).lower().endswith(ARCHIVES):
-            if path.is_symlink() or any(parent.is_symlink() for parent in path.parents if parent != root):
-                raise ValueError('Release file traverses a symbolic link')
             yield path

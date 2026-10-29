@@ -660,24 +660,135 @@ test('position reference failure preserves ready durations and draft without gen
   assert.doesNotMatch(e.get('native-readiness').textContent,/SECRET/);
 });
 
-test('explicit custom reference recovers from inherited reference failure without changing durations',async()=>{
+test('position references wait for inherited GET, preserve order and ignore obsolete selection',async()=>{
+  const late=deferred(),calls=[];let uploadCount=0;
+  const app=await environment(async(url,options={})=>{
+    calls.push({url,method:options.method||'GET'});
+    if(options.method==='POST')return response({reference_id:[A,B,C][uploadCount++]});
+    return new Response(new Blob([url],{type:'image/png'}));
+  });
+  const {mountPositionGeneration}=await app.entry('position-generation.js'),e=app.elements;
+  let draft={prompt:'Exact',seed:'7',raw_frames:158,count:1,reference_ids:[],reference_mode:'inherit',width:1024,height:576};
+  const seq={state:()=>({placements:[{placement_id:A,take_id:A},{placement_id:B,take_id:B}]}),
+    setPositionDraft:changes=>{draft={...draft,...changes};},positionDraft:()=>structuredClone(draft)};
+  const controller=mountPositionGeneration({sequence:seq,byId:id=>e.get(id),
+    duration:{reset(){},ready(){},unavailable(){},valid:()=>true},onUpdate(){},onMessage(){},
+    getJSON:async url=>url.includes('composer-readiness')?{available:true}:url.includes(`/takes/${A}/`)?late.promise:{references:[{index:4}]}});
+  const opening=controller.open({mode:'forward',left:A,right:null},draft);await flush();
+  assert.equal(controller.referenceBlocked(),true);
+  e.get('native-character-image').src='/character';
+  await controller.add(new File(['third'],'third.png'));await controller.useCharacter();
+  assert.equal(calls.length,0);assert.equal(draft.reference_mode,'inherit');
+  late.resolve({references:[{index:2},{index:1}]});await opening;
+  assert.equal(controller.referenceBlocked(),false);
+  await controller.add(new File(['third'],'third.png'));
+  assert.deepEqual(Array.from(draft.reference_ids),[A,B,C]);
+  assert.deepEqual(calls.map(c=>c.url),[`/api/continuity/takes/${A}/references/2`,'/api/continuity/root-references',`/api/continuity/takes/${A}/references/1`,'/api/continuity/root-references','/api/continuity/root-references']);
+  const stale=deferred();let request=0;
+  const other=mountPositionGeneration({sequence:seq,byId:id=>e.get(id),duration:{reset(){},ready(){},unavailable(){},valid:()=>true},onUpdate(){},onMessage(){},
+    getJSON:async url=>url.includes('composer-readiness')?{available:true}:++request===1?stale.promise:{references:[{index:4}]}});
+  draft={...draft,reference_mode:'inherit',reference_ids:[]};
+  const first=other.open({mode:'forward',left:A,right:null},draft);await flush();
+  await other.open({mode:'forward',left:B,right:null},draft);
+  stale.resolve({references:[{index:9}]});await first;
+  assert.equal(e.get('forward-reference-list').children[0].children[0].src,`/api/continuity/takes/${B}/references/4`);
+});
+
+test('custom and root references remain editable without inherited GET',async()=>{
+  const pending=deferred(),calls=[];
+  const app=await environment(async(url,options={})=>{calls.push({url,method:options.method||'GET'});return response({reference_id:C});});
+  const {mountPositionGeneration}=await app.entry('position-generation.js'),e=app.elements;
+  let draft={prompt:'',seed:'',raw_frames:158,count:1,reference_ids:[A],reference_mode:'custom',width:1024,height:576};
+  const seq={state:()=>({placements:[{placement_id:A,take_id:B}]}),setPositionDraft:changes=>{draft={...draft,...changes};},positionDraft:()=>structuredClone(draft)};
+  const composer=mountPositionGeneration({sequence:seq,byId:id=>e.get(id),duration:{reset(){},ready(){},unavailable(){},valid:()=>true},onUpdate(){},onMessage(){},
+    getJSON:async url=>{assert.match(url,/composer-readiness/);return pending.promise;}});
+  for(const mode of ['forward','root']) {
+    draft={...draft,reference_ids:[A],reference_mode:'custom'};
+    const opening=composer.open({mode,left:A,right:null},draft);
+    assert.equal(composer.referenceBlocked(),false);
+    await composer.add(new File(['new'],'new.png'));
+    assert.deepEqual(Array.from(draft.reference_ids),[A,C]);
+    pending.resolve({available:true});await opening;
+  }
+  assert.equal(calls.length,2);assert.ok(calls.every(c=>c.method==='POST'));
+});
+
+test('inherited reference failure blocks edits until reopen and retry',async()=>{
   const app=await environment(async url=>{assert.equal(url,'/api/continuity/root-references');return response({reference_id:C});});
   const {mountPositionGeneration}=await app.entry('position-generation.js');
   const {createDurationPicker}=await app.entry('continuity-duration.js');
-  const e=app.elements;let draft={prompt:'Preserve direction',seed:'7',raw_frames:158,count:1,reference_ids:[],reference_mode:'inherit'};
+  const e=app.elements;let fail=true,draft={prompt:'Preserve direction',seed:'7',raw_frames:158,count:1,reference_ids:[],reference_mode:'inherit'};
   const picker=createDurationPicker(e.get('forward-length'),e.get('forward-duration-hint'));
   const controller=mountPositionGeneration({sequence:{state:()=>({placements:[{placement_id:A,take_id:B}]}),
     setPositionDraft:changes=>{draft={...draft,...changes};},positionDraft:()=>structuredClone(draft)},
     byId:id=>e.get(id),duration:picker,onUpdate(){},onMessage(){},getJSON:async url=>{
       if(url.includes('composer-readiness'))return {available:true,reason_code:null,duration_options:[{raw_frames:158,seconds:5.125}]};
-      throw Error('Synthetic reference failure');
+      if(fail)throw Error('Synthetic reference failure');return {references:[]};
     }});
   await controller.open({mode:'forward',left:A,right:null},draft);
   assert.equal(controller.valid(),false);assert.equal(picker.valid(),true);
   await controller.add(new File(['synthetic image upload'],'test.png',{type:'image/png'}));
+  assert.equal(draft.reference_mode,'inherit');assert.equal(controller.valid(),false);
+  fail=false;await controller.open({mode:'forward',left:A,right:null},draft);
+  await controller.add(new File(['synthetic image upload'],'test.png',{type:'image/png'}));
   assert.equal(controller.valid(),true);assert.equal(picker.valid(),true);
   assert.equal(draft.prompt,'Preserve direction');assert.equal(draft.seed,'7');
   assert.equal(e.get('native-readiness').textContent,'Saved timing checked.');
+});
+
+test('studio keeps inherited reference controls locked across unrelated composer updates',async()=>{
+  const pending=deferred(),p='1'.repeat(32);
+  const saved={project_id:C,title:'Race',revision:1,placements:[{placement_id:p,take_id:A}],selected_placement_id:null,drafts:{}};
+  const backend=nativeBackend({saved,extra:async url=>{
+    if(url.startsWith('/api/continuity/composer-readiness'))return response({available:true,duration_options:[{raw_frames:158,seconds:5.125}]});
+    if(url===`/api/continuity/takes/${A}/references`)return pending.promise;
+  }});
+  const app=await environment(backend.fetcher,`?project_id=${C}`),e=app.elements;
+  const input=e.get('forward-reference-input'),character=e.get('position-character'),list=e.get('forward-reference-list');
+  e.get('forward-form').querySelectorAll=()=>[input,e.get('forward-prompt'),e.get('forward-seed')];
+  list.querySelectorAll=()=>list.children.flatMap(slot=>slot.children.filter(child=>child.textContent==='Remove'));
+  await app.entry('continuity-studio.js');await flush();
+  await e.get('board-track').children[2].children[0].click();await flush();
+  assert.equal(input.disabled,true);assert.equal(character.disabled,true);
+  await e.get('forward-prompt').fire('input');
+  assert.equal(input.disabled,true);assert.equal(character.disabled,true);
+  pending.resolve(response({references:[{index:1}]}));await flush();
+  assert.equal(input.disabled,false);assert.equal(character.disabled,false);
+  assert.equal(list.querySelectorAll()[0].disabled,false);
+});
+
+test('studio preserves global generation lock through concurrent reference upload completion',async()=>{
+  const upload=deferred(),job=deferred();let uploads=0;
+  const saved={project_id:C,title:'Root race',revision:1,placements:[],selected_placement_id:null,drafts:{}};
+  const backend=nativeBackend({saved,extra:async(url,options)=>{
+    if(url.startsWith('/api/continuity/composer-readiness'))return response({available:true,duration_options:[{raw_frames:124,seconds:5.167}]});
+    if(url==='/api/continuity/root-references')return ++uploads===1?response({reference_id:A}):upload.promise;
+    if(url==='/api/continuity/roots/attempts')return job.promise;
+  }});
+  const app=await environment(backend.fetcher,`?project_id=${C}`),e=app.elements;
+  const input=e.get('forward-reference-input'),character=e.get('position-character'),list=e.get('forward-reference-list');
+  const controls=[input,e.get('forward-prompt'),e.get('forward-seed'),e.get('forward-variants'),e.get('forward-length'),e.get('root-size')];
+  e.get('forward-form').querySelectorAll=()=>controls;
+  list.querySelectorAll=()=>list.children.flatMap(slot=>slot.children.filter(child=>child.textContent==='Remove'));
+  await app.entry('continuity-studio.js');await flush();
+  await e.get('board-track').children[0].children[0].click();await flush();
+  input.files=[new File(['first'],'first.png')];await input.fire('change');await flush();
+  assert.equal(input.disabled,false);assert.equal(list.querySelectorAll()[0].disabled,false);
+  e.get('forward-prompt').value='A scene';await e.get('forward-prompt').fire('input');
+  const submitting=e.get('forward-form').fire('submit');await flush();
+  assert.ok(backend.calls.some(call=>call.url==='/api/continuity/roots/attempts'));
+  assert.ok(controls.every(control=>control.disabled));
+  assert.equal(e.get('forward-submit').disabled,true);
+  assert.equal(character.disabled,true);assert.equal(list.querySelectorAll()[0].disabled,true);
+  // Synthetic late change emulates an event already queued before the global lock.
+  input.files=[new File(['late'],'late.png')];await input.fire('change');await flush();
+  assert.equal(uploads,2);
+  upload.resolve(response({reference_id:B}));await flush();
+  await e.get('forward-prompt').fire('input');
+  assert.ok(controls.every(control=>control.disabled));
+  assert.equal(e.get('forward-submit').disabled,true);
+  assert.equal(character.disabled,true);assert.ok(list.querySelectorAll().every(button=>button.disabled));
+  job.resolve(new Response('{}',{status:400}));await submitting;await flush();
 });
 
 test('duration refusal explains operation instead of requesting the same incompatible take again',async()=>{
@@ -699,12 +810,32 @@ test('Swap native handoff previews its real family without adding or editing the
   await app.entry('continuity-studio.js');await flush();const e=app.elements;
   assert.equal(e.get('native-video').src,`/api/continuity/takes/${A}/media`);
   assert.equal(e.get('native-handoff').hidden,false);
-  assert.equal(e.get('native-handoff-add').textContent,'Add this take');
+  assert.equal(e.get('native-handoff-add').textContent,'Add take & continue');
   assert.equal(JSON.stringify(backend.saved()),before);assert.equal(backend.calls.some(c=>c.method!=='GET'),false);
   await e.get('native-handoff-add').click();await flush();
   assert.deepEqual(backend.saved().placements.map(p=>p.take_id),[B,A]);
+  assert.equal(app.historyURLs.at(-1),`/timeline?project_id=${C}`,'An explicitly accepted handoff is consumed so reload restores the positional draft');
   assert.equal(backend.saved().drafts[placement].prompt,'Keep my direction');
   assert.equal(backend.calls.some(c=>c.url.endsWith('/attempts')),false);
+});
+
+test('a canonical H3 source opens usable timing without a second source or a recovery action',async()=>{
+  const p='1'.repeat(32),key=`forward:${p}:end`,reference='d'.repeat(32);
+  const saved={project_id:C,title:'Current take project',revision:9,
+    placements:[{placement_id:p,take_id:A}],selected_placement_id:p,
+    drafts:{[p]:{prompt:'Saved take draft',seed:'',raw_frames:277}},selected_position:key,
+    position_drafts:{[key]:{mode:'forward',prompt:'My draft',seed:'18446744073709551615',raw_frames:277,
+      reference_mode:'custom',reference_ids:[reference],width:1024,height:576,count:1}}};
+  const native=sourceEntry(A,B),backend=nativeBackend({saved,extra:async url=>url.startsWith('/api/continuity/composer-readiness')
+    ?response({available:true,mode:'forward',duration_options:[{raw_frames:277,seconds:242/24}]}):null});
+  const app=await environment((url,options)=>url==='/api/continuity/takes'?response({takes:[native]}):backend.fetcher(url,options),
+    `?project_id=${C}`,{},'timeline.html',[{job_id:B,engine:'minimax-h3',status:'done',native_take_id:A,native_artifact_relation:'native-raw-family-and-distinct-finished-swap'}]);
+  await app.entry('continuity-studio.js');await flush();const e=app.elements;
+  assert.equal(e.get('native-takes').children.filter(row=>row.dataset?.sourceKey).length,1);
+  assert.equal(e.get('forward-length').disabled,false);assert.equal(e.get('forward-submit').disabled,false);
+  assert.equal(e.get('forward-prompt').value,'My draft');assert.equal(e.get('forward-seed').value,'18446744073709551615');
+  assert.equal(backend.calls.some(c=>c.method!=='GET'),false,'Opening a valid take does not write, migrate or start generation');
+  assert.deepEqual(backend.saved().position_drafts[key].reference_ids,[reference]);
 });
 
 test('ambiguous native source requires an explicit version choice and never picks newest',async()=>{

@@ -1,7 +1,9 @@
 // Imported by the real H3 controller harness; no replacement controller or DOM.
 import assert from 'node:assert/strict';
 export async function checkNativeCaptureUpgrade({el,calls,response,settle,child,base,setHandler,lastToast}) {
-  el('description').value='  a tall woman  ';el('native-capture').checked=true;
+  el('description').value='  a tall woman  ';
+  // A stale/altered hidden field cannot silently turn off capture.
+  el('native-capture').value='false';
   const posts=calls.filter(([,opts])=>opts.method==='POST').length;
   setHandler(url=>url.startsWith('/api/h3/readiness')?response({ready:true}):response({}));
   await el('form').events.submit({preventDefault(){}});await settle();

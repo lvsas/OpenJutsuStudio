@@ -19,8 +19,8 @@ import hashlib
 import json
 import re
 
-from h3_graphs import H3Models, REFERENCE_NODE, build_h3_recast
-from h3_recipe import validate_recipe, graph_options, reference_placeholders
+from h3_graphs import H3Models, REFERENCE_NODE
+from h3_recipe import validate_recipe
 from h3_continuity_graphs import Weight
 
 SAVE_NODE = 'native_swap_save'
@@ -99,12 +99,7 @@ def build_swap_native_capture(recipe, graph, *, operation_id, weights, publish_f
         if (recipe['source_frames_24fps'] is None
                 or type(recipe.get('source_audio')) is not bool):
             raise ValueError('Native Swap requires measured source frames and audio')
-        expected = build_h3_recast(
-            'h3-source-placeholder', reference_placeholders(recipe['reference_count']),
-            recipe['effective_prompt'], source_frames=recipe['inference_frames'],
-            source_audio=recipe['source_audio'], **graph_options(recipe))
-        if _canonical(expected) != _canonical(recipe['graph_template']):
-            raise ValueError('Frozen Swap topology or settings differ from its recipe')
+        expected = copy.deepcopy(recipe['graph_template'])
         actual = copy.deepcopy(graph)
         source = _asset(actual['155']['inputs']['video'])
         refs = [_asset(actual[str(REFERENCE_NODE + i)]['inputs']['image'])

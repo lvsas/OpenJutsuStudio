@@ -953,7 +953,7 @@
     0
    ],
    "model": [
-    "3001",
+    "1517",
     0
    ]
   }
@@ -966,7 +966,7 @@
   "inputs": {
    "denoise": 1,
    "model": [
-    "3001",
+    "1517",
     0
    ],
    "scheduler": [
@@ -1083,7 +1083,7 @@
   },
   "class_type": "LoadImage",
   "inputs": {
-   "image": "CharSheet_00279_.png"
+   "image": "__H3_BIND_REFERENCE__"
   }
  },
  "2001": {
@@ -1166,39 +1166,6 @@
    "take_from": "tail",
    "take_from_frame": 0,
    "window": "39"
-  }
- },
- "3000": {
-  "_meta": {
-   "title": "(Input:audio) Piste lip sync"
-  },
-  "class_type": "LoadAudio",
-  "inputs": {
-   "audio": "chouxa_voice.wav"
-  }
- },
- "3001": {
-  "_meta": {
-   "title": "Audio Sync (lip sync)"
-  },
-  "class_type": "PixaromaH3AudioSync",
-  "inputs": {
-   "audio_vae": [
-    "1376",
-    2
-   ],
-   "latent": [
-    "1228",
-    1
-   ],
-   "model": [
-    "1517",
-    0
-   ],
-   "track": [
-    "3000",
-    0
-   ]
   }
  },
  "725": {

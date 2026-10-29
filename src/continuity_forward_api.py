@@ -9,17 +9,22 @@ from __future__ import annotations
 from dataclasses import asdict, is_dataclass
 import hashlib
 import json
+import os
 from pathlib import Path
+import subprocess
+import tempfile
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 import continuity_context
-from continuable_take import get_take
+from continuable_take import get_take, get_validated_family
 from continuable_take_api import TakeId
 from continuity_pipeline import preflight_continuation, submit_forward
 from continuity_requests import ForwardRequest, PreparedH3Request
-from h3_prompt_generator import build_prompt_graph, read_prompt_text
+from h3_prompt_generator import (build_prompt_graph, read_prompt_text,
+                                 validate_continuation_prompt_references)
+from h3_source_audio import precheck_source_audio
 from continuity_context import MAX_BYTES, context_references
 
 FORWARD_PATH = '/{take_id}/forward'
@@ -105,36 +110,91 @@ def make_forward_runner(*, client_factory, models_factory, fingerprint, work_roo
     def run(work, take_id, request):
         paths = parent_references(work, take_id)
         models = models_factory()
-        (preflight or preflight_continuation)(
+        audio_context = (preflight or preflight_continuation)(
             work, take_id, models=models, direction=request.prompt,
             reference_count=len(paths), raw_frames=request.raw_frames)
+        precheck_source_audio(work, audio_context)
         client = client_factory()
         references = [client.assets.from_file(path).as_reference() for path in paths]
-        # The operator writes natural language; the refiner turns it into the
-        # six-section H3 prompt, reading the references it is handed.
-        refined = refine_prompt(client, request.prompt, references)
+        # A real source frame grounds this single refiner in the saved scene.
+        # It is Qwen-only context, never an extra H3 character reference.
+        refined = refine_continuation_prompt(
+            client, work, take_id, request.prompt, references,
+            preserve_source_audio=audio_context is not None)
         request = PreparedH3Request.model_validate(request.model_dump() | {'prompt': refined})
+        options = {'audio_context': audio_context}  # Preserve frozen absence, not only a track.
         return submit_forward(work, take_id, request, client=client,
                               models=models, references=references,
                               target_fingerprint=fingerprint() if callable(fingerprint) else fingerprint, work_root=work_root,
-                              reference_paths=paths)
+                              reference_paths=paths, **options)
     return run
 
 
 PROMPT_TIMEOUT = 900
 
-def refine_prompt(client, direction: str, references) -> str:
+def refine_prompt(client, direction: str, references, *, continuation_frame=None,
+                  preserve_source_audio=False) -> str:
     """Run the R2VA generator on the vision 4B and return its text.
 
     The 2B was measured on the same guide, picture and direction: it sees the
     image but invents subjects and never reaches all six sections, so one refiner
     stays, and it is the vision 4B.
     """
-    graph = build_prompt_graph(direction, references)
+    graph = build_prompt_graph(direction, references, continuation_frame=continuation_frame,
+                               preserve_source_audio=preserve_source_audio)
     job = client.run(client.workflows.from_json(graph), timeout=PROMPT_TIMEOUT)
     if getattr(job, 'status', None) != 'succeeded':
         raise ValueError('The prompt could not be prepared. Your take is unchanged.')
-    return read_prompt_text(job)
+    text = read_prompt_text(job)
+    if continuation_frame is not None:
+        return validate_continuation_prompt_references(
+            text, len(references), preserve_source_audio=preserve_source_audio)
+    return text
+
+
+def _extract_continuation_frame(family, destination: Path, mode: str) -> Path:
+    """Decode the measured boundary frame, not a poster or a guessed seek time.
+
+    Existing media helpers import app config or write persistent previews; this
+    small bounded extraction needs neither and works for both native boundaries.
+    The caller must freshly validate the family before invoking it.
+    """
+    count = family.artifacts.to_manifest()['context']['delivered_frames']
+    if type(count) is not int or count < 1:
+        raise ValueError('The source scene has no readable frame.')
+    index = 0 if mode == 'prepend' else count - 1
+    try:
+        subprocess.run([
+            'ffmpeg', '-nostdin', '-v', 'error', '-protocol_whitelist', 'file',
+            '-f', 'mov', '-enable_drefs', '0', '-use_absolute_path', '0',
+            '-i', str(family.video), '-map', '0:v:0',
+            '-vf', f'select=eq(n\\,{index})', '-frames:v', '1', '-an',
+            '-map_metadata', '-1', '-threads', '1', str(destination)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=True, timeout=60)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ValueError('The source scene frame could not be prepared. Your take is unchanged.') from exc
+    if not destination.is_file() or not destination.stat().st_size:
+        raise ValueError('The source scene frame could not be prepared. Your take is unchanged.')
+    return destination
+
+
+def refine_continuation_prompt(client, work, take_id, direction, references, *,
+                               mode='forward', preserve_source_audio=False) -> str:
+    """Ground the existing Qwen refiner with a freshly validated source boundary.
+
+    Call only after preflight_continuation has passed (including both anchors for
+    bridge). Model/capacity/audio preflight belongs to the caller, which owns the
+    actual request and target. This helper revalidates bytes before decoding and
+    makes exactly one refiner call, with the full original direction.
+    """
+    if mode not in ('forward', 'prepend', 'bridge'):
+        raise ValueError('A source scene requires a native continuation mode.')
+    family = get_validated_family(work, take_id)
+    with tempfile.TemporaryDirectory(prefix='h3-source-scene-', dir=os.environ.get('TMPDIR')) as folder:
+        frame = _extract_continuation_frame(family, Path(folder) / 'source-scene.png', mode)
+        source = client.assets.from_file(frame).as_reference()
+        return refine_prompt(client, direction, references, continuation_frame=source,
+                             preserve_source_audio=preserve_source_audio)
 
 
 def create_forward_router(get_work_dir, *, runner=None) -> APIRouter:
@@ -178,8 +238,8 @@ def create_forward_router(get_work_dir, *, runner=None) -> APIRouter:
             view = runner(str(get_work_dir()), take_id, request)
         except FileNotFoundError:
             raise HTTPException(404, 'Unknown take') from None
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from None
+        except ValueError:
+            raise HTTPException(422, 'This take could not be continued. Check its saved timing and references; nothing was automatically retried.') from None
         return view
 
     async def edit_reference(take_id, image, position=None):

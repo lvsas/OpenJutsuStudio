@@ -64,6 +64,57 @@ def _asset(value):
     return {'__type': 'core/ASSET', 'info': {'id': identifier}}
 
 
+def _source_audio_nodes(source_audio):
+    """The single optional source branch, shared by both existing compilers.
+
+    This is the measured 9cb topology: Concat retains ApplyPins' video/mask;
+    SetAVNoiseMask replaces only the audio mask (1x1 zero broadcasts over all
+    audio ticks). Never supply video_mask: that would overwrite the native pin.
+    The caller owns extraction, duration/phase validation and asset commitment.
+    """
+    return {
+        'source_audio': {'class_type': 'LoadAudio',
+                         'inputs': {'audio': _asset(source_audio)}},
+        'source_audio_encode': {'class_type': 'VAEEncodeAudio', 'inputs': {
+            'audio': ['source_audio', 0], 'vae': [AUDIO_VAE_NODE, 0]}},
+        'source_audio_concat': {'class_type': 'LTXVConcatAVLatent', 'inputs': {
+            'video_latent': [APPLY_NODE, 1], 'audio_latent': ['source_audio_encode', 0]}},
+        'source_audio_zero': {'class_type': 'SolidMask',
+                              'inputs': {'value': 0.0, 'width': 1, 'height': 1}},
+        'source_audio_lock': {'class_type': 'MiniMaxH3SetAVNoiseMask', 'inputs': {
+            'latent': ['source_audio_concat', 0], 'audio_mask': ['source_audio_zero', 0]}},
+    }
+
+
+def _bind_source_audio(graph, source_audio):
+    if source_audio is None:
+        return
+    nodes = _source_audio_nodes(source_audio)
+    if nodes.keys() & graph.keys():
+        raise ValueError('Template contains reserved source audio nodes')
+    graph.update(nodes)
+    graph[GENERATE_NODE]['inputs']['ref_audios.ref_audio_0'] = ['source_audio', 0]
+    graph['1488:1486']['inputs']['latent_image'] = ['source_audio_lock', 0]
+
+
+def _verify_source_audio(graph, source_audio):
+    nodes = _source_audio_nodes(source_audio) if source_audio is not None else {}
+    for node, expected in nodes.items():
+        if graph.get(node) != expected:
+            raise ValueError(f'Effective source audio flow drifted at {node}')
+    if {n for n in graph if n == 'source_audio' or n.startswith('source_audio_')} != nodes.keys():
+        raise ValueError('Unexpected source audio nodes')
+    loaders = {n for n, v in graph.items() if v.get('class_type') == 'LoadAudio'}
+    refs = {f: v for f, v in graph[GENERATE_NODE]['inputs'].items()
+            if f == 'ref_audios' or f.startswith('ref_audios.')}
+    if (loaders != ({'source_audio'} if nodes else set())
+            or refs != ({'ref_audios.ref_audio_0': ['source_audio', 0]} if nodes else {})):
+        raise ValueError('Source audio must have one shared loader and reference slot')
+    if any(n in graph for n in ('3000', '3001')) or any(
+            n.get('class_type') == 'PixaromaH3AudioSync' for n in graph.values()):
+        raise ValueError('Private audio/Pixaroma branch must not be compiled')
+
+
 def _weight(models, name):
     value = getattr(models, name, None)
     filename = getattr(value, 'filename', None)
@@ -97,12 +148,14 @@ def _parents(mode, parent_clip, second_parent_clip):
 
 def build_latent_continuity(*, references, prompt, width, height, raw_frames, seed,
                             models, parent_clip, operation_id, publish_family=False,
-                            mode='forward', second_parent_clip=None):
+                            mode='forward', second_parent_clip=None, source_audio=None):
     """Compile bounded pin topology only; no temporal attestation or GPU execution.
 
     Forward uses tail(parent)/before; prepend uses head(parent)/after; bridge
     chains tail(parent A)/before and head(parent B)/after. Supplied handles must
     already be restaged and independently attested by the calling controller.
+    source_audio is None (native generation) or one committed SDK asset whose
+    prepared interval is caller-validated; no private file is ever loaded here.
     """
     _parents(mode, parent_clip, second_parent_clip)
     if not isinstance(prompt, str) or not prompt.strip():
@@ -120,6 +173,7 @@ def build_latent_continuity(*, references, prompt, width, height, raw_frames, se
         raise ValueError('The seed must be an integer in the native range')
     if type(publish_family) is not bool:
         raise ValueError('Family publication must be an explicit boolean')
+    source_audio = _asset(source_audio) if source_audio is not None else None
 
     graph = copy.deepcopy(json.loads(TEMPLATE.read_text()))
     # Only the explicit parent pair adaptation below may change native topology.
@@ -173,10 +227,15 @@ def build_latent_continuity(*, references, prompt, width, height, raw_frames, se
     bind(INPUT_BUNDLE, 'in_3', ['bound_height', 0])
 
     # References: one loader per reference, ordered, feeding ref_image_N directly.
+    # Keep the dormant reference bundle free of any private template filename.
+    if graph.get('200', {}).get('inputs', {}).get('image') != '__H3_BIND_REFERENCE__':
+        raise ValueError('Template character reference binding sentinel drifted')
+    bind('200', 'image', _asset(references[0]))
     for position, reference in enumerate(references):
         node = f'ref_image_{position}'
         graph[node] = {'class_type': 'LoadImage', 'inputs': {'image': _asset(reference)}}
         graph[GENERATE_NODE]['inputs'][f'ref_images.ref_image_{position}'] = [node, 0]
+    _bind_source_audio(graph, source_audio)
 
     # The template's saver exposes the clip path as its first output; our installed
     # pack turns it into a published family plus a handle the app can read back.
@@ -188,11 +247,12 @@ def build_latent_continuity(*, references, prompt, width, height, raw_frames, se
             'filename_prefix': f'OpenGenjutsu/continuity/takes/{operation_id}/handle'}}
 
     _verify(graph, width, height, raw_frames, seed, prompt, references, operation_id,
-            mode=mode, parent_clip=parent_clip, second_parent_clip=second_parent_clip)
+            mode=mode, parent_clip=parent_clip, second_parent_clip=second_parent_clip,
+            source_audio=source_audio)
     return graph
 
 
-def _verify_state_flow(graph, mode, parent_clip, second_parent_clip):
+def _verify_state_flow(graph, mode, parent_clip, second_parent_clip, source_audio=None):
     """Guard effective native pins and the adopted generation/refine wiring.
 
     These are structural contracts, not an implementation of native A/V slicing,
@@ -241,10 +301,12 @@ def _verify_state_flow(graph, mode, parent_clip, second_parent_clip):
         'snap_window_down_to_available': True, 'audio_denoise': 0,
         'freeze_audio': False, 'masked_audio_feather': 8,
         'audio_vae': ['1376', 2], 'video_vae': ['1376', 1]})
-    check('1488:1483', 'BasicGuider', {'conditioning': [APPLY_NODE, 0], 'model': ['3001', 0]})
+    _verify_source_audio(graph, source_audio)
+    check('1488:1483', 'BasicGuider', {'conditioning': [APPLY_NODE, 0], 'model': ['1517', 0]})
+    check('1488:1484', 'BasicScheduler', {'model': ['1517', 0]})
     check('1488:1486', 'SamplerCustomAdvanced', {
-        'guider': ['1488:1483', 0], 'latent_image': [APPLY_NODE, 1]})
-    check('3001', 'PixaromaH3AudioSync', {'latent': [APPLY_NODE, 1]})
+        'guider': ['1488:1483', 0],
+        'latent_image': ['source_audio_lock', 0] if source_audio is not None else [APPLY_NODE, 1]})
     check(SAVER_NODE, 'H3TrimAndSaveVideoWithMCtx', {
         'conditioning': [APPLY_NODE, 0], 'pins': [APPLY_NODE, 2],
         'samples': ['1488:1486', 1], 'save_conditioning': True,
@@ -286,10 +348,10 @@ def _verify_state_flow(graph, mode, parent_clip, second_parent_clip):
 
 
 def _verify(graph, width, height, raw_frames, seed, prompt, references, operation_id,
-            *, mode, parent_clip, second_parent_clip=None):
+            *, mode, parent_clip, second_parent_clip=None, source_audio=None):
     """Read every binding back; a silent miss must never reach the target."""
     _parents(mode, parent_clip, second_parent_clip)
-    _verify_state_flow(graph, mode, parent_clip, second_parent_clip)
+    _verify_state_flow(graph, mode, parent_clip, second_parent_clip, source_audio)
     try:
         json.dumps(graph, allow_nan=False)
     except (ValueError, TypeError) as exc:
@@ -302,6 +364,7 @@ def _verify(graph, width, height, raw_frames, seed, prompt, references, operatio
         (INPUT_BUNDLE, 'in_3', ['bound_height', 0]),
         ('bound_width', 'value', width),
         ('bound_height', 'value', height),
+        ('200', 'image', _asset(references[0])),
     ]
     for node, field, expected in checks:
         actual = graph.get(node, {}).get('inputs', {}).get(field)

@@ -16,7 +16,7 @@ import h3_studio_app
 class H3AppRegistrationTests(unittest.TestCase):
     def test_enabled_by_default(self):
         with patch.dict(os.environ, {}, clear=True), patch.object(
-                h3_studio_app, '_h3_readiness', return_value={
+                h3_studio_app, '_h3_native_readiness', return_value={
                     'ready': True, 'issues': [], 'warnings': []}):
             app = FastAPI()
             with ThreadPoolExecutor(max_workers=1) as executor:
@@ -37,7 +37,7 @@ class H3AppRegistrationTests(unittest.TestCase):
     def test_enabled_registration_exposes_page_and_h3_readiness_only(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(
                 os.environ, {'OPENGENJUTSU_H3_STUDIO_ENABLED': 'true'}, clear=True), \
-                patch.object(h3_studio_app, '_h3_readiness', return_value={
+                patch.object(h3_studio_app, '_h3_native_readiness', return_value={
                     'ready': False, 'issues': ['H3 weights missing'], 'warnings': []}):
             app = FastAPI()
             with ThreadPoolExecutor(max_workers=1) as executor:

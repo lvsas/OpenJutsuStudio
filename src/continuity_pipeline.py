@@ -9,6 +9,7 @@ asset upload or a GPU submission.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -26,11 +27,14 @@ from h3_av_state import (AVStateError, UNCONTINUABLE_TAKE, require_continuable_c
 from safetensor_header import read_safetensors_header
 from h3_latent_graphs import PREFLIGHT_CLIP, build_latent_continuity
 from readiness import missing_dependencies
+from h3_source_audio import (METADATA_KEY, source_for_family, plan_source_audio,
+                             prepare_source_audio, validate_audio_context)
 
 FAMILY_NODE = 'native_family'
 log = logging.getLogger(__name__)
 RESTAGE_TIMEOUT = 900
 FORWARD_TIMEOUT = 7200
+_UNSET_AUDIO = object()  # Omitted trusted planning vs an explicitly frozen absence.
 
 
 class TargetMissingDependencies(ValueError):
@@ -52,9 +56,11 @@ class TargetMissingDependencies(ValueError):
 
 def precheck_request(work, take_id, raw_frames):
     """Refuse a length whose take could not be continued, before any job exists."""
-    state = state_from_family(get_validated_family(work, take_id))
+    family = get_validated_family(work, take_id)
+    state = state_from_family(family)
     if state is not None:
         require_continuable_child(state, raw_frames)
+        return plan_source_audio(source_for_family(work, family), state, raw_frames)
 
 
 def parent_context(artifacts):
@@ -253,22 +259,35 @@ def preflight_continuation(work, take_id, *, models, direction, reference_count,
     if type(reference_count) is not int or reference_count < 1:
         raise ValueError('At least one reference image is required for continuation.')
     parent_ids = (take_id,) if second_take_id is None else (take_id, second_take_id)
-    _, contexts, _ = _checked_anchors(work, parent_ids, raw_frames, mode)
+    families, contexts, _ = _checked_anchors(work, parent_ids, raw_frames, mode)
     context = contexts[0]
+    audio_context = source_audio_context(work, families[0], raw_frames, mode)
     refs = [{'__type': 'core/ASSET', 'info': {'id': f'preflight-reference-{i}'}}
             for i in range(reference_count)]
     graph = build_latent_continuity(
         references=refs, prompt=direction, width=context['width'], height=context['height'],
         raw_frames=raw_frames, seed=0, models=models, parent_clip=PREFLIGHT_CLIP,
         operation_id='f' * 32, publish_family=True, mode=mode,
-        second_parent_clip='preflight/second-not-real.mp4' if mode == 'bridge' else None)
+        second_parent_clip='preflight/second-not-real.mp4' if mode == 'bridge' else None,
+        **({'source_audio': {'__type': 'core/ASSET', 'info': {'id': 'preflight-soundtrack'}}}
+           if audio_context is not None else {}))
     probe = inventory or missing_dependencies
     nodes, weights = set(), set()
-    for candidate in (graph, build_prompt_graph(direction, refs)):
+    prompt_graph = build_prompt_graph(direction, refs,
+        continuation_frame={'__type': 'core/ASSET', 'info': {'id': 'preflight-source-scene'}},
+        preserve_source_audio=audio_context is not None)
+    for candidate in (graph, prompt_graph):
         absent_nodes, absent_weights = probe(candidate)
         nodes.update(absent_nodes); weights.update(absent_weights)
     if nodes or weights:
         raise TargetMissingDependencies(sorted(nodes), sorted(weights))
+    return audio_context
+
+
+def source_audio_context(work, family, raw_frames, mode='forward'):
+    """An optional verified original-song window on the existing forward path."""
+    state = state_from_family(family) if mode == 'forward' else None
+    return plan_source_audio(source_for_family(work, family), state, raw_frames) if state is not None else None
 
 
 def submit_forward(work: str | Path, take_id: str, request, **options):
@@ -280,7 +299,7 @@ def submit_continuation(work: str | Path, parent_ids: tuple[str, ...], request, 
                    mode: str, client, models, references, target_fingerprint, work_root: str | Path,
                    reference_path: str | Path | None = None,
                    reference_paths=None,
-                   operation_id: str | None = None,
+                   operation_id: str | None = None, audio_context=_UNSET_AUDIO,
                    inventory=missing_dependencies):
     """One SDK chain for explicit native anchors; routes are separately gated.
 
@@ -296,14 +315,29 @@ def submit_continuation(work: str | Path, parent_ids: tuple[str, ...], request, 
     operation_id = operation_id or uuid.uuid4().hex
     families, contexts, plan = _checked_anchors(work, parent_ids, request.raw_frames, mode)
     context = contexts[0]
+    checked_audio = source_audio_context(work, families[0], request.raw_frames, mode)
+    if audio_context is not _UNSET_AUDIO:
+        if audio_context is not None:
+            validate_audio_context(audio_context)
+        if audio_context != checked_audio:
+            raise ValueError('The original soundtrack no longer matches the frozen extension.')
+    audio_context = checked_audio
+    audio_asset = ({'__type': 'core/ASSET', 'info': {'id': 'preflight-soundtrack'}}
+                   if audio_context is not None else None)
 
     def compile_graph(clips):
-        return build_latent_continuity(
+        graph = build_latent_continuity(
             references=list(references), prompt=request.prompt,
             width=context['width'], height=context['height'],
             raw_frames=request.raw_frames, seed=request.seed, models=models,
             parent_clip=clips[0], operation_id=operation_id, publish_family=True,
-            mode=mode, second_parent_clip=clips[1] if mode == 'bridge' else None)
+            mode=mode, second_parent_clip=clips[1] if mode == 'bridge' else None,
+            **({'source_audio': audio_asset} if audio_asset is not None else {}))
+        if audio_context is not None:
+            metadata = json.loads(graph['1216']['inputs']['metadata'] or '{}')
+            graph['1216']['inputs']['metadata'] = json.dumps(
+                {**metadata, METADATA_KEY: audio_context}, sort_keys=True, allow_nan=False)
+        return graph
 
     # The graph's installable dependencies do not depend on the parent handle, so
     # the target is asked before the restage upload rather than after it.
@@ -312,6 +346,10 @@ def submit_continuation(work: str | Path, parent_ids: tuple[str, ...], request, 
     if missing_nodes or missing_models:
         raise TargetMissingDependencies(missing_nodes, missing_models)
 
+    if audio_context is not None:
+        with tempfile.TemporaryDirectory(prefix='source-song-') as staging:
+            audio_path = prepare_source_audio(work, audio_context, Path(staging) / 'source-song.wav')
+            audio_asset = client.assets.from_file(audio_path).as_reference()
     clips = tuple(restage_parent(client, family, uuid.uuid4().hex) for family in families)
     if mode == 'forward':
         # Preserve the historical attestation path and its profile guard.

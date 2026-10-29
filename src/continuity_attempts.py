@@ -16,6 +16,7 @@ import uuid
 import fcntl
 from contextlib import contextmanager
 from pathlib import Path
+from h3_source_audio import validate_audio_context
 
 _ID = re.compile(r'[0-9a-f]{32}\Z')
 ROOT = ('native-attempts',)
@@ -140,6 +141,13 @@ def load(root, attempt_id) -> dict:
         _validate_anchors(value['take_id'], mode=value.get('mode', 'forward'),
                           second_take_id=value.get('second_take_id'))
         _validate_context(value.get('mode', 'forward'), value.get('root_context'))
+        if value.get('frozen_audio_context') is not None:
+            try:
+                validate_audio_context(value['frozen_audio_context'])
+            except ValueError:
+                raise AttemptError('The saved soundtrack context is invalid.') from None
+            if value.get('mode', 'forward') != 'forward':
+                raise AttemptError('Only Extend can contain an original soundtrack context.')
         if value.get('project_id') is not None:
             _identifier(value['project_id'], 'project')
     except AttemptError:
@@ -216,7 +224,7 @@ def create(root, *, take_id: str | None, prompt: str, raw_frames: int, seeds,
 
 def create_or_get(root, *, take_id: str | None, prompt: str, raw_frames: int, seeds,
                   request_id: str | None = None, mode: str = 'forward',
-                  second_take_id: str | None = None, root_context=None, reference_ids=None, frozen_reference_paths=None, project_id=None) -> tuple[dict, bool]:
+                  second_take_id: str | None = None, root_context=None, reference_ids=None, frozen_reference_paths=None, project_id=None, frozen_audio_context=None) -> tuple[dict, bool]:
     """Return (record, created); persist identity and intent in one locked write.
 
     Only the caller receiving created=True may queue work. A crash between this
@@ -228,6 +236,10 @@ def create_or_get(root, *, take_id: str | None, prompt: str, raw_frames: int, se
     if project_id is not None:
         _identifier(project_id, "project")
     root_context = copy.deepcopy(root_context)
+    if frozen_audio_context is not None:
+        if mode != 'forward':
+            raise AttemptError('Original soundtrack continuation requires Extend.')
+        frozen_audio_context = validate_audio_context(frozen_audio_context)
     if reference_ids is not None:
         reference_ids = validate_reference_ids(reference_ids)
         if mode == 'root':
@@ -252,6 +264,7 @@ def create_or_get(root, *, take_id: str | None, prompt: str, raw_frames: int, se
                    'candidates': [{'operation_id': uuid.uuid4().hex, 'seed': seed,
                                    'status': _STATUS_PENDING, 'take_id': None, 'error': None}
                                   for seed in seeds]}
+        attempt['frozen_audio_context'] = copy.deepcopy(frozen_audio_context)
         if project_id is not None:
             attempt['project_id'] = project_id
         if request_id is not None:
@@ -396,6 +409,8 @@ def _run_locked(root, attempt_id, *, refine, submit):
         anchors['reference_ids'] = validate_reference_ids(attempt['reference_ids'])
     if attempt.get('frozen_reference_paths') is not None:
         anchors['reference_paths'] = list(attempt['frozen_reference_paths'])
+    if attempt.get('frozen_audio_context') is not None:
+        anchors['audio_context'] = validate_audio_context(attempt['frozen_audio_context'])
     if any(c['status'] in ('running', 'unknown') for c in attempt['candidates']):
         if any(c['status'] == 'running' for c in attempt['candidates']):
             return _mark_interrupted(root, attempt_id)
@@ -405,7 +420,10 @@ def _run_locked(root, attempt_id, *, refine, submit):
     refined = attempt.get('refined_prompt')
     if refined is None:
         try:
-            refined = refine(attempt['prompt'], attempt['take_id'], **copy.deepcopy(anchors))
+            refine_options = copy.deepcopy(anchors)
+            if 'audio_context' in refine_options:
+                refine_options['raw_frames'] = attempt['raw_frames']
+            refined = refine(attempt['prompt'], attempt['take_id'], **refine_options)
         except Exception as error:  # noqa: BLE001
             return _update(root, attempt_id, lambda a: _fail_preparation(
                 a, f'The direction could not be prepared: {error}'[:400]))

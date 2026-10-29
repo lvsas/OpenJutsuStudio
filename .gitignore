@@ -41,3 +41,21 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+# Test distribution: keep self-contained unit/API/graph/media contracts and their
+# Python/Node helpers + frozen JSON fixtures versionable, including new test_*.py.
+# A "probe" or "integration" name alone is NOT a reason to exclude a contract.
+# Put future operator-only QA (live services, private media, real browsers) in
+# these explicit local-only namespaces, never mix it into the CPU contract suite.
+/tests/manual/
+/tests/browser/
+/tests/probes/
+/tests/local/
+# Legacy browser-only harness pair (not used by Python/Node contract discovery).
+/tests/sequence_mixed_sources.html
+/tests/sequence_mixed_sources_dom.mjs
+# Operator-only live SDK audit and render/demo driver; retain locally, not in Git.
+# Do not glob probe_*.py: probe_h3_native_boundaries.py has self-contained tests
+# and is also imported by the shipped check_h3_boundary_policy.py command.
+/scripts/probe_h3_artifact_roundtrip.py
+/scripts/record_demo.sh

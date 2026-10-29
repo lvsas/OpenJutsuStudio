@@ -21,15 +21,15 @@ an H3 take to continue the story, then share a vertical comparison Reel.
    with FLUX 3 Klein, or use your own reference image.
 2. **Swap the cast.** In LTX Studio (`/`) or H3 Studio (`/h3`), add footage and
    one or two ordered references, then preview the result.
-3. **Continue the take.** For H3, enable **Save native state too** before generating.
-   Reopen the retained take in Timeline (`/timeline`) and create a continuation.
+3. **Continue the take.** Every new H3 Swap automatically retains its continuation state.
+   Open that take in Timeline (`/timeline`) and create a continuation.
 4. **Share the moment.** Preview and download a vertical before/after Reel.
    Native file sharing depends on browser support; download is the fallback.
    Sharing does not automatically publish to social platforms.
 
 ### A take is more than an MP4
 
-The opt-in H3 path retains the **MP4 + MCTX + COND** family, references, frozen
+The H3 path retains the **MP4 + MCTX + COND** family, references, frozen
 recipe and parent lineage. OpenGenjutsu connects native-file publication through
 the SDK, reopening and continuation in one workspace. A recipe records the render;
 **JSON alone is not the native state needed to continue it**. A social Reel is
@@ -38,8 +38,8 @@ LTX state is not interchangeable.
 
 ## Current boundaries
 
-- **H3 native capture is off by default (opt-in).** Enable it before rendering;
-  an MP4-only result cannot recover missing native state afterwards.
+- **New H3 Swaps and re-runs always retain native state.** Missing state publication
+  fails explicitly; an existing MP4 alone cannot recreate missing MCTX/COND files.
 - **LTX native continuation is not delivered.** Timeline forward continuation is
   experimental and engine-specific, not a promise that every editing mode works.
 - **Character/library handoffs exist.** End-to-end browser acceptance and clearer

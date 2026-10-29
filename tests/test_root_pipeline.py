@@ -175,6 +175,8 @@ class RootPipelineTests(unittest.TestCase):
             for node in graph.values():
                 kind = node['class_type']
                 fields = info.setdefault(kind, {'input': {'required': {}}})['input']['required']
+                if kind == 'ImageBatchMulti':
+                    fields['inputcount'] = ['INT', {'min': 2, 'max': 1000}]
                 for key, value in node['inputs'].items():
                     if key in {'unet_name', 'clip_name', 'vae_name', 'lora_name', 'model_name'} and isinstance(value, str):
                         fields.setdefault(key, [[]])[0].append(value)
@@ -185,6 +187,36 @@ class RootPipelineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_consumed_links(seen[0])
         self.assertEqual(len(seen), 2)
+
+    def test_hunt_root_refuses_target_batch_limit_before_client_upload_or_refine(self):
+        import app
+        seen = []
+        def target_info(graph):
+            info = {}
+            for node in graph.values():
+                kind = node['class_type']
+                fields = info.setdefault(kind, {'input': {'required': {}}})['input']['required']
+                if kind == 'ImageBatchMulti':
+                    seen.append(node['inputs']['inputcount'])
+                    fields['inputcount'] = ['INT', {'min': 2, 'max': 2}]
+                for key, value in node['inputs'].items():
+                    if key in {'unet_name', 'clip_name', 'vae_name', 'lora_name', 'model_name'} and isinstance(value, str):
+                        fields.setdefault(key, [[]])[0].append(value)
+            return info
+
+        with patch.object(app.core, 'WORK', self.work), \
+             patch.object(app, '_continuity_models', return_value=MODELS), \
+             patch('readiness._target_object_info', side_effect=target_info), \
+             patch.object(app, 'make_client', return_value=self.client) as make_client, \
+             patch.object(app, 'refine_prompt') as refine:
+            with self.assertRaisesRegex(ValueError, 'outside the target integer bounds'):
+                app._hunt_refine('Use all three pictures', None, mode='root', root_context=self.context)
+        self.assertEqual(seen, [3])
+        make_client.assert_not_called()
+        refine.assert_not_called()
+        self.client.assets.from_file.assert_not_called()
+        self.client.run.assert_not_called()
+        self.client.submit.assert_not_called()
 
     def test_preflight_bad_context_length_or_profile_never_calls_inventory(self):
         inventory = Mock()

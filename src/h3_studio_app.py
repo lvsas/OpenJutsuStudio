@@ -8,14 +8,6 @@ from fastapi.responses import HTMLResponse
 from app_release import render_release
 
 
-def _h3_readiness():
-    from h3_graphs import build_h3_recast
-    from readiness import check_readiness
-    graph = build_h3_recast('validation-video', 'validation-image', 'H3 readiness check',
-                            source_frames=5)
-    return check_readiness(required_graph=graph)
-
-
 def _h3_native_readiness():
     from h3_recipe import make_recipe, bind_frames
     from h3_swap_native import native_inventory_graph
@@ -41,9 +33,8 @@ def register_optional_h3(app: FastAPI, executor: Executor, get_media_dir, max_up
         return False
     from h3_api import create_router
     app.include_router(create_router(
-        get_media_dir, max_upload_bytes, _h3_readiness,
+        get_media_dir, max_upload_bytes, _h3_native_readiness,
         lambda job, source, opts: _dispatch(executor, job, source, opts),
-        native_readiness_check=_h3_native_readiness,
     ))
     template = Path(__file__).parent / 'templates' / 'h3.html'
 

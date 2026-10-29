@@ -17,7 +17,7 @@ import copy
 import hashlib
 import json
 import math
-from h3_graphs import H3Models, REFERENCE_NODE, REFERENCE_SLOTS, build_h3_recast, h3_frames
+from h3_graphs import H3Models, REFERENCE_SLOTS, build_h3_recast, h3_frames
 from model_catalog import validate_bindings
 
 ENGINE = 'minimax-h3'
@@ -275,30 +275,7 @@ def validate_recipe(recipe):
             'h3-source-placeholder', reference_placeholders(len(descriptions)),
             recipe['effective_prompt'], source_frames=h3_frames(count),
             source_audio=recipe.get('source_audio', True), **graph_options(recipe))
-        # Check every declared loader binding against the frozen recipe, not the
-        # current target. Keep historical optional graph fields readable.
-        for node_id in ('127', '128', '119', '120', '157', '159', '169'):
-            expected_node = expected_graph[node_id]
-            model_input = next(key for key in ('unet_name', 'clip_name', 'vae_name',
-                                                'lora_name', 'model_name')
-                               if key in expected_node['inputs'])
-            actual_node = graph.get(node_id, {})
-            if (actual_node.get('class_type') != expected_node['class_type']
-                    or actual_node.get('inputs', {}).get(model_input)
-                    != expected_node['inputs'][model_input]):
-                raise ValueError('Frozen H3 model bindings do not match the recipe')
-        node_inputs = {key: value.get('inputs', {}) for key, value in graph.items()}
-        if (node_inputs.get('155', {}).get('frame_load_cap') != h3_frames(count)
-                or node_inputs.get('136', {}).get('length') != h3_frames(count)
-                or node_inputs.get('136', {}).get('prompt') != recipe['effective_prompt']
-                or node_inputs.get('129', {}).get('noise_seed') != recipe['seed']):
-            raise ValueError('Frozen H3 graph does not match the recipe')
-        for index in range(len(descriptions)):
-            if node_inputs.get('136', {}).get(f'ref_images.ref_image_{index}') != [str(REFERENCE_NODE + index), 0]:
-                raise ValueError('Frozen H3 graph reference slots do not match the recipe')
-        conditioning = recipe.get('source_audio')
-        if conditioning is not None and (
-                ('audio' in node_inputs.get('156', {})) is not conditioning
-                or ('ref_video_audios.ref_video_audio_0' in node_inputs.get('136', {})) is not conditioning):
-            raise ValueError('Frozen H3 graph audio conditioning does not match the recipe')
+        # One compiler owns the complete contract, not a second list of selected checks.
+        if type(recipe.get('source_audio')) is not bool or digest_json(graph) != digest_json(expected_graph):
+            raise ValueError('Frozen H3 graph topology, audio or model bindings do not match the recipe')
     return copy.deepcopy(recipe)

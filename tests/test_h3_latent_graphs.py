@@ -145,16 +145,17 @@ class BoundedTopologyTests(unittest.TestCase):
                        [REF1], OP, mode=mode, parent_clip='genjutsu/take.mp4',
                        second_parent_clip=second_parent_clip)
 
-    def test_forward_bytes_match_pre_change_compiler(self):
-        # SHA256(json.dumps(graph, allow_nan=False)) captured by executing
-        # git show 578109c:src/h3_latent_graphs.py, not the modified compiler.
+    def test_forward_bytes_match_audio_repaired_compiler(self):
+        # SHA256(json.dumps(graph, allow_nan=False)): intentional changes are
+        # removal of the fixed private audio/Pixaroma and binding the dormant
+        # image loader to the caller's first SDK reference, not a private file.
         fixtures = [
             (1, False, 158, 42, 1280, 704,
-             'bad3a3a53cb47b700f4388308b8a2bc6aab6027ac8ae82711ef99489b1864c0c'),
+             'c802fe620ca2d0d48c0b394715530ebbeefe5e91165aec5259988fbd00268477'),
             (2, True, 362, 2**64 - 1, 1312, 736,
-             '35ceffe2fb92b39907125d919312c005c3481503aa2a63130db6d8bbe68aa67c'),
+             '995cd086e42de7b8f0e7a00d22a26e52369587d5215752a9d2a606a83aaed0e7'),
             (3, False, 56, 0, 704, 1280,
-             '318dab743e0c7efd2c97a0e44b38c68b8f294ba9478cb96727f260c578b480da'),
+             'a596a1540c7a7b2120bc4fda9d40264d94a2175c52fffe678074135f944abdd7'),
         ]
         for count, publish, frames, seed, width, height, digest in fixtures:
             refs = [{'__type': 'core/ASSET', 'info': {'id': f'ref-{i}'}}
@@ -259,7 +260,8 @@ class BoundedTopologyTests(unittest.TestCase):
             ('1488:1483', 'conditioning', ['797', 0]),
             ('1488:1486', 'latent_image', ['797', 1]),
             ('1488:1486', 'guider', ['1359:1311', 0]),
-            ('3001', 'latent', ['797', 1]),
+            ('1488:1483', 'model', ['725', 0]),
+            ('1488:1484', 'model', ['725', 0]),
             ('1216', 'samples', ['1488:1486', 0]),
             ('1216', 'conditioning', ['797', 0]), ('1216', 'pins', ['2020', 0]),
             ('1216', 'save_conditioning', False), ('1216', 'images', ['751:633', 0]),

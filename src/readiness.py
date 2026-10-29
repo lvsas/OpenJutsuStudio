@@ -122,6 +122,25 @@ def _inventory(info, required_graph=None):
         inputs = info[name].get("input", {})
         specs = {**inputs.get("required", {}), **inputs.get("optional", {})}
         for key, value in node["inputs"].items():
+            if name == 'ImageBatchMulti' and key == 'inputcount':
+                spec = specs.get(key)
+                if (not isinstance(spec, (list, tuple)) or len(spec) != 2 or
+                    spec[0] != 'INT' or not isinstance(spec[1], dict) or
+                    type(spec[1].get('min')) is not int or type(spec[1].get('max')) is not int or
+                    spec[1]['min'] > spec[1]['max']):
+                    raise ValueError('The ImageBatchMulti inputcount inventory shape is unknown.')
+                # A linked scalar can only be known when the graph executes. Do not
+                # claim it was checked against target bounds during preflight.
+                if isinstance(value, (list, tuple)):
+                    raise ValueError('ImageBatchMulti inputcount is linked or malformed and cannot be verified before execution.')
+                if type(value) is not int:
+                    raise ValueError('ImageBatchMulti inputcount must be a literal integer for preflight.')
+                if not spec[1]['min'] <= value <= spec[1]['max']:
+                    raise ValueError('ImageBatchMulti inputcount is outside the target integer bounds.')
+            if name == 'TextGenerate' and key == 'system_prompt':
+                spec = specs.get(key)
+                if not isinstance(spec, (list, tuple)) or not spec or spec[0] != 'STRING':
+                    raise ValueError('This compute target does not support the required text-generation system instructions.')
             if '.' in key:
                 group, member = key.split('.', 1)
                 dynamic = specs.get(group, [])

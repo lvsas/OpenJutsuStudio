@@ -47,30 +47,25 @@ for(const checked of [true,false]){
   await take.replay();
   const [url,options]=calls.at(-1);
   assert.equal(url,`/api/h3/jobs/${job}/replay`);
-  assert.deepEqual(JSON.parse(options.body),{native_capture:checked});
+  assert.deepEqual(JSON.parse(options.body),{native_capture:true},'Every re-run captures state even with a stale client control');
   assert.equal(parent.recipe.native_capture,false,'Replay option never changes parent recipe');
   assert.equal(el('h3-native-capture').checked,checked,'Past take does not reset a newer draft');
 }
 // Exercise the actual handoff function with bounded dependencies, not a copied implementation.
 const source=readFileSync(new URL('../src/static/continuity-studio.js',import.meta.url),'utf8');
 const body=source.slice(source.indexOf('async function openLinkedSwap('),source.indexOf("byId('native-handoff-add').addEventListener"));
-const {mergeSequenceLibrary}=await import('../src/static/sequence-library.js');
+const {mergeSequenceLibrary,nativeVersionsForSwap}=await import('../src/static/sequence-library.js');
 const native={take:{take_id:id,origin:{source_job:job},family:{context:{delivered_frames:204,fps:24}}}};
 const entries=mergeSequenceLibrary([native],[{job_id:job,engine:'minimax-h3',status:'done',native_take_id:id,native_artifact_relation:data.relation}]);
-for(const chosen of [0,1]){
-  elements.clear();let selected=null;const state={epoch:1};
-  const sequence={state:()=>({project_id:'c'.repeat(32)}),editable:()=>true};
-  const make=new Function('entries','byId','document','sequence','state','isSwap','sourceId','showLinkedNative','showLinkedVideo',
-    `let linkedTake=null,inFlight=false,unconfirmed=false;const updateComposer=()=>{},notice=()=>{};${body.replaceAll('token=epoch','token=state.epoch').replaceAll('token===epoch','token===state.epoch')};return openLinkedSwap;`);
-  const open=make(entries,el,document,sequence,state,e=>e.kind==='swap',e=>e.job?.job_id,
-    e=>{selected=['native',e.take.take_id];},e=>{selected=['swap',e.job.job_id];});
-  const before=calls.length;await open(job);
-  assert.equal(selected,null,'No version is silently chosen');
-  const buttons=el('native-handoff-choices').children;
-  assert.deepEqual(buttons.map(b=>b.textContent),['Finished Swap','Native state version · 8.5 s']);
-  assert.match(el('native-handoff-message').textContent,/original timing and source audio.*full sampled duration and generated audio/);
-  assert.equal(calls.length,before,'Navigation performs no inference or media request');
-  if(chosen===0){state.epoch++;buttons[0].click();assert.equal(selected,null,'Obsolete choice is ignored');state.epoch--;}
-  buttons[chosen].click();assert.deepEqual(selected,chosen===0?['swap',job]:['native',id]);
-}
+elements.clear();let selected=null;const state={epoch:1};
+const sequence={state:()=>({project_id:'c'.repeat(32)}),editable:()=>true};
+const make=new Function('entries','byId','document','sequence','state','isSwap','sourceId','showLinkedNative','showLinkedVideo','nativeVersionsForSwap',
+  `let linkedTake=null,inFlight=false,unconfirmed=false;const updateComposer=()=>{},notice=()=>{};${body.replaceAll('token=epoch','token=state.epoch').replaceAll('token===epoch','token===state.epoch')};return openLinkedSwap;`);
+const open=make(entries,el,document,sequence,state,e=>e.kind==='swap',e=>e.job?.job_id,
+  e=>{selected=['native',e.take.take_id];},e=>{selected=['swap',e.job.job_id];},nativeVersionsForSwap);
+const before=calls.length;await open(job);
+assert.deepEqual(selected,['native',id],'Keep writing opens the uniquely paired saved state, not a video-only version picker');
+assert.equal(el('native-handoff-choices').children.length,0);
+assert.equal(calls.length,before,'Navigation performs no inference or mutation');
+assert.equal(entries.filter(e=>e.kind==='swap').length,0,'A linked Swap is one Take, not a competing Timeline source');
 console.log('H3 native state: safe URLs, opt-in discovery, no byte fetch, late reset and explicit distinct-version choice passed');

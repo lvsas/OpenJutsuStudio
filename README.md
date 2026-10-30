@@ -89,7 +89,7 @@ LTX state is not interchangeable.
 
 ## Requirements
 
-- Version **0.1.0-alpha.1**, development preview, grounded in `src/app_release.py`.
+- Version **v0.1.0-alpha.1**, development preview, grounded in `src/app_release.py`.
 - Git/Bash, **uv**, **Python 3.12**, and **FFmpeg/ffprobe** on `PATH`.
 - A separately prepared GPU **ComfyUI** executor with the chosen engine's custom
   nodes and model weights. **24 GB VRAM is recommended**, not a fit guarantee.

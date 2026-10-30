@@ -15,6 +15,33 @@ an H3 take to continue the story, then share a vertical comparison Reel.
 
 *Actual studio interface, captured on 29 October 2026 in the running application. An empty workspace, not a generated-result quality claim.*
 
+## Quickstart
+
+```bash
+git clone https://github.com/lvsas/OpenJutsuStudio
+cd OpenJutsuStudio
+bash scripts/setup.sh                     # uv + Python 3.12 + FFmpeg -> .venv (no service)
+.venv/bin/python scripts/check_dependencies.py --host http://127.0.0.1:8188 --engine all
+bash scripts/run_app.sh                   # serves on 127.0.0.1:8000
+```
+
+`check_dependencies.py` is the honest gate: it walks the node classes and model
+files the selected engines need and prints what the executor is missing, before
+any generation is attempted. It exits non-zero, so it can run in CI or gate a
+deployment.
+
+**What it costs to run** compared with the other open entries:
+
+| | Setup | Hardware |
+| --- | --- | --- |
+| Open Jutsu Studio | `uv sync` + a ComfyUI you prepare (`check_dependencies.py` lists exactly what is missing) | **24 GB VRAM** recommended, fully local, no account |
+| Rigless | `uv sync && uv run rigless`, then rent a GPU from inside the app | **48 GB VRAM** local, or RunPod with ~67 GB of models |
+| Comfy Openjutsu | `npm ci` + a Comfy Developer Platform deployment | cloud credits, 96 GB GPU tested |
+
+We are **not** the easiest to install: they hand you one command and, in Rigless'
+case, rent the GPU for you. We are the cheapest to run locally and the only one
+that needs no account.
+
 ## The creative loop
 
 1. **Create or bring a character.** Open Characters (`/characters`) to generate
@@ -35,6 +62,30 @@ the SDK, reopening and continuation in one workspace. A recipe records the rende
 **JSON alone is not the native state needed to continue it**. A social Reel is
 not a complete native backup. Upstream engines define the state formats: H3 and
 LTX state is not interchangeable.
+
+## How this differs from the other open entries
+
+The challenge asked for a clonable app, not a demo. Three open projects answer it
+differently, and it is fairer to say where each one is stronger.
+
+| | Open Jutsu Studio | Rigless | Comfy Openjutsu |
+| --- | --- | --- | --- |
+| Unit of work | a **Take** with MP4 + MCTX + COND | a swapped clip | a swapped clip |
+| Continuation | **native, from the saved state** | not offered | not offered |
+| Character creation | **in the same studio** | external pictures | one image |
+| Person selection | references supplied by the user | **click-to-track (SAM)** | one image |
+| Take judgement | **motion score against the source** | motion score | none |
+| Character prompt | described from the references | **described by a vision model** | authored |
+| Own LoRA | none | **trained on footage** | akatz workflow |
+| Execution | your ComfyUI, local or remote | **your GPU, or RunPod from the app** | Comfy platform credits |
+| Tests | 1 259 | 17 test files | 3 test files |
+
+Two honest gaps remain on our side: we do not track a clicked person through a
+clip, and we do not ship a fine-tuned swap LoRA. What we do that neither of them
+does is keep the native state of every take, so a scene can be continued instead
+of only swapped — that is the whole point of the tool, and it is measured:
+`POST /api/continuity/takes/{id}/forward` reuses the parent's references, sound
+and line, and the child take declares its parent.
 
 ## Current boundaries
 

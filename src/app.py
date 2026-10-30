@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import subprocess
 import uuid
 from pathlib import Path
 from typing import Any
@@ -32,6 +33,7 @@ from app_release import VERSION, render_release
 from continuity_forward_api import (create_forward_router, make_forward_runner,
                                     parent_references, refine_prompt, refine_continuation_prompt, target_fingerprint)
 from job_delete import JobDeletionRefused, delete_job
+from take_score import score_take
 from continuity_attempt_api import create_router as create_attempt_router
 from continuity_attempts import Worker
 from continuity_pipeline import precheck_request, preflight_continuation, submit_forward
@@ -390,6 +392,30 @@ def _result_path(result: str) -> Path | None:
     options = [candidate] if candidate.is_absolute() else [Path.cwd() / candidate, MEDIA_DIR / candidate]
     options.extend([MEDIA_DIR / Path(result).name, core.WORK / Path(result).name])
     return next((p.resolve() for p in options if p.is_file()), None)
+
+
+@app.get("/api/jobs/{job_id}/score")
+def get_job_score(job_id: str) -> dict[str, Any]:
+    """Measure whether the take still moves like the performance it replaced."""
+    try:
+        job = core.Job.load(job_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Job not found") from exc
+    if job.status != "done" or not job.result:
+        raise HTTPException(status_code=409, detail="The result is not ready yet.")
+    result = _result_path(job.result)
+    source = _result_path(getattr(job, "video", "") or "")
+    if result is None or source is None:
+        raise HTTPException(status_code=404, detail="The clips for this Swap are not on this machine.")
+    try:
+        measured = score_take(source, result)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    except (OSError, subprocess.SubprocessError):
+        raise HTTPException(status_code=503, detail="The measurement could not run") from None
+    body = measured.as_dict()
+    body["job_id"] = job_id
+    return body
 
 
 @app.get("/api/jobs/{job_id}/result")

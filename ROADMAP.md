@@ -1,58 +1,98 @@
 # Open Jutsu Studio Roadmap
 
-The direction stays simple: **Create → Swap → Continue → Share**, with reliable
-saved work and less friction between studios. These are upcoming milestones,
-not promises of features already delivered. Completion requires a tested user journey.
+The direction stays simple: **Create → Swap → Continue → Share**, with saved work
+that can actually be reopened. This file is the work list, not a feature list:
+everything below is either a defect we know about, a robustness gap, or debt we
+created and have to pay back.
 
-## Current preview
+Nothing here is promised as delivered. A line leaves this file only when a test
+proves it.
 
-Characters, two Swap studios, vertical comparison Reels and experimental H3
-native-take continuation are available. ComfyUI, nodes and weights are prepared
-separately. A new H3 creation now captures its complete MP4, MCTX and COND family
-in the same sampling job, and the Timeline composer opens that saved state
-directly; native LTX continuation is not delivered.
+## 1 — Correctness and robustness
 
-## Next — trust what you save
+- **Install in one command.** `uv sync` gets the app, but the executor still needs
+  a prepared ComfyUI with nodes and weights. Ship `scripts/install.sh` that checks
+  Python 3.12, FFmpeg, reachability of the executor, every required node class and
+  every model filename, then prints the exact missing items. A judge should not
+  discover a missing node at submission time.
+- **Fail before the GPU, not after.** Keep extending the preflight: model hashes,
+  parent capsule, duration grid, reference count, audio policy. No job may start
+  when its own inputs cannot satisfy it.
+- **Crash recovery.** Every long operation must survive a restart: resumed,
+  marked failed, or explicitly abandoned. One stale `running` job already sat in
+  the queue for nine days.
+- **Storage discipline.** Deletion, quotas and free-space checks on Takes, Swap
+  media, reels and job records. The app is expected to run for months on a small
+  disk; today it can fill it silently.
+- **Error surfaces.** Every refusal carries an actionable sentence and a status
+  code the UI can render. No bare `500`, no silent no-op.
 
-- **One captured state per creation.** The family is published with the video, so
-  a result cannot be reported as done while its native files are missing. Report
-  unavailable capture capabilities before a costly run.
-- **Version-compatible Character Save.** Reproduce and repair the development-only
-  V8 recipe/save conflict before promoting that experiment. This is not a claim
-  that Save is broken across the stable release. Preserve earlier Capsules,
-  images and captions; verify named references after reload and restart.
-- **Optional accelerated sampling.** Investigate an opt-in 8-step turbo mode with
-  a compatible adapter, measured against the current 20-step path on the same
-  parent, references, prompt, seed, duration and soundtrack. Keep today's verified
-  mode available; adopt the faster one only if the comparison holds and the
-  licences allow it. Faster sampling is not a quality claim.
-- **Two clear outputs.** A lightweight social Reel for sharing, and a complete
-  private native backup for reopening. Neither a recipe nor a public receipt
-  substitutes for the native state.
+## 2 — Debt we created
 
-## Then — connect the creative loop
+- **Two H3 graph builders.** `h3_continuity_graphs.py` compiles the native take,
+  `h3_latent_graphs.py` the continuation, and the second is a superset of the
+  first. Decide whether the take path should delegate to the latent builder
+  instead of maintaining two topologies that can drift.
+- **One HTTP client.** ComfyUI is reached through more than one path today; fold
+  them into a single client with timeouts, retries and one place to log.
+- **Serve the studio, not a copy.** Every static asset, template and demo page
+  must have exactly one source of truth.
+- **Repository size.** Drop tracked build artefacts and keep screenshots to what
+  the README actually shows.
+- **Naming.** `h3_continuity_graphs` builds takes, not continuity. Rename when the
+  two builders are reconciled, not before.
 
-- Make existing **Characters → Swap** reference handoffs easier to discover and
-  verify the selected image, project and desktop/mobile reuse. Improve existing
-  library/picker navigation rather than inventing a replacement backend.
-- Validate the full library → selection → generation → reopen journey, including
-  project boundaries and explicit selections without accidental generation.
-- Ship a small, licensed **portable example** and engine-scoped provisioning
-  guidance. Extend explicit, opt-in automation only after testing its nodes,
-  weights, permissions and failure recovery on a clean executor.
-- Add an **optional Docker app/proxy** path with a tested build, persistent data
-  and restart/recovery instructions. No Docker installation is supplied today;
-  a container alone will not provision every GPU dependency.
+## 3 — Person selection (SAM 3.1)
 
-## Further — expand what we can prove
+- The isolated trial worked: SAM 3.1 multiplex tracked **two people across 240
+  frames**, with per-object masks and CPU overlays (`artifacts/…/sam-trial-20261027`).
+- Integrate it as **click-to-select**: the user clicks a person on one frame, SAM
+  tracks that person for the window, and the mask becomes the swap region.
+- Do not use `SAM3Propagate` from the current node pack: it fails with a
+  `cuda:0`/`cpu` tensor mismatch on this install, both with `video` and with
+  `video_frames`. The working path is the `sam3.1_multiplex_fp16` checkpoint graph.
+- Acceptance: mask covers the performer, excludes the microphone and the second
+  performer, no drift across the window, and a visible preview of where tracking
+  was lost.
 
-Improve native continuation, sound continuity and cross-target portability with
-engine-specific acceptance. Extend Timeline operations only where their engines
-support them. Strengthen install testing and regression coverage as the project
-continues beyond the competition.
+## 4 — Our own LoRA
+
+- Train a swap LoRA on our own footage instead of relying on the stock adapter,
+  following the same recipe as the reference entries: fixed seed, fixed
+  references, A/B against the current path on identical inputs.
+- Publish the licence, the training data provenance and the evaluation protocol.
+  A LoRA without a measured comparison is marketing, not engineering.
+- Keep the 20-step path available; adopt a faster adapter only if the comparison
+  holds and the licence allows commercial use.
+
+## 5 — Custom node
+
+- We depend on node packs we do not own. Identify the nodes whose behaviour we
+  rely on and either pin their versions or vendor the small ones.
+- If a node must be patched (latent upscaler dropping `noise_mask` is the known
+  case), keep the patch in our repository with a test that fails when upstream
+  changes, rather than editing a shared install by hand.
+
+## 6 — Export and sharing
+
+- **More than one reel format.** Today a single vertical Reel is produced. Add
+  square and landscape variants with the same provenance.
+- **Captions and credits** as sidecar files, so a shared clip can be re-published
+  without re-rendering.
+- **Direct handoff** to the platforms the user already uses, keeping the current
+  rule: no automatic publishing, no invented reach.
+- **Batch export** of a project's takes with a manifest, for editors who work
+  outside the app.
+
+## 7 — Presentation and proof
+
+- Keep the demonstration film in step with the product: any visible change
+  forces a re-capture, not a re-narration over stale footage.
+- Publish the measured claims (tests, durations, refusal cases) with the release,
+  not only in commit messages.
 
 H3 MCTX/COND is not interchangeable with LTX or image-model state. Capabilities
-will be documented per engine, not inferred from a shared interface.
+are documented per engine, never inferred from a shared interface.
 
 ## Contribute
 

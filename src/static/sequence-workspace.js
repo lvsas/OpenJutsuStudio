@@ -174,6 +174,23 @@ export function mountSequence({onSelect,onPreview,onCompose,onPosition=()=>{},on
           remove.setAttribute('aria-label',`Remove ${label(entry)} from this project only; the media stays in your library`);
           row.append(remove);
         }
+        if(isSwap(entry)) {
+          const score=action('Score',async()=>{
+            score.disabled=true;
+            try {
+              const response=await fetch(`/api/jobs/${id}/score`,{credentials:'same-origin'});
+              const payload=await response.json().catch(()=>({}));
+              if(!response.ok)throw new Error(payload.detail||'This Swap cannot be measured.');
+              const flags=payload.flags&&payload.flags.length?' · '+payload.flags.join(', '):'';
+              info.textContent=`${sourceInfo(entry)} · ${id.slice(0,8)} · motion ${payload.score}${flags}`;
+              score.title=`Motion ${payload.score}/100 against the source${flags}`;
+            } catch(error){onError(error.message);}
+            finally{score.disabled=false;}
+          },'btn btn-ghost library-score');
+          score.title='Measure whether this take still moves like its source';
+          score.setAttribute('aria-label',`Measure ${label(entry)} motion against its source`);
+          row.append(score);
+        }
         // The common library is where unfinished Swaps pile up, so erasing belongs in both scopes.
         const erase=action('Delete',()=>eraseSource(isSwap(entry)?'job':'take',id,label(entry),erase),'btn btn-ghost library-delete');
         erase.title='Delete permanently from the server · cannot be undone';

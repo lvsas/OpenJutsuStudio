@@ -11,9 +11,15 @@ an H3 take to continue the story, then share a vertical comparison Reel.
 
 [Install](#install) · [Creative loop](#the-creative-loop) · [Roadmap](ROADMAP.md) · [Documentation](docs/README.md)
 
-![Current H3 Studio workspace, awaiting source video and character references](docs/readme/h3-studio-current.png)
+![Three moments from the studio: the two reference boards, the recast shot, and the stitched continuation](docs/readme/demo.gif)
 
-*Actual studio interface, captured on 29 October 2026 in the running application. An empty workspace, not a generated-result quality claim.*
+*Recorded in the running application on 30 October 2026: the two reference boards,
+a real Swap result, then one continuous clip — the end of a Take followed by the
+continuation it produced. Nothing here is a mock-up.*
+
+![H3 Studio workspace, awaiting source video and character references](docs/readme/h3-studio-current.png)
+
+*The same studio, empty: an interface capture, not a generated-result quality claim.*
 
 ## Quickstart
 

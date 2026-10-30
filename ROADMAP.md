@@ -1,59 +1,77 @@
 # Open Jutsu Studio Roadmap
 
-**Create → Swap → Continue → Share.** That is the whole product. Everything below
-either makes one of those steps work better or gets out of its way.
+Four gestures: **Create**, **Swap**, **Continue**, **Share**. Everything below makes
+one of them easier, faster or more reliable — never a feature for its own sake.
 
-No dates, no promises. A line leaves this page when it is done and tested.
+## What comes next, in order
 
-## Now — make it solid
+1. **Install without friction** — one command that works on a machine that has never
+   seen ComfyUI, then a container, then a Comfy Cloud path for people without a GPU.
+2. **Pick a person, not a description** — click someone in the frame and let SAM 3.1
+   follow them. The tracking trial already followed two people across 240 frames; it
+   has to become a button.
+3. **Our own swap model** — trained on our footage, published with the comparison
+   that shows what it changes.
+4. **One library** — the same character in Create, Swap and Continue, backed by a
+   small transactional store instead of loose files.
 
-- **Install anywhere.** One command on Linux, macOS and Windows that tells you what
-  is missing instead of failing halfway.
-- **Never fail at the last second.** Check the inputs before the GPU starts: the
-  take, the references, the sound, the durations.
-- **Survive a restart.** A long job interrupted by a reboot must resume, fail
-  cleanly, or say so — never sit there pretending to run.
-- **Keep the disk honest.** Takes, swaps and reels grow fast. Show what is using
-  space, and make deleting a take a one-click decision.
+## Create — your characters, everywhere
 
-## Next — make it feel right
+- Your characters appear in the Timeline picker, not behind a file browser. Adding a
+  reference is the same gesture in every workspace: pick from your gallery first,
+  fall back to a file only when the character is new.
+- One character, one identity: the same face, the same name, the same references
+  wherever it is used, with a visible warning when a reference no longer matches.
+- A character sheet you can share: a few poses, a few expressions, one link.
+- The four character files stay declared and installable, gated ones included, so
+  Create never fails because a weight was missing.
 
-- **Pick a person, not a description.** Click someone in the frame and let SAM 3.1
-  follow them through the clip. The trial tracked two people over 240 frames; it
-  needs to become a button.
-- **Trust the take.** A short, honest verdict per take — does it still move like the
+## Swap — put them in real footage
+
+- **Click to select.** One click on the performer, SAM 3.1 follows them for the clip;
+  the mask becomes the swap region, and you see where tracking was lost instead of
+  discovering it in the result.
+- **Our own model.** A swap adapter trained on our footage, with the licence, the data
+  provenance and the A/B comparison published alongside it.
+- **A faster mode.** Eight steps with a turbo adapter, as an option, without touching
+  the quality of the current path.
+- **Trust the take.** A short verdict per take — did it still move like the
   performance it replaced — so you stop scrubbing timelines to find the good one.
-- **Our own swap model.** Train the adapter on our own footage, and publish the
-  comparison, the licence and the provenance with it.
-- **A faster mode.** Eight steps with a turbo adapter, as an option, without
-  touching the quality of the current path.
-- **One way to add a reference.** Today a reference can come from the file picker
-  in one place and from your character library in another. It should be the same
-  gesture everywhere: pick from your own characters first, fall back to a file
-  only when the character does not exist yet.
+- **Several people.** Two performers swapped in one pass, each with their own mask
+  and their own reference.
 
-## Later — make it spread
+## Continue — one story, several takes
 
-- **One reel, three shapes.** Vertical, square and wide, from the same take, with
-  captions and credits as sidecar files.
-- **Hand off, do not publish for people.** Exports that are ready to post, with the
-  provenance attached.
-- **Batch export** of a whole project with a manifest, for editors who work elsewhere.
+- A continuation inherits the references, the sound and the line from its parent, and
+  says so in the interface instead of leaving you to remember.
+- The stitched result plays as one shot, not two clips with a seam.
+- A take you cannot continue says why: which native file is missing, and what to do
+  about it.
+- Long jobs survive a restart: resumed, failed cleanly, or explicitly abandoned —
+  never a row that pretends to run for days.
 
-## Under the hood — debt we owe
+## Share — the reel that travels
 
-- Two builders compile the H3 graphs; one is a superset of the other. Pick one.
-- One HTTP client for the executor, with timeouts and retries in a single place.
-- A shorter take graph: it is generated, and it shows.
-- Ship a container, so nobody has to assemble a ComfyUI by hand.
-- **Give the library a real database.** Characters, takes, projects and reels are
-  files and JSON today. That is honest and inspectable, and it is also how a
-  broken reference goes unnoticed. A small transactional store — with the files
-  still on disk — would make the library consistent under crashes and let the
-  same character show up in every workspace.
-- **Fewer tests, sharper ones.** The suite is large because it guards drift in
-  text and markup. Merge the overlapping UI contracts into one per screen, and
-  keep the tests that describe behaviour a person can observe.
+- One reel, three shapes: vertical, square and wide, from the same take.
+- Captions and credits as sidecar files, so a clip can be re-posted without a re-render.
+- Exports that are ready to publish, with the provenance attached — and no automatic
+  posting, no invented reach.
+- Batch export of a whole project with a manifest, for editors who work elsewhere.
+
+## Foundations — the debt that makes the rest possible
+
+- **Install in one command**, with a validator that names what is missing instead of
+  failing halfway; a container for the app, and a documented path for Comfy Cloud.
+- **One library store.** Characters, takes, projects and reels are files and JSON
+  today: honest, inspectable, and how a broken reference goes unnoticed. A small
+  transactional store behind the files fixes that without hiding anything.
+- **One graph builder.** Two modules compile the H3 graphs and one is a superset of
+  the other. Pick one, and shorten what it generates.
+- **Fewer, sharper tests.** Merge the overlapping UI contracts into one per screen and
+  keep the tests that describe behaviour a person can observe, not the exact wording
+  of a sentence.
+- **Keep the disk honest.** Takes, swaps and reels grow fast; show what is using space
+  and make deleting a take a one-click decision.
 
 H3 native state (MCTX/COND) is not interchangeable with LTX or image state. Every
 engine advertises what it can do; nothing is inferred from a shared button.

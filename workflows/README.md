@@ -13,6 +13,32 @@ env -u PYTHONPATH .venv/bin/python scripts/export_workflows.py
 | `ltx-ripple.api.json` | LTX 2.5 + Ripple FFAF IC-LoRA — the motion pass | 30 |
 | `h3-recast.api.json` | MiniMax H3 two-pass character swap — the H3 Studio take | 26 |
 | `flux3-klein-official-t2i.json` | FLUX 3 Klein base text-to-image — immutable vendor source for Viral Character Maker | 19 |
+| `h3-native-take.api.json` | MiniMax H3 native take — roots and Swap results, carrying the MCTX capsules | 52 |
+| `h3-continuity-latent.api.json` | MiniMax H3 full-latent continuity — the graph that continues a saved Take | 83 |
+
+## The two H3 take graphs, and why both exist
+
+They are not duplicates; they answer different questions.
+
+`h3-native-take.api.json` produces a **native take**: it reads a video with its
+MCTX capsule, applies pins, samples, and trims/saves back with the capsule
+attached (`H3LoadVideoWithMCtx`, `H3MCtxApplyPins`, `H3TrimAndSaveVideoWithMCtx`).
+It is compiled by `src/h3_continuity_graphs.py` and used for roots, Swap results
+and the native-take paths.
+
+`h3-continuity-latent.api.json` builds a **continuation**: it keeps that same MCTX
+take machinery and adds joint audio/video conditioning, context windows and the
+audio mask (`H3JointConditioning`, `H3ContextWindows`, `H3JointAudioMask`). It is
+compiled by `src/h3_latent_graphs.py` and is the only graph
+`src/continuity_pipeline.py` submits when a scene is carried forward.
+
+So the relationship is layered, not parallel: the continuation graph is a
+**superset** of the take graph. The take graph must never grow continuation nodes,
+otherwise both paths would submit the same work under two names.
+
+Naming the first one `h3-continuity-base` was misleading: on its own it has no
+continuation nodes at all. `tests/test_workflow_templates.py` pins the sizes, the
+markers and the one-builder-per-template mapping.
 
 ## Why these graphs are tracked
 

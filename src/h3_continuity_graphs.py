@@ -24,7 +24,7 @@ import json
 from pathlib import Path
 import re
 
-TEMPLATE = Path(__file__).resolve().parents[1] / 'workflows/h3-continuity-base.api.json'
+TEMPLATE = Path(__file__).resolve().parents[1] / 'workflows/h3-native-take.api.json'
 TEMPLATE_DIGEST = '818901db5d30eb65ad9ea5abc8af3bc9d515c87e7818141a38cfa7b4e415a972'
 # Opaque historical evidence identity, computed by its original permissive JSON
 # serializer. It contains NaN at unused 1349.is_changed[0], never replayed here.

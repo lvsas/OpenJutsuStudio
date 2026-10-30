@@ -26,9 +26,10 @@ continuation it produced. Nothing here is a mock-up.*
 ```bash
 git clone https://github.com/lvsas/OpenJutsuStudio
 cd OpenJutsuStudio
-make install     # Python 3.12 + FFmpeg + .venv + the local SDK proxy
-make check       # prints exactly what your ComfyUI is missing, exit 1 if anything is
-make run         # starts the proxy and the studio together on 127.0.0.1:8000
+make install                      # Python 3.12 + FFmpeg + .venv + the local SDK proxy
+make deps COMFYUI=/path/to/ComfyUI  # the declared node packs and swap weights
+make check                        # prints what is still missing, exit 1 if anything is
+make run                          # proxy + studio together on 127.0.0.1:8000
 ```
 
 `make run` starts the SDK proxy in the right order and stops it again on Ctrl+C,
@@ -120,9 +121,17 @@ bash scripts/run_app.sh      # or: python scripts/launch.py (Windows)
 
 Open <http://127.0.0.1:8000>. App and proxy bind to loopback only.
 
-`bash scripts/setup.sh` alone installs only the app dependencies; the
-`--with-proxy` flag explicitly opts into the proxy. Setup never starts services,
-never installs ComfyUI or custom nodes, and never downloads model weights.
+What each step does, and what it refuses to do:
+
+| Step | Installs | Refuses |
+| --- | --- | --- |
+| `make install` | the app, its `.venv`, and the local SDK proxy | starting services, touching ComfyUI |
+| `make deps` | the node packs declared in `dependencies.json` (registry archives are hash-checked) and the swap weights for the engines in `dependencies.json` | overwriting an existing pack, installing a pack with no declared source |
+| `make check` | nothing | passing silently when a node class or weight is missing |
+
+`make deps` does not install ComfyUI itself, and it does not download every model
+the app can use: [dependencies](docs/dependencies.md) lists exactly which files
+are covered. Anything else is named by `make check` so you can fetch it yourself.
 
 Then open **Settings** (`/settings`) to test and save the API-v2 target, the
 write-only API key and the engine model filenames. Test and Save do not submit a

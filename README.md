@@ -26,27 +26,37 @@ continuation it produced. Nothing here is a mock-up.*
 ```bash
 git clone https://github.com/lvsas/OpenJutsuStudio
 cd OpenJutsuStudio
-bash scripts/setup.sh                     # uv + Python 3.12 + FFmpeg -> .venv (no service)
-.venv/bin/python scripts/check_dependencies.py --host http://127.0.0.1:8188 --engine all
-bash scripts/run_app.sh                   # serves on 127.0.0.1:8000
+make install     # Python 3.12 + FFmpeg + .venv + the local SDK proxy
+make check       # prints exactly what your ComfyUI is missing, exit 1 if anything is
+make run         # starts the proxy and the studio together on 127.0.0.1:8000
 ```
+
+`make run` starts the SDK proxy in the right order and stops it again on Ctrl+C,
+so there is only ever one command to remember. If you already run an SDK v2
+endpoint, set `OPENGENJUTSU_COMFY_BASE_URL` and skip the proxy entirely.
 
 `check_dependencies.py` is the honest gate: it walks the node classes and model
 files the selected engines need and prints what the executor is missing, before
 any generation is attempted. It exits non-zero, so it can run in CI or gate a
 deployment.
 
-**What it costs to run** compared with the other open entries:
+**What it costs to run**, compared with the other open entries, without flattery:
 
-| | Setup | Hardware |
-| --- | --- | --- |
-| Open Jutsu Studio | `uv sync` + a ComfyUI you prepare (`check_dependencies.py` lists exactly what is missing) | **24 GB VRAM** recommended, fully local, no account |
-| Rigless | `uv sync && uv run rigless`, then rent a GPU from inside the app | **48 GB VRAM** local, or RunPod with ~67 GB of models |
-| Comfy Openjutsu | `npm ci` + a Comfy Developer Platform deployment | cloud credits, 96 GB GPU tested |
+| | Commands | Executor | Hardware and account |
+| --- | --- | --- | --- |
+| Open Jutsu Studio | 3 (`make install`, `make check`, `make run`) | **your own ComfyUI**, plus a loopback SDK proxy that `make run` starts for you | **24 GB VRAM**, no account, no credits |
+| Rigless | 1 (`uv sync && uv run rigless`) | its own pipeline, GPU driven from inside the app | **48 GB VRAM** locally, or RunPod with ~67 GB of weights |
+| Comfy Openjutsu | 3 commands, plus a deployment you must create yourself | a **Comfy Developer Platform** deployment with a patched node pack | cloud credits, 96 GB GPU tested |
 
-We are **not** the easiest to install: they hand you one command and, in Rigless'
-case, rent the GPU for you. We are the cheapest to run locally and the only one
-that needs no account.
+Where we are worse: Rigless installs in one command and can rent the GPU for you;
+Comfy Openjutsu needs no proxy at all. Where we are better: no account, no
+credits, half the VRAM, and `make check` names the exact node or weight that is
+missing instead of failing mid-generation.
+
+The proxy is not decoration. The application speaks the Comfy **SDK v2** API; a
+stock ComfyUI serves v1, so a loopback process translates between them. If you
+already run an SDK v2 endpoint, point `OPENGENJUTSU_COMFY_BASE_URL` at it and the
+proxy disappears from the picture.
 
 ## The creative loop
 
@@ -165,8 +175,11 @@ see [local setup and troubleshooting](docs/local-setup.md).
 
 ## Built on / credits
 
-An open-source rebuild of [Higgsfield Genjutsu](https://higgsfield.ai/genjutsu),
-with connected Character and Timeline workspaces. Built with **ComfyUI** and the
+An independent open-source video studio, built for the
+[Open Source Higgsfield Competition](https://comfy.org/open-source-higgsfield) as
+an answer to the character-swap idea — not affiliated with, endorsed by, or
+connected to Higgsfield. It ships connected Character and Timeline workspaces,
+built with **ComfyUI** and the
 [Comfy Developer Platform](https://comfy.org/platform), using official Comfy SDK
 transport for self-hosted execution.
 

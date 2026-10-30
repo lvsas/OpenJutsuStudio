@@ -1,6 +1,5 @@
 """Independent H3 Studio API. MVP: one reference and one continuous shot only."""
 import asyncio
-import shutil
 import copy
 import json
 import time
@@ -15,8 +14,6 @@ from project_scope import submission_project
 from continuable_take import get_validated_family
 from h3_swap_native import NATIVE_ARTIFACT_RELATION
 from h3_capsule import contained, digest_file, frozen_references, get_capsule, replay_inputs
-import character_references
-from character_library import CharacterLibrary
 from h3_graphs import REFERENCE_SLOTS
 from h3_recipe import ENGINE, MAX_TEXT, make_recipe
 from h3_uploads import save_reference
@@ -103,7 +100,7 @@ class H3API:
             raise HTTPException(503, ' '.join(report.get('issues', [])) or 'H3 is not ready')
 
     async def create_job(self, request: Request, video: UploadFile = File(...),
-                         reference_images: list[UploadFile] = File(default=[]),
+                         reference_images: list[UploadFile] = File(...),
                          edit_prompt: str = Form(default='', max_length=2000),
                          seed: int = Form(default=302929098223082, ge=0, le=2**64-1),
                          project_id: str | None = Form(default=None),
@@ -132,37 +129,6 @@ class H3API:
         if ('clip_start_seconds' in form or 'clip_end_seconds' in form) and \
                 (clip_start_seconds is None or clip_end_seconds is None):
             raise HTTPException(422, 'Provide both clip_start_seconds and clip_end_seconds')
-        # Slot order is the contract: each entry says where that slot's image comes from.
-        # Keeping it explicit is what lets slot 1 be a saved character and slot 2 a file.
-        declared = [str(item).strip() for item in form.getlist('reference_sources')]
-        sources = declared or ['upload'] * len(reference_images)
-        if len(sources) != len(declared) and len(sources) != len(reference_images):
-            raise HTTPException(422, 'H3 reference list does not match its sources')
-        uploads = iter(reference_images)
-        slots, reasons = [], []
-        for source in sources:
-            if source == 'upload':
-                upload = next(uploads, None)
-                if upload is None:
-                    reasons.append('A slot asked for an uploaded file that was not sent.')
-                    continue
-                slots.append(('upload', upload))
-            elif source.startswith('gallery:'):
-                job_id = source.split(':', 1)[1].strip()
-                paths, why = character_references.resolve([job_id], CharacterLibrary(self.get_media_dir), 1)
-                if why:
-                    reasons.append(why[0])
-                else:
-                    slots.append(('gallery', paths[0]))
-            else:
-                reasons.append(f'Unknown reference source: {source}')
-        for upload in uploads:  # older clients send files without a source list
-            slots.append(('upload', upload))
-        if reasons:
-            raise HTTPException(422, ' '.join(reasons))
-        total_references = len(slots)
-        if not 1 <= total_references <= REFERENCE_SLOTS:
-            raise HTTPException(422, f'H3 accepts between 1 and {REFERENCE_SLOTS} reference images')
         # The ordered plural field is canonical. The shipped single-description
         # form (and cached clients) uses the singular alias for reference 1.
         descriptions = form.getlist('character_descriptions')
@@ -186,8 +152,10 @@ class H3API:
         source = media_dir / f'{job_id}-source{suffix}'
         original = source
         excerpt = media_dir / f'{job_id}-excerpt.mp4'
+        if not 1 <= len(reference_images) <= REFERENCE_SLOTS:
+            raise HTTPException(422, f'H3 accepts between 1 and {REFERENCE_SLOTS} reference images')
         references = [media_dir / f'{job_id}-reference-{index + 1}.png'
-                      for index in range(total_references)]
+                      for index in range(len(reference_images))]
         created = []
         try:
             # Reserve only this request's upload paths. A collision must neither
@@ -211,11 +179,8 @@ class H3API:
                 source = excerpt
             if not 1 <= info['duration'] * 24 <= MAX_CLIP_SECONDS * 24:
                 raise HTTPException(422, 'H3 source must fit within 1–360 frames at 24fps')
-            for (kind, value), destination in zip(slots, references):
-                if kind == 'upload':
-                    await save_reference(value, destination, self.limit)
-                else:
-                    await asyncio.to_thread(shutil.copyfile, value, destination)
+            for upload, destination in zip(reference_images, references):
+                await save_reference(upload, destination, self.limit)
             recipe = make_recipe(preserve_clip=edit_prompt, seed=seed,
                                  reference_descriptions=tuple(
                                      descriptions + [''] * (len(references) - len(descriptions))),
@@ -229,8 +194,6 @@ class H3API:
             job = core.Job(id=job_id, engine=ENGINE, prompt=recipe['effective_prompt'], video=str(source),
                            meta={'origin_project_id': origin_project_id,
                                  'h3_references': [str(path) for path in references],
-                                 'h3_reference_origins': [('upload' if kind == 'upload' else 'character')
-                                                          for kind, _ in slots],
                                  'h3_recipe': recipe,
                                  'single_shot_only': True, 'source_info': info,
                                  'source_shot_plan': [{'start': 0, 'end': info['frames']-1,

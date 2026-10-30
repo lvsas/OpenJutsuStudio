@@ -12,6 +12,13 @@ from character_recipe import ENGINE, digest_json, validate_current_recipe, valid
 
 _ALLOWED_ARTIFACTS = {".png", ".txt"}
 CAPSULE_FORMAT = "opengenjutsu-character-capsule"
+# Which recipe schemas each capsule envelope may carry. build_capsule puts every recipe
+# that is not 6 or 7 into envelope 2, so envelope 2 must accept the newest recipe too.
+ENVELOPE_RECIPES = {1: (1, 2, 3, 4, 5), 2: (1, 2, 3, 4, 5, 8), 6: (6,), 7: (7,)}
+
+
+def allowed_recipe_versions(envelope: int) -> tuple[int, ...]:
+    return ENVELOPE_RECIPES[envelope]
 CAPSULE_SCHEMA_VERSION = 7
 LEGACY_CAPSULE_SCHEMA_VERSIONS = {1}
 REPLAY_CONTRACT = "Verified image/caption bytes and frozen recipe; pixel-identical output is not guaranteed."
@@ -135,7 +142,7 @@ def _validate_capsule_shape(capsule: dict[str, Any], job) -> None:
         raise ValueError("The frozen Character replay contract changed")
     recipe = capsule.get("recipe")
     # Legacy envelopes predate recipes 6/7; they must never hide future contracts.
-    allowed_recipes = {1: (1, 2, 3, 4, 5), 2: (1, 2, 3, 4, 5), 6: (6,), 7: (7,)}[version]
+    allowed_recipes = allowed_recipe_versions(version)
     if (not isinstance(recipe, dict) or type(recipe.get("schema_version")) is not int
             or recipe["schema_version"] not in allowed_recipes):
         raise ValueError("The frozen Character recipe contract changed")

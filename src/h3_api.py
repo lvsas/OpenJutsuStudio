@@ -103,7 +103,7 @@ class H3API:
             raise HTTPException(503, ' '.join(report.get('issues', [])) or 'H3 is not ready')
 
     async def create_job(self, request: Request, video: UploadFile = File(...),
-                         reference_images: list[UploadFile] = File(...),
+                         reference_images: list[UploadFile] = File(default=[]),
                          edit_prompt: str = Form(default='', max_length=2000),
                          seed: int = Form(default=302929098223082, ge=0, le=2**64-1),
                          project_id: str | None = Form(default=None),

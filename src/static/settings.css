@@ -68,3 +68,6 @@
   background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 8px;
   font-size: .78rem; line-height: 1.45; }
 .settings-resources pre code { background: none; padding: 0; border: 0; }
+
+/* Same breathing room as the diagnostics card above it; without it the two touch. */
+.settings-resources { margin-top: 1.25rem; }

@@ -32,7 +32,11 @@ make run         # starts the proxy and the studio together on 127.0.0.1:8000
 ```
 
 `make run` starts the SDK proxy in the right order and stops it again on Ctrl+C,
-so there is only ever one command to remember. If you already run an SDK v2
+so there is only ever one command to remember.
+
+On Windows there is no `make`: run `python scripts/launch.py` instead. It does the
+same thing in Python — finds `.venv`, starts the proxy, waits for it, then serves
+the studio — so the install is native on Windows, macOS and Linux, with no WSL. If you already run an SDK v2
 endpoint, set `OPENGENJUTSU_COMFY_BASE_URL` and skip the proxy entirely.
 
 `check_dependencies.py` is the honest gate: it walks the node classes and model

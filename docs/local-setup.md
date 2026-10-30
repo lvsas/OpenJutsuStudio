@@ -6,7 +6,7 @@ not a replacement for that API. Cloud execution is not verified by this guide.
 
 ## 1. Prerequisites
 
-- Git and a Bash shell (Linux/macOS; Windows users can use WSL).
+- Git and either a Bash shell (Linux/macOS) or Python 3.12 (Windows: use `python scripts/launch.py`).
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) on `PATH`.
   Setup uses `uv venv .venv --python 3.12`. uv can download Python 3.12 if it is
   absent; network access to the configured Python/package sources is required.

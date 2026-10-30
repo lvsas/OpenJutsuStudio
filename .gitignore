@@ -58,3 +58,4 @@ node_modules/
 !/docs/readme/demo.gif
 !/docs/audit-allowlist.txt
 !/docs/RELEASE-CHECKLIST.md
+.hermes/

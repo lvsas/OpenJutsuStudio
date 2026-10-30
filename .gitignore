@@ -60,3 +60,4 @@ node_modules/
 /scripts/probe_h3_artifact_roundtrip.py
 /scripts/record_demo.sh
 !/docs/readme/demo.gif
+!/docs/audit-allowlist.txt

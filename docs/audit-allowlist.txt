@@ -1,0 +1,4 @@
+# Intentional exceptions, reviewed: path|pattern|reason
+tests/test_h3_continuity_graphs.py|private-ipv4|asserts that private addresses are forbidden
+tests/test_continuity_nodes.py|private-ipv4|asserts that private addresses are forbidden
+tests/test_audit_privacy.py|home-path|the audit test must contain a personal-looking path to prove detection

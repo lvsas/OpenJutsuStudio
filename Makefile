@@ -2,7 +2,7 @@
 PY  := .venv/bin/python
 UV  := uv
 
-.PHONY: install setup deps run check test audit help
+.PHONY: install setup deps run check test audit privacy help
 
 help:
 	@printf '%s\n' \
@@ -12,7 +12,8 @@ help:
 	  'check     report what the executor is still missing (nodes, weights)' \
 	  'run       start the proxy and the studio on 127.0.0.1:8000' \
 	  'test      run the full test suite' \
-	  'audit     verify every workflow graph is reachable and has a terminal'
+	  'audit     verify every workflow graph is reachable and has a terminal' \
+	  'privacy   scan the tree, the published history and every remote ref'
 
 install:
 	bash scripts/setup.sh --with-proxy
@@ -39,3 +40,8 @@ test:
 
 audit:
 	$(PY) scripts/audit_workflow_graphs.py
+
+privacy:
+	$(PY) scripts/audit_privacy.py
+	$(PY) scripts/audit_privacy.py --history
+	$(PY) scripts/audit_privacy.py --refs

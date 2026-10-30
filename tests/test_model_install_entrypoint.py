@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class ColdInstallerTests(unittest.TestCase):
     def run_cli(self, *flags):
         # Keep this independent of imported config/module caches in the test runner.
-        with tempfile.TemporaryDirectory(dir=os.environ['TMPDIR']) as directory:
+        with tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR')) as directory:
             root = Path(directory)
             runtime, comfy = root / 'runtime', root / 'ComfyUI'
             environment = dict(os.environ, OPENGENJUTSU_WORK=str(runtime),

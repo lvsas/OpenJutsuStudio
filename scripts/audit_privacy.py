@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -37,8 +38,15 @@ PATTERNS = {
 
 
 def git(*args: str, binary: bool = False):
-    return subprocess.run(['git', '-C', str(ROOT), *args], capture_output=True,
-                          text=not binary, check=True)
+    try:
+        return subprocess.run(['git', '-C', str(ROOT), *args], capture_output=True,
+                              text=not binary, check=True)
+    except subprocess.CalledProcessError as error:
+        detail = (error.stderr or b'').decode('utf-8', 'replace').strip().splitlines()
+        hint = detail[-1] if detail else f'git exited {error.returncode}'
+        if 'dubious ownership' in ' '.join(detail):
+            hint += ' — run: git config --global --add safe.directory ' + str(ROOT)
+        raise SystemExit(f'git could not read this repository: {hint}') from None
 
 
 def load_allowlist() -> set[tuple[str, str]]:
@@ -168,6 +176,11 @@ def audit_refs() -> list[str]:
 
 
 def main(argv=None) -> int:
+    if not shutil.which('git'):
+        print('git is required: the audit reads the index and the object database.',
+              file=sys.stderr)
+        return 2
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--history', action='store_true', help='scan every object reachable from any ref')
     parser.add_argument('--refs', action='store_true', help='scan each ref separately')

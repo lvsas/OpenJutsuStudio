@@ -113,7 +113,7 @@ class ExecutorScopeTests(unittest.TestCase):
         self.assertTrue(graph)
 
     def test_cli_snapshot_is_offline_and_machine_readable(self):
-        with tempfile.TemporaryDirectory(dir=os.environ['TMPDIR']) as root:
+        with tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR')) as root:
             path = Path(root) / 'inventory.json'
             path.write_text(json.dumps(inventory(checker.runtime_graph('h3'))))
             output = io.StringIO()

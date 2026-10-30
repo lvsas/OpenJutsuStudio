@@ -116,3 +116,15 @@ Keep reviewable phases separate: **contract and failing regression → implement
 - [ ] Regenerate only affected generated graphs; review schema, dependency and compatibility changes. Do not silently update vendor digests or historical fixtures to make tests pass.
 - [ ] Review `git status --short`, `git diff` and `git diff --check` for accidental artifacts, secrets and unrelated work.
 - [ ] Leave a concise handoff: changed boundaries, tests verified, known limits, outstanding manual/GPU/browser checks, and the next concrete task. A contributor without hardware should be able to resume from that record.
+
+
+## Running the tests
+
+```bash
+pip install -r requirements-dev.txt      # app + httpx (TestClient)
+PYTHONPATH=src:tests python -m unittest discover -s tests -q
+```
+
+`requirements.txt` is what runs the app; `requirements-dev.txt` adds the one test
+dependency the suite needs. Continuous integration runs the same command on a clean
+Ubuntu runner.

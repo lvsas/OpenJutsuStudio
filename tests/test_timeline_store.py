@@ -27,7 +27,7 @@ def make_video(path, color="black", frames=12, fps="12", size="64x48", audio=Fal
 
 class IsolatedTimeline(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(dir=os.environ["TMPDIR"], prefix="timeline-test-")
+        self.temp = tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR"), prefix="timeline-test-")
         self.addCleanup(self.temp.cleanup)
         self.work = Path(self.temp.name)
         self.media = self.work / "media"

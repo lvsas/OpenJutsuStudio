@@ -41,7 +41,7 @@ The studio opens at <http://127.0.0.1:8000> and only listens on your own compute
 
 ### Where it renders
 
-`make run` renders on the ComfyUI you gave to `make setup`. Two other setups work the
+`make run` renders on the ComfyUI you gave to `make setup`. One other setup works the
 same way, once the commands above have run at least once:
 
 - **Another machine** — `export OPENGENJUTSU_COMFY_BASE_URL=http://comfyui-host:8189`
@@ -49,10 +49,6 @@ same way, once the commands above have run at least once:
   it. The app address must speak the Comfy SDK v2 API; the local proxy is what
   translates a stock ComfyUI into one. The two variables differ on purpose: one points
   at the proxy, the other at ComfyUI itself.
-- **In a container** — from the cloned folder, `docker compose up --build`. The image
-  runs the studio only: ComfyUI and its weights stay outside it.
-
-### Windows
 
 `make` does not exist there. After the clone, one command replaces the last three:
 `python scripts/launch.py`.
@@ -117,8 +113,8 @@ LTX state is not interchangeable.
 See [executor setup](docs/executor-setup.md) for engine-specific prerequisites,
 [dependencies](docs/dependencies.md) for file roles, and
 [weight installation](docs/local-setup.md#prepare-fixed-swap-weights) for the explicit downloader.
-No model weights ship in this repository. A container for the app is provided
-(`Dockerfile`, `docker-compose.yml`); ComfyUI itself is not containerised. Third-party
+No model weights ship in this repository, and ComfyUI itself is not installed by this
+project. Third-party
 credits and licence boundaries are in [NOTICE](NOTICE).
 
 ## Documentation

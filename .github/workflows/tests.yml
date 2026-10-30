@@ -60,12 +60,3 @@ jobs:
           for file in tests/timeline_async_contract.mjs tests/timeline_ui_contract.mjs; do
             node --experimental-vm-modules --test "$file"
           done
-
-  image:
-    name: Container builds
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build the image
-        run: docker build -t openjutsu-studio:ci .

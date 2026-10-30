@@ -164,6 +164,11 @@
         "h3-native-continuity-experimental"
       ],
       "required": false,
+      "install": {
+        "kind": "git",
+        "revision": "068a97b4786daef8d67277fe323297fb86d54a3f",
+        "verification": "upstream default branch inspected; fresh executor import not verified"
+      },
       "warning": "Native state/pin/saver contracts are separate from core MiniMax H3 support. The app's generation path is still work in progress."
     },
     {
@@ -178,6 +183,11 @@
         "h3-native-continuity-experimental"
       ],
       "required": false,
+      "install": {
+        "kind": "git",
+        "revision": "7288a04bbdde5cd793d0ec38c4de3c49a33840d0",
+        "verification": "written by this project; install the standalone repository, the vendored copy is packaging source only"
+      },
       "note": "Required for native family publication/restaging, not the baseline Swap renderer. Pin documented in docs/dependencies.md; /object_info verifies node availability, not installed commit or rendering."
     },
     {

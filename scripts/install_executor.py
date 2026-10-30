@@ -95,8 +95,23 @@ def install_registry(row: dict) -> None:
 
 
 def install_git(row: dict) -> None:
-    subprocess.run(['git', 'clone', '--depth', '1', row['source'], str(row['target'])],
-                   check=True, capture_output=True, text=True, timeout=600)
+    """Clone the declared revision, not whatever the default branch is today."""
+    target, revision = Path(row['target']), row.get('revision')
+    if not revision:
+        subprocess.run(['git', 'clone', '--depth', '1', row['source'], str(target)],
+                       check=True, capture_output=True, text=True, timeout=600)
+        return
+    target.mkdir(parents=True, exist_ok=True)
+    for command in (['git', 'init', '-q'],
+                    ['git', 'remote', 'add', 'origin', row['source']],
+                    ['git', 'fetch', '-q', '--depth', '1', 'origin', revision],
+                    ['git', 'checkout', '-q', 'FETCH_HEAD']):
+        subprocess.run(command, cwd=target, check=True, capture_output=True, text=True,
+                       timeout=600)
+    head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=target, check=True,
+                          capture_output=True, text=True, timeout=60).stdout.strip()
+    if head != revision:
+        raise ValueError(f'{row["name"]} resolved to {head[:12]}, expected {revision[:12]}')
 
 
 def main() -> int:
@@ -124,8 +139,9 @@ def main() -> int:
               'Re-run with --install to download and unpack them.')
         return 1 if missing_required else 0
 
+    installable = [row for row in rows if row['state'] == 'missing' and row['kind'] in ('git', 'registry')]
     failures = []
-    for row in missing_required:
+    for row in installable:
         try:
             print(f'installing {row["name"]} ({row["kind"]})')
             if row['kind'] == 'registry':
@@ -135,7 +151,12 @@ def main() -> int:
             else:
                 raise ValueError('no install recipe')
         except (OSError, ValueError, subprocess.SubprocessError) as error:
-            failures.append(f'{row["name"]}: {error}')
+            # An optional pack that cannot be fetched is a warning, never a broken install.
+            message = f'{row["name"]}: {error}'
+            if row['required']:
+                failures.append(message)
+            else:
+                print(f'optional pack skipped: {message}', file=sys.stderr)
 
     for failure in failures:
         print(f'failed: {failure}', file=sys.stderr)

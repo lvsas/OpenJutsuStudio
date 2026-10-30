@@ -5,8 +5,10 @@ one of them easier, faster or more reliable — never a feature for its own sake
 
 ## What comes next, in order
 
-1. **Install without friction** — one command that works on a machine that has never
-   seen ComfyUI, then a container, then a Comfy Cloud path for people without a GPU.
+1. **Install in one command.** It is three today (`make setup`, `make check`,
+   `make run`) and a container for people who prefer that. Next: `make check` should
+   be able to fix what it reports, and a Comfy Cloud path should exist for people
+   without a GPU.
 2. **Pick a person, not a description** — click someone in the frame and let SAM 3.1
    follow them. The tracking trial already followed two people across 240 frames; it
    has to become a button.
@@ -60,8 +62,8 @@ one of them easier, faster or more reliable — never a feature for its own sake
 
 ## Foundations — the debt that makes the rest possible
 
-- **Install in one command**, with a validator that names what is missing instead of
-  failing halfway; a container for the app, and a documented path for Comfy Cloud.
+- **Keep the install honest.** Every step that fails should say why; `make check`
+  names what is missing today, it could install it tomorrow.
 - **One library store.** Characters, takes, projects and reels are files and JSON
   today: honest, inspectable, and how a broken reference goes unnoticed. A small
   transactional store behind the files fixes that without hiding anything.

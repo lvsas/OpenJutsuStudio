@@ -148,11 +148,12 @@ def _validate_capsule_shape(capsule: dict[str, Any], job) -> None:
         raise ValueError("The frozen Character recipe contract changed")
     assets = capsule.get("assets")
     roles = {"image", "caption"}
-    if version in (6, 7):
-        if type(recipe.get("face_refine")) is not bool:
-            raise ValueError("The frozen Character recipe contract changed")
-        if recipe["face_refine"]:
-            roles.add("base_image")
+    # freeze_capsule records a base image whenever the job refined a face, whatever the
+    # envelope version is, so the expectation must follow the recipe rather than the envelope.
+    if "face_refine" in recipe and type(recipe.get("face_refine")) is not bool:
+        raise ValueError("The frozen Character recipe contract changed")
+    if recipe.get("face_refine") is True:
+        roles.add("base_image")
     if not isinstance(assets, dict) or set(assets) != roles:
         raise ValueError("The frozen Character artifact list changed")
     if "base_image" in roles:

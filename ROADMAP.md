@@ -27,6 +27,10 @@ No dates, no promises. A line leaves this page when it is done and tested.
   comparison, the licence and the provenance with it.
 - **A faster mode.** Eight steps with a turbo adapter, as an option, without
   touching the quality of the current path.
+- **One way to add a reference.** Today a reference can come from the file picker
+  in one place and from your character library in another. It should be the same
+  gesture everywhere: pick from your own characters first, fall back to a file
+  only when the character does not exist yet.
 
 ## Later — make it spread
 
@@ -42,6 +46,14 @@ No dates, no promises. A line leaves this page when it is done and tested.
 - One HTTP client for the executor, with timeouts and retries in a single place.
 - A shorter take graph: it is generated, and it shows.
 - Ship a container, so nobody has to assemble a ComfyUI by hand.
+- **Give the library a real database.** Characters, takes, projects and reels are
+  files and JSON today. That is honest and inspectable, and it is also how a
+  broken reference goes unnoticed. A small transactional store — with the files
+  still on disk — would make the library consistent under crashes and let the
+  same character show up in every workspace.
+- **Fewer tests, sharper ones.** The suite is large because it guards drift in
+  text and markup. Merge the overlapping UI contracts into one per screen, and
+  keep the tests that describe behaviour a person can observe.
 
 H3 native state (MCTX/COND) is not interchangeable with LTX or image state. Every
 engine advertises what it can do; nothing is inferred from a shared button.

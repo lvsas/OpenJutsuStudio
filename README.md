@@ -100,44 +100,34 @@ See [executor setup](docs/executor-setup.md) for engine-specific prerequisites,
 [weight installation](docs/local-setup.md#prepare-fixed-swap-weights) for the explicit downloader.
 No model weights ship in this repository. There is no Docker installation in this preview.
 
-## Install
+## Install, step by step
 
-Repository access may require your own authorized GitHub account.
+`make install` runs these steps for you. This is what it does, in case you prefer
+to do it yourself or need to debug one of them.
 
 ```bash
-# Install uv and FFmpeg first: see docs/local-setup.md
-git clone https://github.com/lvsas/OpenJutsuStudio.git
-cd OpenJutsuStudio
+# 1. App environment: uv, Python 3.12, FFmpeg, .venv, and the local SDK proxy
 bash scripts/setup.sh --with-proxy
-```
 
-`bash scripts/setup.sh` installs only the app dependencies. The separate
-`--with-proxy` flag explicitly opts into installing the local proxy; setup never
-starts services, installs ComfyUI/custom nodes, or downloads model weights.
-
-Start your prepared ComfyUI instance, then run the proxy in one terminal:
-
-```bash
-# Upstream ComfyUI; override this for a trusted remote server.
+# 2. Start your prepared ComfyUI, then the proxy against it
 export COMFYUI_URL=http://127.0.0.1:8188
 env -u PYTHONPATH .venv/bin/comfy-api-proxy run \
   --comfyui "$COMFYUI_URL" --host 127.0.0.1 --port 8189
+
+# 3. In a second terminal, the app
+bash scripts/run_app.sh      # or: python scripts/launch.py (Windows)
 ```
 
-In a second terminal, from the repository root:
+Open <http://127.0.0.1:8000>. App and proxy bind to loopback only.
 
-```bash
-# The launcher pins the SDK to this local proxy by default.
-bash scripts/run_app.sh
-```
+`bash scripts/setup.sh` alone installs only the app dependencies; the
+`--with-proxy` flag explicitly opts into the proxy. Setup never starts services,
+never installs ComfyUI or custom nodes, and never downloads model weights.
 
-Open <http://127.0.0.1:8000>. App and proxy bind to loopback only. The launcher
-requires Python 3.12 and clears inherited `PYTHONPATH`.
-
-Open **Settings** (`/settings`) to test and save the API-v2 target, write-only API
-key and compatible target-specific LTX/H3 Swap model filenames. Test/Save do not
-submit generation. Connection success alone does not establish engine readiness;
-see [local setup and troubleshooting](docs/local-setup.md).
+Then open **Settings** (`/settings`) to test and save the API-v2 target, the
+write-only API key and the engine model filenames. Test and Save do not submit a
+generation. A successful connection does not prove the engine is ready — see
+[local setup and troubleshooting](docs/local-setup.md).
 
 ## Documentation
 

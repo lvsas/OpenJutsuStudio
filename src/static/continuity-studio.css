@@ -19,7 +19,9 @@
 .sequence-library select{font-size:.8rem}
 .sequence-library>.btn{max-width:100%;min-height:44px;white-space:normal}
 .library-takes{list-style:none;padding:0;margin:.75rem 0;display:grid;gap:.6rem;align-content:start;flex:1 1 auto;min-height:0;max-height:100dvh;overflow-y:auto;overscroll-behavior:contain}
-.library-take{display:flex;align-items:center;gap:.5rem;min-width:0;border:1px solid var(--line);border-radius:.6rem;padding:.5rem}
+.library-take{display:flex;align-items:center;gap:.5rem;min-width:0;flex-wrap:wrap;row-gap:.45rem;border:1px solid var(--line);border-radius:.6rem;padding:.5rem}
+.library-take .btn{padding:.15rem .5rem;font-size:.62rem;line-height:1.5;white-space:nowrap}
+.library-take-info{flex:1 1 7rem}
 .library-preview{display:flex;align-items:center;gap:.6rem;min-width:0;min-height:44px;flex:1;background:none;color:var(--text);border:0;text-align:left;cursor:pointer;padding:0}
 .library-preview[aria-pressed=true]{border-radius:.4rem;box-shadow:0 0 0 1px var(--accent)}
 .library-preview .sequence-poster{width:58px;height:62px;flex:0 0 58px}

@@ -132,15 +132,33 @@ class H3API:
         if ('clip_start_seconds' in form or 'clip_end_seconds' in form) and \
                 (clip_start_seconds is None or clip_end_seconds is None):
             raise HTTPException(422, 'Provide both clip_start_seconds and clip_end_seconds')
-        # A saved character is already proven intact by the library; it enters exactly
-        # like an upload, so nothing downstream has to know where the image came from.
-        gallery_ids = list(dict.fromkeys(
-            str(item).strip() for item in form.getlist('reference_job_ids') if str(item).strip()))
-        gallery_paths, gallery_reasons = character_references.resolve(
-            gallery_ids, CharacterLibrary(self.get_media_dir), REFERENCE_SLOTS - len(reference_images))
-        if gallery_reasons:
-            raise HTTPException(422, ' '.join(gallery_reasons))
-        total_references = len(reference_images) + len(gallery_paths)
+        # Slot order is the contract: each entry says where that slot's image comes from.
+        # Keeping it explicit is what lets slot 1 be a saved character and slot 2 a file.
+        declared = [str(item).strip() for item in form.getlist('reference_sources')]
+        sources = declared or ['upload'] * len(reference_images)
+        if len(sources) != len(declared) and len(sources) != len(reference_images):
+            raise HTTPException(422, 'H3 reference list does not match its sources')
+        uploads = iter(reference_images)
+        slots, reasons = [], []
+        for source in sources:
+            if source == 'upload':
+                upload = next(uploads, None)
+                if upload is None:
+                    reasons.append('A slot asked for an uploaded file that was not sent.')
+                    continue
+                slots.append(('upload', upload))
+            elif source.startswith('gallery:'):
+                job_id = source.split(':', 1)[1].strip()
+                paths, why = character_references.resolve([job_id], CharacterLibrary(self.get_media_dir), 1)
+                if why:
+                    reasons.append(why[0])
+                else:
+                    slots.append(('gallery', paths[0]))
+            else:
+                reasons.append(f'Unknown reference source: {source}')
+        if reasons:
+            raise HTTPException(422, ' '.join(reasons))
+        total_references = len(slots)
         if not 1 <= total_references <= REFERENCE_SLOTS:
             raise HTTPException(422, f'H3 accepts between 1 and {REFERENCE_SLOTS} reference images')
         # The ordered plural field is canonical. The shipped single-description
@@ -191,10 +209,11 @@ class H3API:
                 source = excerpt
             if not 1 <= info['duration'] * 24 <= MAX_CLIP_SECONDS * 24:
                 raise HTTPException(422, 'H3 source must fit within 1–360 frames at 24fps')
-            for upload, destination in zip(reference_images, references):
-                await save_reference(upload, destination, self.limit)
-            for origin, destination in zip(gallery_paths, references[len(reference_images):]):
-                await asyncio.to_thread(shutil.copyfile, origin, destination)
+            for (kind, value), destination in zip(slots, references):
+                if kind == 'upload':
+                    await save_reference(value, destination, self.limit)
+                else:
+                    await asyncio.to_thread(shutil.copyfile, value, destination)
             recipe = make_recipe(preserve_clip=edit_prompt, seed=seed,
                                  reference_descriptions=tuple(
                                      descriptions + [''] * (len(references) - len(descriptions))),
@@ -208,8 +227,8 @@ class H3API:
             job = core.Job(id=job_id, engine=ENGINE, prompt=recipe['effective_prompt'], video=str(source),
                            meta={'origin_project_id': origin_project_id,
                                  'h3_references': [str(path) for path in references],
-                                 'h3_reference_origins': (['upload'] * len(reference_images)
-                                                          + [f'character:{value}' for value in gallery_ids[:len(gallery_paths)]]),
+                                 'h3_reference_origins': [('upload' if kind == 'upload' else 'character')
+                                                          for kind, _ in slots],
                                  'h3_recipe': recipe,
                                  'single_shot_only': True, 'source_info': info,
                                  'source_shot_plan': [{'start': 0, 'end': info['frames']-1,

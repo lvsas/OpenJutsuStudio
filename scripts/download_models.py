@@ -15,13 +15,17 @@ from model_download import fetch, relative_name, source_contract
 FOLDERS = {'UNETLoader': 'diffusion_models', 'CLIPLoader': 'text_encoders',
            'VAELoader': 'vae', 'VAELoaderKJ': 'vae', 'LoraLoaderModelOnly': 'loras',
            'MinimaxH3LatentUpscaler3D': 'latent_upscale_models'}
+# The character generator has its own section: its files are gated on Hugging Face
+# and are not part of the fixed swap-role catalog.
+CHARACTER_FOLDERS = {'char_unet': 'diffusion_models', 'char_clip': 'text_encoders',
+                     'char_upsampler': 'text_encoders', 'char_vae': 'vae'}
 
 
 def build_plan(manifest, engine='all'):
     """Return (resolved items, unresolved labels), using declared defaults only."""
     catalog = {r['key']: r for r in roles()}
     found, unresolved, plan = {}, [], []
-    if not isinstance(manifest, dict) or engine not in ('all', 'ltx', 'h3'):
+    if not isinstance(manifest, dict) or engine not in ('all', 'ltx', 'h3', 'char'):
         return [], ['Invalid manifest or engine']
     for section in ('models', 'loras'):
         entries = manifest.get(section, [])
@@ -54,13 +58,30 @@ def build_plan(manifest, engine='all'):
             plan.append({'role_key': key, 'relative': relative, 'download': dict(entry['download'])})
         except (ValueError, TypeError, KeyError):
             unresolved.append(key)
+    if engine in ('char', 'all'):
+        entries = manifest.get('character_models', [])
+        if not isinstance(entries, list):
+            unresolved.append('Invalid character_models section')
+        else:
+            for entry in entries:
+                key = entry.get('role_key') if isinstance(entry, dict) else None
+                try:
+                    folder = CHARACTER_FOLDERS[key]
+                    if entry.get('folder') != folder:
+                        raise ValueError()
+                    relative = relative_name(folder + '/' + entry['file'])
+                    source_contract(entry.get('download'))
+                    plan.append({'role_key': key, 'relative': relative,
+                                 'download': dict(entry['download'])})
+                except (ValueError, TypeError, KeyError):
+                    unresolved.append(key or 'Invalid character entry')
     return plan, unresolved
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--comfyui', required=True, help='Explicit ComfyUI root (models must exist for downloads)')
-    parser.add_argument('--engine', choices=('ltx', 'h3', 'all'), default='all')
+    parser.add_argument('--engine', choices=('ltx', 'h3', 'char', 'all'), default='all')
     parser.add_argument('--manifest', type=Path, default=ROOT / 'dependencies.json')
     parser.add_argument('--download', action='store_true', help='Explicitly permit network and model writes')
     parser.add_argument('--dry-run', action='store_true', help='Plan only, even with --download')

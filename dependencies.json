@@ -537,6 +537,80 @@
       ]
     }
   ],
+  "character_models": [
+    {
+      "file": "flux/flux3-image-klein-base-int8-convrot.safetensors",
+      "folder": "diffusion_models",
+      "loader": "UNETLoader",
+      "role": "FLUX 3 Klein base, character images",
+      "engines": [
+        "char"
+      ],
+      "role_key": "char_unet",
+      "download": {
+        "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/feef60b0aaf63a4773ace96636ebbcf43b881312/diffusion_models/flux3-image-klein-base-int8-convrot.safetensors",
+        "revision": "feef60b0aaf63a4773ace96636ebbcf43b881312",
+        "size_bytes": 5807427339,
+        "gated": true,
+        "integrity_source": "huggingface-gated-no-published-hash",
+        "access": "gated-auto"
+      }
+    },
+    {
+      "file": "qwen3vl_4b_int8_convrot.safetensors",
+      "folder": "text_encoders",
+      "loader": "CLIPLoader",
+      "role": "FLUX 3 image and text encoder",
+      "engines": [
+        "char"
+      ],
+      "role_key": "char_clip",
+      "download": {
+        "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/feef60b0aaf63a4773ace96636ebbcf43b881312/text_encoders/qwen3vl_4b_int8_convrot.safetensors",
+        "revision": "feef60b0aaf63a4773ace96636ebbcf43b881312",
+        "size_bytes": 4858559240,
+        "gated": true,
+        "integrity_source": "huggingface-gated-no-published-hash",
+        "access": "gated-auto"
+      }
+    },
+    {
+      "file": "qwen3.5_9b_flux3_prompt_upsampler_int8_convrot.safetensors",
+      "folder": "text_encoders",
+      "loader": "CLIPLoader",
+      "role": "FLUX 3 prompt upsampler",
+      "engines": [
+        "char"
+      ],
+      "role_key": "char_upsampler",
+      "download": {
+        "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/feef60b0aaf63a4773ace96636ebbcf43b881312/text_encoders/qwen3.5_9b_flux3_prompt_upsampler_int8_convrot.safetensors",
+        "revision": "feef60b0aaf63a4773ace96636ebbcf43b881312",
+        "size_bytes": 9748113996,
+        "gated": true,
+        "integrity_source": "huggingface-gated-no-published-hash",
+        "access": "gated-auto"
+      }
+    },
+    {
+      "file": "flux2-vae.safetensors",
+      "folder": "vae",
+      "loader": "VAELoader",
+      "role": "FLUX 3 VAE",
+      "engines": [
+        "char"
+      ],
+      "role_key": "char_vae",
+      "download": {
+        "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/feef60b0aaf63a4773ace96636ebbcf43b881312/vae/flux2-vae.safetensors",
+        "revision": "feef60b0aaf63a4773ace96636ebbcf43b881312",
+        "size_bytes": 336211292,
+        "gated": true,
+        "integrity_source": "huggingface-gated-no-published-hash",
+        "access": "gated-auto"
+      }
+    }
+  ],
   "loras": [
     {
       "file": "H3/h3_character_swap_v1.5.safetensors",

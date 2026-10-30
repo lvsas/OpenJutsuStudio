@@ -160,7 +160,12 @@ def fetch(item, comfyui, opener=None):
             raise ValueError(ERROR)
         stage = name + '.' + uuid.uuid4().hex + '.part'
         stage_fd = os.open(stage, os.O_CREAT | os.O_EXCL | os.O_RDWR | os.O_NOFOLLOW, 0o600, dir_fd=directory)
-        request = urllib.request.Request(source['url'], headers={'User-Agent': 'OpenGenjutsu-model-installer'})
+        if source.get('gated') and not os.environ.get('HF_TOKEN'):
+            return 'skip (gated: export HF_TOKEN and accept the model terms)'
+        headers = {'User-Agent': 'OpenGenjutsu-model-installer'}
+        if os.environ.get('HF_TOKEN'):
+            headers['Authorization'] = 'Bearer ' + os.environ['HF_TOKEN']
+        request = urllib.request.Request(source['url'], headers=headers)
         open_url = opener or urllib.request.build_opener(SafeRedirect()).open
         with os.fdopen(stage_fd, 'w+b') as stream:
             with open_url(request, timeout=60) as response:

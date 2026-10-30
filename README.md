@@ -126,7 +126,7 @@ What each step does, and what it refuses to do:
 | Step | Installs | Refuses |
 | --- | --- | --- |
 | `make install` | the app, its `.venv`, and the local SDK proxy | starting services, touching ComfyUI |
-| `make deps` | the node packs declared in `dependencies.json` (registry archives are hash-checked) and the swap weights for the engines in `dependencies.json` | overwriting an existing pack, installing a pack with no declared source |
+| `make deps` | the node packs declared in `dependencies.json` (registry archives are hash-checked), the swap weights, and the character models (`HF_TOKEN` needed: that repository is gated) | overwriting an existing pack, installing a pack with no declared source |
 | `make check` | nothing | passing silently when a node class or weight is missing |
 
 `make deps` does not install ComfyUI itself, and it does not download every model

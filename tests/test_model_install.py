@@ -56,14 +56,25 @@ class InstallerTests(unittest.TestCase):
         manifest = json.loads((ROOT / 'dependencies.json').read_text())
         plan, unresolved = cli.build_plan(manifest)
         self.assertEqual(unresolved, [])
-        self.assertEqual({item['role_key'] for item in plan}, {role['key'] for role in cli.roles()})
-        for item in plan:
+        swap = {role['key'] for role in cli.roles()}
+        swap_items = [item for item in plan if item['role_key'] in swap]
+        self.assertEqual({item['role_key'] for item in swap_items}, swap)
+        for item in swap_items:
             source = item['download']
             self.assertRegex(source['revision'], r'^[0-9a-f]{40}$')
             self.assertIn('/resolve/' + source['revision'] + '/', source['url'])
             self.assertGreater(source['size_bytes'], 8)
             self.assertRegex(source['sha256'], r'^[0-9a-f]{64}$')
             self.assertEqual(source['integrity_source'], 'huggingface-lfs-metadata')
+        # Character files live on a gated repository: pinned, sized, but with no
+        # published hash. They must say so rather than pretend to be verified.
+        for item in plan:
+            if item['role_key'] in swap:
+                continue
+            source = item['download']
+            self.assertTrue(source.get('gated'), item['role_key'])
+            self.assertNotIn('sha256', source, item['role_key'])
+            self.assertEqual(source['integrity_source'], 'huggingface-gated-no-published-hash')
 
     def test_signed_huggingface_redirect_allowed_without_logging_url(self):
         from model_download import SafeRedirect

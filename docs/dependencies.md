@@ -11,7 +11,11 @@ python3 scripts/check_dependencies.py --host http://127.0.0.1:8188 --engine h3
 python3 scripts/check_dependencies.py --host http://127.0.0.1:8188 --engine ltx
 ```
 
-The downloader covers **7 H3 Swap files** or **8 LTX Swap files**, not all features.
+The downloader covers **7 H3 Swap files**, **8 LTX Swap files**, or **4 Character
+files**, not all features. The Character files live in a gated Hugging Face
+repository: they are pinned to a revision and sized, but they publish no hash and
+they need `HF_TOKEN` (after accepting the model terms) to download. `make deps`
+reports them as gated instead of failing an unauthenticated request.
 It does not install custom nodes. Descriptions, Characters and native continuation
 have additional prerequisites. Inventory verifies loader choices, not CUDA
 compatibility, installed source bytes or rendering quality.

@@ -131,7 +131,7 @@ def check(object_info, manifest, include_planned=False, selected_features=()):
 
 def runtime_graph(engine, *, descriptions=False):
     """The shipped Swap builders, declared defaults only; never submit or resolve Settings."""
-    if engine not in ('ltx', 'h3', 'all'):
+    if engine not in ('ltx', 'h3', 'char', 'all'):
         raise ValueError('Unknown Swap engine')
     if descriptions and engine == 'ltx':
         raise ValueError('Vision descriptions belong to H3')
@@ -258,7 +258,7 @@ def main(argv=None):
     parser.add_argument("--host", default="http://127.0.0.1:8188",
                         help="base URL of the ComfyUI to check")
     parser.add_argument("--manifest", default=str(MANIFEST))
-    parser.add_argument('--engine', choices=('ltx', 'h3', 'all'),
+    parser.add_argument('--engine', choices=('ltx', 'h3', 'char', 'all'),
                         help='Check real Swap graph scope, not all historical templates')
     parser.add_argument('--with-descriptions', action='store_true',
                         help='Include optional H3 vision node/model/quantization choices')

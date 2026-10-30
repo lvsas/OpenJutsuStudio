@@ -9,7 +9,7 @@ an H3 take to continue the story, then share a vertical comparison Reel.
 
 **Local-first · Your GPU, your footage · [Apache-2.0](LICENSE)**
 
-[Install](#install) · [Creative loop](#the-creative-loop) · [Roadmap](ROADMAP.md) · [Documentation](docs/README.md)
+[Install](#install-step-by-step) · [Creative loop](#the-creative-loop) · [Roadmap](ROADMAP.md) · [Documentation](docs/README.md)
 
 <p align="center"><img src="docs/readme/demo.gif" alt="Three moments from the studio: the two reference boards, the recast shot, and the stitched continuation" width="820"></p>
 

@@ -20,6 +20,11 @@ TEMPLATES = {
     'h3-continuity-latent.api.json': ('h3_latent_graphs.py', 83, 'H3JointConditioning'),
 }
 
+# a compiled graph needs a terminal; a template gets one appended at build time
+SUBMITTABLE = ('ltx-frame-edit.api.json', 'ltx-ripple.api.json', 'h3-recast.api.json',
+               'h3-native-take.api.json', 'h3-continuity-latent.api.json')
+INJECTED = {'h3-prompt-r2va.template.json'}
+
 
 def nodes_of(path: Path) -> dict:
     body = json.loads(path.read_text())
@@ -61,6 +66,26 @@ class WorkflowTemplateMapping(unittest.TestCase):
                               if re.search(r"workflows/" + re.escape(name), path.read_text())]
                 self.assertEqual(referenced, [builder],
                                  f'{name} must be compiled by {builder} only, found {referenced}')
+
+    def test_submittable_graphs_have_a_terminal_and_no_orphans(self):
+        from audit_workflow_graphs import audit
+        for name in SUBMITTABLE:
+            with self.subTest(graph=name):
+                report = audit(WORKFLOWS / name)
+                self.assertGreaterEqual(len(report['terminals']), 1,
+                                        f'{name} has no output node, so it cannot be submitted')
+                self.assertEqual(report['orphans'], [],
+                                 f'{name} carries unreachable nodes: {report["orphans"]}')
+                self.assertEqual(report['dangling'], [])
+
+    def test_templates_declare_no_terminal_because_the_builder_adds_one(self):
+        from audit_workflow_graphs import audit
+        for name in INJECTED:
+            with self.subTest(template=name):
+                report = audit(WORKFLOWS / name)
+                self.assertEqual(report['terminals'], [],
+                                 f'{name} is named template but already has an output node')
+                self.assertTrue(name.endswith('.template.json'))
 
     def test_readme_documents_both_templates(self):
         # These two are adopted graphs, not script exports: the README is the only

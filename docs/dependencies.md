@@ -223,7 +223,7 @@ not every application feature.
 ## Named by the adopted continuity and prompt workflows
 
 These are referenced by `workflows/h3-continuity-latent.api.json` and
-`workflows/h3-prompt-r2va.api.json`. They are recorded so the inventory check
+`workflows/h3-prompt-r2va.template.json`. They are recorded so the inventory check
 stays honest; the pack origin of the node groups above is not yet verified on the
 target machine. A style adapter listed as optional is not required to generate.
 

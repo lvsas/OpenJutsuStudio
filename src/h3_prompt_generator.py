@@ -16,7 +16,7 @@ import json
 from pathlib import Path
 import re
 
-TEMPLATE = Path(__file__).resolve().parents[1] / 'workflows/h3-prompt-r2va.api.json'
+TEMPLATE = Path(__file__).resolve().parents[1] / 'workflows/h3-prompt-r2va.template.json'
 POLICY_VERSION = 'h3-r2va-v1'
 OUTPUT_NODE = 'prompt_text'
 DIRECTION_NODE = '5833_15'      # the user-owned subject/description slot

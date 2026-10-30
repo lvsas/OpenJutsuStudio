@@ -14,7 +14,16 @@ env -u PYTHONPATH .venv/bin/python scripts/export_workflows.py
 | `h3-recast.api.json` | MiniMax H3 two-pass character swap — the H3 Studio take | 26 |
 | `flux3-klein-official-t2i.json` | FLUX 3 Klein base text-to-image — immutable vendor source for Viral Character Maker | 19 |
 | `h3-native-take.api.json` | MiniMax H3 native take — roots and Swap results, carrying the MCTX capsules | 52 |
-| `h3-continuity-latent.api.json` | MiniMax H3 full-latent continuity — the graph that continues a saved Take | 83 |
+| `h3-continuity-latent.api.json` | MiniMax H3 full-latent continuity — continues a saved Take | 83 |
+
+One file is a **template**, not a submittable graph: `build_prompt_graph` appends its
+`SaveText` node at compile time, so opening the raw file in ComfyUI shows the tail
+unconnected. It is named `.template.json` for that reason, and the test suite
+enforces the distinction.
+
+| Template | Builder | Terminal added at compile time |
+| --- | --- | --- |
+| `h3-prompt-r2va.template.json` | `src/h3_prompt_generator.py` | `SaveText` |
 
 ## The two H3 take graphs, and why both exist
 
@@ -38,7 +47,8 @@ otherwise both paths would submit the same work under two names.
 
 Naming the first one `h3-continuity-base` was misleading: on its own it has no
 continuation nodes at all. `tests/test_workflow_templates.py` pins the sizes, the
-markers and the one-builder-per-template mapping.
+markers and the one-builder-per-template mapping, and checks that every tracked `.api.json`
+is submittable on its own, while the one `.template.json` deliberately is not.
 
 ## Why these graphs are tracked
 

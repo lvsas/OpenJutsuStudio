@@ -129,8 +129,6 @@ class H3API:
         if ('clip_start_seconds' in form or 'clip_end_seconds' in form) and \
                 (clip_start_seconds is None or clip_end_seconds is None):
             raise HTTPException(422, 'Provide both clip_start_seconds and clip_end_seconds')
-        if not 1 <= len(form.getlist('reference_images')) <= REFERENCE_SLOTS:
-            raise HTTPException(422, f'H3 accepts between 1 and {REFERENCE_SLOTS} reference images')
         # The ordered plural field is canonical. The shipped single-description
         # form (and cached clients) uses the singular alias for reference 1.
         descriptions = form.getlist('character_descriptions')
@@ -154,6 +152,8 @@ class H3API:
         source = media_dir / f'{job_id}-source{suffix}'
         original = source
         excerpt = media_dir / f'{job_id}-excerpt.mp4'
+        if not 1 <= len(reference_images) <= REFERENCE_SLOTS:
+            raise HTTPException(422, f'H3 accepts between 1 and {REFERENCE_SLOTS} reference images')
         references = [media_dir / f'{job_id}-reference-{index + 1}.png'
                       for index in range(len(reference_images))]
         created = []
@@ -193,7 +193,8 @@ class H3API:
                 origin_project_id = submission_project(None, media_dir)
             job = core.Job(id=job_id, engine=ENGINE, prompt=recipe['effective_prompt'], video=str(source),
                            meta={'origin_project_id': origin_project_id,
-                                 'h3_references': [str(path) for path in references], 'h3_recipe': recipe,
+                                 'h3_references': [str(path) for path in references],
+                                 'h3_recipe': recipe,
                                  'single_shot_only': True, 'source_info': info,
                                  'source_shot_plan': [{'start': 0, 'end': info['frames']-1,
                                                        'fps': info['fps']}]})

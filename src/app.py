@@ -53,6 +53,7 @@ def _continuity_models() -> H3ContinuityModels:
     return H3ContinuityModels(unet=Weight(unet), clip=Weight(recipe.clip),
                               video_vae=Weight(recipe.video_vae),
                               audio_vae=Weight(recipe.audio_vae))
+import character_recovery
 from character_studio_app import register_optional_characters
 from timeline_api import create_router as create_timeline_router
 from continuable_take_api import create_router as create_continuity_router
@@ -245,6 +246,12 @@ app.include_router(create_take_capsule_router(
     model_readiness_check=lambda models: check_readiness(required_graph=ltx_required_graph(models))))
 register_optional_h3(app, _EXECUTOR, lambda: MEDIA_DIR, MAX_UPLOAD_BYTES)
 register_optional_characters(app, _EXECUTOR, lambda: MEDIA_DIR)
+
+
+@app.on_event("startup")
+def _close_characters_interrupted_by_a_restart() -> None:
+    """A job whose thread died with the previous process can never finish."""
+    character_recovery.fail_interrupted(core.WORK)
 
 
 @app.get("/health")

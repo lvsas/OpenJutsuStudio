@@ -33,7 +33,8 @@ class GalleryChooserTests(unittest.TestCase):
 
     def test_a_slot_enabled_later_still_gets_a_button(self):
         self.assertIn('MutationObserver', SCRIPT)
-        self.assertIn("attributeFilter: ['disabled', 'class']", SCRIPT)
+        self.assertIn("attributeFilter: ['disabled']", SCRIPT)
+        self.assertIn('button.disabled !== next', SCRIPT)
 
     def test_an_empty_library_points_at_the_character_page(self):
         self.assertIn('/characters', SCRIPT)

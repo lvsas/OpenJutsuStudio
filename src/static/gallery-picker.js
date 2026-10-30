@@ -37,6 +37,18 @@ import {applyCharacterReference} from '/static/character-handoff.js';
     return button;
   }
 
+  function describe(input, button) {
+    // A slot that already holds a reference has nothing to gain from the gallery, and a
+    // slot that is still disabled cannot receive one. Say so instead of failing on click.
+    const filled = Boolean(input.files && input.files.length);
+    button.disabled = Boolean(input.disabled) || filled;
+    button.title = input.disabled
+      ? 'Enable this reference slot first.'
+      : filled ? 'Remove the current character reference to choose from the gallery.'
+               : 'Choose a saved character for this slot.';
+    button.setAttribute('aria-disabled', button.disabled ? 'true' : 'false');
+  }
+
   function mount(form) {
     const inputs = [...form.querySelectorAll('input[type="file"][name="reference_images"]')];
     if (!inputs.length || form.dataset.galleryChooser === 'on') return;
@@ -52,14 +64,17 @@ import {applyCharacterReference} from '/static/character-handoff.js';
     const close = () => dialog.close();
     dialog.querySelector('.gallery-close').addEventListener('click', close);
 
+    // Every slot gets a button, even a disabled one: it explains why it cannot be used
+    // yet, and it is already in place when the slot becomes available.
     inputs.forEach(input => {
-      if (input.disabled) return;
       const label = form.querySelector(`label[for="${input.id}"]`);
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'btn gallery-open';
+      button.dataset.slot = input.id;
       button.textContent = 'From gallery';
       (label || input).insertAdjacentElement('afterend', button);
+      describe(input, button);
       button.addEventListener('click', async () => {
         grid.textContent = 'Loading…';
         if (typeof dialog.showModal === 'function') dialog.showModal();
@@ -79,7 +94,7 @@ import {applyCharacterReference} from '/static/character-handoff.js';
           for (const character of characters) {
             const item = card(character, close);
             item.addEventListener('click', async () => {
-              if (await choose(input, character.job_id)) close();
+              if (await choose(input, character.job_id)) { describe(input, button); close(); }
             });
             grid.appendChild(item);
           }
@@ -90,7 +105,20 @@ import {applyCharacterReference} from '/static/character-handoff.js';
     });
   }
 
-  function boot() { document.querySelectorAll('form').forEach(mount); }
+  function watch(form) {
+    // Slots are enabled and emptied by other scripts; the button has to follow them.
+    const refresh = () => form.querySelectorAll('.gallery-open').forEach(button => {
+      const input = form.querySelector(`#${button.dataset.slot}`);
+      if (input) describe(input, button);
+    });
+    new MutationObserver(refresh).observe(form, {subtree: true, attributes: true,
+                                                 attributeFilter: ['disabled', 'class']});
+    form.addEventListener('change', refresh, true);
+  }
+
+  function boot() {
+    document.querySelectorAll('form').forEach(form => { mount(form); watch(form); });
+  }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once: true});
   else boot();
 })();

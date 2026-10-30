@@ -26,6 +26,15 @@ class GalleryChooserTests(unittest.TestCase):
         self.assertNotIn('reference_sources', SCRIPT)
         self.assertNotIn('reference_job_ids', SCRIPT)
 
+    def test_a_filled_or_disabled_slot_offers_no_deception(self):
+        self.assertIn('button.disabled', SCRIPT)
+        self.assertIn('Remove the current character reference', SCRIPT)
+        self.assertIn('Enable this reference slot first', SCRIPT)
+
+    def test_a_slot_enabled_later_still_gets_a_button(self):
+        self.assertIn('MutationObserver', SCRIPT)
+        self.assertIn("attributeFilter: ['disabled', 'class']", SCRIPT)
+
     def test_an_empty_library_points_at_the_character_page(self):
         self.assertIn('/characters', SCRIPT)
         self.assertIn('No saved characters yet', SCRIPT)

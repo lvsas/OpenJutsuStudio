@@ -163,6 +163,11 @@ class CharacterLibrary:
             raise LibraryError(409, "The caption file is unreadable.") from exc
         if empty:
             raise LibraryError(409, "The character caption is empty. Regenerate the character, then save it.")
+        return image
+
+    def completed_image(self, job_id):
+        """The verified image path of a finished character, or a LibraryError saying why not."""
+        return self._completed(job_id)
 
     def save(self, job_id, payload):
         validate_id(job_id)

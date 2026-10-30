@@ -32,6 +32,12 @@ def port_open(host: str, port: int, timeout: float = 0.25) -> bool:
         return False
 
 
+def missing_venv_hint() -> str:
+    """The interpreter path differs per platform; the hint must follow it."""
+    return ('No .venv yet. Run: uv venv --python 3.12, then '
+            f'uv pip install --python "{venv_bin('python')}" -r requirements.txt')
+
+
 def refuse(line: str) -> None:
     print(line, file=sys.stderr)
     raise SystemExit(1)
@@ -44,8 +50,7 @@ def main() -> int:
                'Set OPENGENJUTSU_HOST to one explicit trusted address.')
     python = venv_bin('python')
     if not python.exists():
-        refuse('No .venv yet. Run: uv venv --python 3.12 && '
-               'uv pip install --python .venv/bin/python -r requirements.txt')
+        refuse(missing_venv_hint())
 
     app_port = int(os.environ.get('OPENGENJUTSU_PORT', '8000'))
 

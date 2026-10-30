@@ -56,7 +56,7 @@ class CompetitionRequirementsTests(unittest.TestCase):
         public = {'docs/README.md', 'docs/local-setup.md', 'docs/executor-setup.md',
                   'docs/dependencies.md', 'docs/model-licences.md',
                   'docs/readme/h3-studio-current.png', 'docs/readme/demo.gif',
-                  'docs/audit-allowlist.txt'}
+                  'docs/audit-allowlist.txt', 'docs/RELEASE-CHECKLIST.md'}
         tracked = [str(path.relative_to(ROOT)) for path in release_paths(ROOT)
                    if path.relative_to(ROOT).parts[0] == 'docs']
         self.assertEqual(sorted(set(tracked) - public - {''}), [],

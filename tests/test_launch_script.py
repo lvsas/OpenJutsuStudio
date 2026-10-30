@@ -32,6 +32,11 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(path.parent.name, 'Scripts' if os.name == 'nt' else 'bin')
         self.assertEqual(path.name, 'python.exe' if os.name == 'nt' else 'python')
 
+    def test_the_missing_venv_hint_uses_the_platform_interpreter_path(self):
+        hint = launch.missing_venv_hint()
+        self.assertIn(str(launch.venv_bin('python')), hint)
+        self.assertIn('uv venv --python 3.12', hint)
+
     def test_a_wildcard_bind_is_refused_before_anything_starts(self):
         for host in ('0.0.0.0', '::', '[::]'):
             with patch.dict(os.environ, {'OPENGENJUTSU_HOST': host}):

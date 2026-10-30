@@ -57,3 +57,4 @@ node_modules/
 /scripts/record_demo.sh
 !/docs/readme/demo.gif
 !/docs/audit-allowlist.txt
+!/docs/RELEASE-CHECKLIST.md

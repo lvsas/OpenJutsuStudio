@@ -59,3 +59,4 @@ node_modules/
 # and is also imported by the shipped check_h3_boundary_policy.py command.
 /scripts/probe_h3_artifact_roundtrip.py
 /scripts/record_demo.sh
+!/docs/readme/demo.gif

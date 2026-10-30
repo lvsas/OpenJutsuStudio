@@ -110,6 +110,10 @@ LTX state is not interchangeable.
   nodes and model weights. **24 GB VRAM is recommended**, not a fit guarantee.
 - Official **Comfy SDK 0.5.x** transport; the local setup uses an API-v2 proxy.
 
+Everything the executor needs is on the **Settings** page: the connection to your
+ComfyUI, a read-only test of that target, and a **Resources** panel that lists the node
+classes and weights still missing, with the commands to install them.
+
 See [executor setup](docs/executor-setup.md) for engine-specific prerequisites,
 [dependencies](docs/dependencies.md) for file roles, and
 [weight installation](docs/local-setup.md#prepare-fixed-swap-weights) for the explicit downloader.

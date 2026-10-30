@@ -7,11 +7,11 @@
 Create a character or bring your own reference. Swap the cast of a clip, reopen
 an H3 take to continue the story, then share a vertical comparison Reel.
 
-**v0.1.0-alpha.1 · Development preview · Local-first · Official Comfy SDK · [Apache-2.0](LICENSE)**
+**Local-first · Your GPU, your footage · [Apache-2.0](LICENSE)**
 
 [Install](#install) · [Creative loop](#the-creative-loop) · [Roadmap](ROADMAP.md) · [Documentation](docs/README.md)
 
-![Three moments from the studio: the two reference boards, the recast shot, and the stitched continuation](docs/readme/demo.gif)
+<p align="center"><img src="docs/readme/demo.gif" alt="Three moments from the studio: the two reference boards, the recast shot, and the stitched continuation" width="820"></p>
 
 *Recorded in the running application on 30 October 2026: the two reference boards,
 a real Swap result, then one continuous clip — the end of a Take followed by the
@@ -44,23 +44,14 @@ files the selected engines need and prints what the executor is missing, before
 any generation is attempted. It exits non-zero, so it can run in CI or gate a
 deployment.
 
-**What it costs to run**, compared with the other open entries, without flattery:
+**What it costs to run:** about 24 GB of VRAM, your own ComfyUI, no account and
+no credits. `make check` names the exact node or weight that is missing instead of
+failing mid-generation.
 
-| | Commands | Executor | Hardware and account |
-| --- | --- | --- | --- |
-| Open Jutsu Studio | 3 (`make install`, `make check`, `make run`) | **your own ComfyUI**, plus a loopback SDK proxy that `make run` starts for you | **24 GB VRAM**, no account, no credits |
-| Rigless | 1 (`uv sync && uv run rigless`) | its own pipeline, GPU driven from inside the app | **48 GB VRAM** locally, or RunPod with ~67 GB of weights |
-| Comfy Openjutsu | 3 commands, plus a deployment you must create yourself | a **Comfy Developer Platform** deployment with a patched node pack | cloud credits, 96 GB GPU tested |
-
-Where we are worse: Rigless installs in one command and can rent the GPU for you;
-Comfy Openjutsu needs no proxy at all. Where we are better: no account, no
-credits, half the VRAM, and `make check` names the exact node or weight that is
-missing instead of failing mid-generation.
-
-The proxy is not decoration. The application speaks the Comfy **SDK v2** API; a
-stock ComfyUI serves v1, so a loopback process translates between them. If you
-already run an SDK v2 endpoint, point `OPENGENJUTSU_COMFY_BASE_URL` at it and the
-proxy disappears from the picture.
+The local proxy is not decoration: the application speaks the Comfy **SDK v2**
+API, a stock ComfyUI serves v1, and a loopback process translates between them.
+If you already run an SDK v2 endpoint, point `OPENGENJUTSU_COMFY_BASE_URL` at it
+and the proxy disappears from the picture.
 
 ## The creative loop
 
@@ -83,30 +74,6 @@ the SDK, reopening and continuation in one workspace. A recipe records the rende
 not a complete native backup. Upstream engines define the state formats: H3 and
 LTX state is not interchangeable.
 
-## How this differs from the other open entries
-
-The challenge asked for a clonable app, not a demo. Three open projects answer it
-differently, and it is fairer to say where each one is stronger.
-
-| | Open Jutsu Studio | Rigless | Comfy Openjutsu |
-| --- | --- | --- | --- |
-| Unit of work | a **Take** with MP4 + MCTX + COND | a swapped clip | a swapped clip |
-| Continuation | **native, from the saved state** | not offered | not offered |
-| Character creation | **in the same studio** | external pictures | one image |
-| Person selection | references supplied by the user | **click-to-track (SAM)** | one image |
-| Take judgement | **motion score against the source** | motion score | none |
-| Character prompt | described from the references | **described by a vision model** | authored |
-| Own LoRA | none | **trained on footage** | akatz workflow |
-| Execution | your ComfyUI, local or remote | **your GPU, or RunPod from the app** | Comfy platform credits |
-| Tests | 1 259 | 17 test files | 3 test files |
-
-Two honest gaps remain on our side: we do not track a clicked person through a
-clip, and we do not ship a fine-tuned swap LoRA. What we do that neither of them
-does is keep the native state of every take, so a scene can be continued instead
-of only swapped — that is the whole point of the tool, and it is measured:
-`POST /api/continuity/takes/{id}/forward` reuses the parent's references, sound
-and line, and the child take declares its parent.
-
 ## Current boundaries
 
 - **New H3 Swaps and re-runs always retain native state.** Missing state publication
@@ -122,6 +89,7 @@ and line, and the child take declares its parent.
 
 ## Requirements
 
+- Version **0.1.0-alpha.1**, development preview, grounded in `src/app_release.py`.
 - Git/Bash, **uv**, **Python 3.12**, and **FFmpeg/ffprobe** on `PATH`.
 - A separately prepared GPU **ComfyUI** executor with the chosen engine's custom
   nodes and model weights. **24 GB VRAM is recommended**, not a fit guarantee.

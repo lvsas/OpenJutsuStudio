@@ -1,5 +1,6 @@
 """Independent H3 Studio API. MVP: one reference and one continuous shot only."""
 import asyncio
+import shutil
 import copy
 import json
 import time
@@ -14,6 +15,8 @@ from project_scope import submission_project
 from continuable_take import get_validated_family
 from h3_swap_native import NATIVE_ARTIFACT_RELATION
 from h3_capsule import contained, digest_file, frozen_references, get_capsule, replay_inputs
+import character_references
+from character_library import CharacterLibrary
 from h3_graphs import REFERENCE_SLOTS
 from h3_recipe import ENGINE, MAX_TEXT, make_recipe
 from h3_uploads import save_reference
@@ -129,7 +132,16 @@ class H3API:
         if ('clip_start_seconds' in form or 'clip_end_seconds' in form) and \
                 (clip_start_seconds is None or clip_end_seconds is None):
             raise HTTPException(422, 'Provide both clip_start_seconds and clip_end_seconds')
-        if not 1 <= len(form.getlist('reference_images')) <= REFERENCE_SLOTS:
+        # A saved character is already proven intact by the library; it enters exactly
+        # like an upload, so nothing downstream has to know where the image came from.
+        gallery_ids = list(dict.fromkeys(
+            str(item).strip() for item in form.getlist('reference_job_ids') if str(item).strip()))
+        gallery_paths, gallery_reasons = character_references.resolve(
+            gallery_ids, CharacterLibrary(self.get_media_dir), REFERENCE_SLOTS - len(reference_images))
+        if gallery_reasons:
+            raise HTTPException(422, ' '.join(gallery_reasons))
+        total_references = len(reference_images) + len(gallery_paths)
+        if not 1 <= total_references <= REFERENCE_SLOTS:
             raise HTTPException(422, f'H3 accepts between 1 and {REFERENCE_SLOTS} reference images')
         # The ordered plural field is canonical. The shipped single-description
         # form (and cached clients) uses the singular alias for reference 1.
@@ -155,7 +167,7 @@ class H3API:
         original = source
         excerpt = media_dir / f'{job_id}-excerpt.mp4'
         references = [media_dir / f'{job_id}-reference-{index + 1}.png'
-                      for index in range(len(reference_images))]
+                      for index in range(total_references)]
         created = []
         try:
             # Reserve only this request's upload paths. A collision must neither
@@ -181,6 +193,8 @@ class H3API:
                 raise HTTPException(422, 'H3 source must fit within 1–360 frames at 24fps')
             for upload, destination in zip(reference_images, references):
                 await save_reference(upload, destination, self.limit)
+            for origin, destination in zip(gallery_paths, references[len(reference_images):]):
+                await asyncio.to_thread(shutil.copyfile, origin, destination)
             recipe = make_recipe(preserve_clip=edit_prompt, seed=seed,
                                  reference_descriptions=tuple(
                                      descriptions + [''] * (len(references) - len(descriptions))),
@@ -193,7 +207,10 @@ class H3API:
                 origin_project_id = submission_project(None, media_dir)
             job = core.Job(id=job_id, engine=ENGINE, prompt=recipe['effective_prompt'], video=str(source),
                            meta={'origin_project_id': origin_project_id,
-                                 'h3_references': [str(path) for path in references], 'h3_recipe': recipe,
+                                 'h3_references': [str(path) for path in references],
+                                 'h3_reference_origins': (['upload'] * len(reference_images)
+                                                          + [f'character:{value}' for value in gallery_ids[:len(gallery_paths)]]),
+                                 'h3_recipe': recipe,
                                  'single_shot_only': True, 'source_info': info,
                                  'source_shot_plan': [{'start': 0, 'end': info['frames']-1,
                                                        'fps': info['fps']}]})

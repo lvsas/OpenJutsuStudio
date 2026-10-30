@@ -35,7 +35,7 @@ def _load(job_id):
 def _public(job):
     mode = job.meta.get("character_recipe", {}).get("mode")
     return {"job_id": job.id, "status": job.status, "step": job.step, "progress": job.progress,
-            "error": "Character generation failed; check the local worker logs" if job.error else None,
+            "error": job.error or None,
             "parent_job_id": job.meta.get("parent_job_id"), "engine": ENGINE,
             "face_refine": job.meta.get("character_recipe", {}).get("face_refine") is True,
             "mode": mode if mode in ("portrait", "full_body", "turnaround") else None,

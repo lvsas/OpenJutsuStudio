@@ -41,12 +41,17 @@ import {applyCharacterReference} from '/static/character-handoff.js';
     // A slot that already holds a reference has nothing to gain from the gallery, and a
     // slot that is still disabled cannot receive one. Say so instead of failing on click.
     const filled = Boolean(input.files && input.files.length);
-    button.disabled = Boolean(input.disabled) || filled;
-    button.title = input.disabled
+    const next = Boolean(input.disabled) || filled;
+    const title = input.disabled
       ? 'Enable this reference slot first.'
       : filled ? 'Remove the current character reference to choose from the gallery.'
                : 'Choose a saved character for this slot.';
-    button.setAttribute('aria-disabled', button.disabled ? 'true' : 'false');
+    // Writing an identical value still produces a mutation record, and the observer below
+    // listens for mutations: without this guard the page spins instead of loading.
+    if (button.disabled !== next) button.disabled = next;
+    if (button.title !== title) button.title = title;
+    const aria = next ? 'true' : 'false';
+    if (button.getAttribute('aria-disabled') !== aria) button.setAttribute('aria-disabled', aria);
   }
 
   function mount(form) {
@@ -111,8 +116,12 @@ import {applyCharacterReference} from '/static/character-handoff.js';
       const input = form.querySelector(`#${button.dataset.slot}`);
       if (input) describe(input, button);
     });
-    new MutationObserver(refresh).observe(form, {subtree: true, attributes: true,
-                                                 attributeFilter: ['disabled', 'class']});
+    new MutationObserver(records => {
+      const relevant = records.some(record => record.type === 'childList'
+        || (record.target && record.target.tagName === 'INPUT'));
+      if (relevant) refresh();
+    }).observe(form, {subtree: true, attributes: true, childList: true,
+                      attributeFilter: ['disabled']});
     form.addEventListener('change', refresh, true);
   }
 

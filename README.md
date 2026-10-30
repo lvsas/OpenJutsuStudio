@@ -23,53 +23,39 @@ continuation it produced. Nothing here is a mock-up.*
 
 ## Install
 
-One path. Use it, then read the exceptions only if one applies to you.
+You need **uv**, **FFmpeg**, and a ComfyUI you can reach, with the node packs and
+weights this app uses. Around **24 GB of VRAM**. No account, no credits.
 
 ```bash
 git clone https://github.com/lvsas/OpenJutsuStudio
 cd OpenJutsuStudio
-make setup COMFYUI=/path/to/ComfyUI   # app, node packs and models
-make check                            # what is still missing (exit 1 if anything)
-make run                              # proxy + studio on 127.0.0.1:8000
+make setup COMFYUI=/path/to/ComfyUI   # app environment, node packs, weights
+make check                            # names whatever is still missing
+make run                              # http://127.0.0.1:8000
 ```
 
-Open <http://127.0.0.1:8000>. `make run` starts the SDK proxy in the right order and
-stops it again on Ctrl+C, so there is only one command to remember.
+The studio opens at <http://127.0.0.1:8000> and only listens on your own computer.
+`make run` starts the local SDK proxy with it and stops it again on Ctrl+C.
 
-**What each step touches:** `make setup` installs the app environment, then the node
-packs declared in `dependencies.json` (registry archives are hash-checked), then the
-weights for the engines you picked. It never overwrites an existing pack, never
-starts a service, and never installs ComfyUI itself. `make check` installs nothing: it
-names what is still missing. `make run` serves the studio and nothing else.
+### Where it renders
 
-**What it needs:** a GPU machine running ComfyUI, about 24 GB of VRAM, and FFmpeg. No
-account, no credits, nothing calls home.
+`make run` renders on the ComfyUI you gave to `make setup`. Two other setups work the
+same way, once the commands above have run at least once:
 
-### Exception 1 — you are on Windows
+- **Another machine** — `export OPENGENJUTSU_COMFY_BASE_URL=http://comfyui-host:8189`
+  before `make run`. That address must speak the Comfy SDK v2 API; the local proxy is
+  what translates a stock ComfyUI into one.
+- **In a container** — from the cloned folder, `docker compose up --build`. The image
+  runs the studio only: ComfyUI and its weights stay outside it.
 
-There is no `make`. Run the same steps in Python:
+### Windows
 
-```bash
-python scripts/launch.py
-```
+`make` does not exist there. After the clone, one command replaces the last three:
+`python scripts/launch.py`.
 
-### Exception 2 — you want the studio in a container
+### Debugging an install
 
-The image runs the app only. ComfyUI and its weights stay where they are.
-
-```bash
-docker compose up --build          # http://127.0.0.1:8000
-```
-
-`COMFY_BASE_URL` (default `http://host.docker.internal:8189`) points at your proxy.
-The port is published to loopback on purpose: the app has no authentication. Takes and
-media live in `./work`, mounted from the host, so recreating the container keeps them.
-This does **not** remove the ComfyUI requirement — `make check` still names what the
-executor lacks.
-
-### Exception 3 — you want to do every step by hand
-
-`make setup` is not magic. This is exactly what it runs:
+What `make setup` runs, one step at a time:
 
 ```bash
 bash scripts/setup.sh --with-proxy
@@ -79,21 +65,8 @@ env -u PYTHONPATH .venv/bin/comfy-api-proxy run \
 bash scripts/run_app.sh
 ```
 
-The full walkthrough, including the executor side, is in
+The executor side — ComfyUI, node packs, weights — is in
 [local setup](docs/local-setup.md).
-
-### Exception 4 — ComfyUI runs on another machine
-
-Run `make setup` and `make run` on the app host, then point the app at that machine
-instead of the local proxy:
-
-```bash
-export OPENGENJUTSU_COMFY_BASE_URL=http://comfyui-host:8189
-```
-
-The target must speak the Comfy SDK v2 API. A stock ComfyUI serves v1, which is why the
-proxy exists: the application speaks v2, the proxy translates, and both stay on
-loopback.
 
 ## The creative loop
 

@@ -101,6 +101,23 @@ class CharacterLibraryTests(unittest.TestCase):
         self.assertEqual(self.save_member(job).status_code, 409)
         self.assertEqual(self.members(), [])
 
+    def test_each_refusal_says_what_is_wrong(self):
+        job = self.completed()
+        Path(job.result).write_bytes(b"broken png")
+        broken = self.save_member(job)
+        self.assertEqual(broken.status_code, 409)
+        job = self.completed()
+        Path(job.meta["character_caption"]).unlink()
+        missing = self.save_member(job)
+        self.assertEqual(missing.status_code, 409)
+        self.assertNotEqual(broken.json()["detail"], missing.json()["detail"])
+        self.assertIn("image", broken.json()["detail"].lower())
+        job = self.completed()
+        Path(job.meta["character_caption"]).write_text("   ")
+        empty = self.save_member(job)
+        self.assertEqual(empty.status_code, 409)
+        self.assertIn("caption", empty.json()["detail"].lower())
+
     def test_payload_validation_and_corrupt_index_are_path_free_and_never_overwritten(self):
         job = self.completed()
         for payload in ({"name": 7}, {"name": ""}, {"name": "x" * 101}, {"name": "bad\nname"}, {"extra": "x"}):

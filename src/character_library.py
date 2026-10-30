@@ -130,20 +130,39 @@ class CharacterLibrary:
             raise LibraryError(404, "Character job not found")
         if not isinstance(job.meta, dict):
             raise LibraryError(409, "Character job record is unavailable")
+        # Each refusal names the one thing that failed: "it did not work" is not a diagnosis.
         try:
             capsule = get_capsule(job)  # Historical capsules remain saveable; replay policy is separate.
-            image = contained(job.result or "", self.get_media_dir())
-            caption = contained(job.meta.get("character_caption", ""), self.get_media_dir())
-            for path, role in ((image, "image"), (caption, "caption")):
-                expected = capsule["assets"][role]
-                if (path.suffix.lower() != expected["suffix"] or path.stat().st_size != expected["size_bytes"]
-                        or digest_file(path) != expected["sha256"]):
-                    raise ValueError("Changed artifact")
-            _validate_png(image, capsule["recipe"]["mode"])
-            if not caption.read_text(encoding="utf-8").strip():
-                raise ValueError("Empty caption")
         except (OSError, ValueError, TypeError, KeyError) as exc:
-            raise LibraryError(409, "A completed Character with an intact image and capsule is required") from exc
+            raise LibraryError(409, "This job has no finished character capsule yet. Wait for it to complete, then save again.") from exc
+        try:
+            image = contained(job.result or "", self.get_media_dir())
+        except (OSError, ValueError) as exc:
+            raise LibraryError(409, "The generated image is missing or outside the studio library.") from exc
+        try:
+            caption = contained(job.meta.get("character_caption", ""), self.get_media_dir())
+        except (OSError, ValueError) as exc:
+            raise LibraryError(409, "The character caption file is missing from the studio library.") from exc
+        for path, role, label in ((image, "image", "generated image"), (caption, "caption", "caption file")):
+            try:
+                expected = capsule["assets"][role]
+                intact = (path.suffix.lower() == expected["suffix"]
+                          and path.stat().st_size == expected["size_bytes"]
+                          and digest_file(path) == expected["sha256"])
+            except (OSError, KeyError, TypeError) as exc:
+                raise LibraryError(409, f"The {label} cannot be read back for verification.") from exc
+            if not intact:
+                raise LibraryError(409, f"The {label} changed on disk since the job finished. Regenerate it to save this character.")
+        try:
+            _validate_png(image, capsule["recipe"]["mode"])
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise LibraryError(409, "The generated image is not a valid PNG for this character mode.") from exc
+        try:
+            empty = not caption.read_text(encoding="utf-8").strip()
+        except (OSError, UnicodeDecodeError) as exc:
+            raise LibraryError(409, "The caption file is unreadable.") from exc
+        if empty:
+            raise LibraryError(409, "The character caption is empty. Regenerate the character, then save it.")
 
     def save(self, job_id, payload):
         validate_id(job_id)

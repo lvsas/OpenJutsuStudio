@@ -15,11 +15,7 @@ work/
 !/docs/readme/
 /docs/readme/*
 # Only the already reviewed captures are eligible for delivery.
-!/docs/readme/alpha-studio-header.png
 !/docs/readme/h3-studio-current.png
-!/docs/readme/h3-swap-empty.png
-!/docs/readme/h3-swap-two-references.png
-!/docs/readme/ltx-swap.png
 /src/static/jury-v2-review/
 /artifacts/
 /reports/

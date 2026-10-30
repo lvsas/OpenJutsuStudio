@@ -1,0 +1,41 @@
+Open Jutsu Studio
+Copyright 2026 lvsas
+
+This product includes software and model weights developed by third parties.
+Nothing below is vendored in this repository unless stated; the entries say how each
+one is used, so a reader can tell "we call it" from "we ship it".
+
+## Runtime dependencies (installed, not vendored)
+
+- **ComfyUI** — https://github.com/comfyanonymous/ComfyUI — GPL-3.0.
+  Used as an external executor. This project talks to it over HTTP through the Comfy
+  SDK v2 API; no ComfyUI source is bundled or linked into the application.
+- **Comfy SDK** (`comfy-sdk`) and **comfy-api-proxy** — https://github.com/Comfy-Org —
+  MIT. Python dependencies installed from PyPI.
+- **FastAPI**, **Uvicorn**, **python-multipart**, **Pillow** — their respective
+  licences, installed from PyPI.
+- **Inter** (typeface) — SIL Open Font License 1.1. Self-hosted subset, see
+  `src/static/fonts/LICENSE-Inter.txt`.
+
+## Model weights (downloaded by the user, never shipped here)
+
+- **FLUX 3 Klein** and **FLUX 2 Klein** — Black Forest Labs. Their own licences; the
+  character generator's repository is access-gated and needs the user's own account.
+- **LTX 2.5** and the **Ripple** IC-LoRA — Lightricks / the Ripple authors.
+- **MiniMax H3** and the `h3_character_swap_v1.5` LoRA — MiniMax and akatz-ai.
+
+Exact files, revisions and the licences we can and cannot use commercially are listed
+in `docs/model-licences.md`. If a licence there and this file disagree, the model
+licence wins.
+
+## Node packs (installed into the user's ComfyUI)
+
+The packs declared in `dependencies.json` are cloned or installed from the Comfy
+registry by `make deps`. They remain the property of their authors and keep their own
+licences; this project neither relicenses nor redistributes them.
+
+## This repository
+
+Application code is Apache-2.0 (see `LICENSE`). The custom node pack under
+`custom_nodes/opengenjutsu_continuity/` is part of this project and carries the same
+licence unless its own LICENSE file says otherwise.

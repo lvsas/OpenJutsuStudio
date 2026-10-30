@@ -55,9 +55,7 @@ class CompetitionRequirementsTests(unittest.TestCase):
     def test_only_public_documentation_is_tracked(self):
         public = {'docs/README.md', 'docs/local-setup.md', 'docs/executor-setup.md',
                   'docs/dependencies.md', 'docs/model-licences.md',
-                  'docs/readme/alpha-studio-header.png', 'docs/readme/h3-studio-current.png',
-                  'docs/readme/h3-swap-empty.png', 'docs/readme/h3-swap-two-references.png',
-                  'docs/readme/ltx-swap.png', 'docs/readme/demo.gif',
+                  'docs/readme/h3-studio-current.png', 'docs/readme/demo.gif',
                   'docs/audit-allowlist.txt'}
         tracked = [str(path.relative_to(ROOT)) for path in release_paths(ROOT)
                    if path.relative_to(ROOT).parts[0] == 'docs']

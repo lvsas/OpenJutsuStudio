@@ -156,6 +156,8 @@ class H3API:
                     slots.append(('gallery', paths[0]))
             else:
                 reasons.append(f'Unknown reference source: {source}')
+        for upload in uploads:  # older clients send files without a source list
+            slots.append(('upload', upload))
         if reasons:
             raise HTTPException(422, ' '.join(reasons))
         total_references = len(slots)

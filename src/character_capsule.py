@@ -19,6 +19,14 @@ ENVELOPE_RECIPES = {1: (1, 2, 3, 4, 5), 2: (1, 2, 3, 4, 5, 8), 6: (6,), 7: (7,)}
 
 def allowed_recipe_versions(envelope: int) -> tuple[int, ...]:
     return ENVELOPE_RECIPES[envelope]
+
+
+def expected_assets(recipe: dict) -> set[str]:
+    """The one description of what a capsule holds. Writing and validation both use it."""
+    roles = {"image", "caption"}
+    if isinstance(recipe, dict) and recipe.get("face_refine") is True:
+        roles.add("base_image")
+    return roles
 CAPSULE_SCHEMA_VERSION = 7
 LEGACY_CAPSULE_SCHEMA_VERSIONS = {1}
 REPLAY_CONTRACT = "Verified image/caption bytes and frozen recipe; pixel-identical output is not guaranteed."
@@ -75,7 +83,7 @@ def freeze_capsule(job, recipe: dict[str, Any], image: str | Path, caption: str 
     if result != image:
         raise ValueError("Character job result does not match the frozen image")
     assets = {"image": _asset(image, media_dir), "caption": _asset(caption, media_dir)}
-    if recipe.get("face_refine") is True:
+    if "base_image" in expected_assets(recipe):
         base = contained(job.meta.get("character_base_image", ""), media_dir)
         if base == image or base.suffix.lower() != ".png" or not base.stat().st_size:
             raise ValueError("Character base image must be a separate non-empty PNG")
@@ -147,13 +155,11 @@ def _validate_capsule_shape(capsule: dict[str, Any], job) -> None:
             or recipe["schema_version"] not in allowed_recipes):
         raise ValueError("The frozen Character recipe contract changed")
     assets = capsule.get("assets")
-    roles = {"image", "caption"}
     # freeze_capsule records a base image whenever the job refined a face, whatever the
-    # envelope version is, so the expectation must follow the recipe rather than the envelope.
+    # envelope version is, so the expectation follows the recipe, not the envelope.
     if "face_refine" in recipe and type(recipe.get("face_refine")) is not bool:
         raise ValueError("The frozen Character recipe contract changed")
-    if recipe.get("face_refine") is True:
-        roles.add("base_image")
+    roles = expected_assets(recipe)
     if not isinstance(assets, dict) or set(assets) != roles:
         raise ValueError("The frozen Character artifact list changed")
     if "base_image" in roles:

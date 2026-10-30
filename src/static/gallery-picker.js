@@ -117,6 +117,14 @@
         sync(form);
       }
     });
+    // A slot can be enabled after this script runs; the form must still describe every
+    // slot it is about to send, so the list is rebuilt at submit time too.
+    form.addEventListener('submit', () => sync(form), true);
+    const linked = new URLSearchParams(location.search).get('character_id');
+    if (linked && /^[a-f0-9]{32}$/.test(linked)) {
+      const first = inputs[0];
+      paint(first, {job_id: linked, name: 'Chosen character'});
+    }
     sync(form);
   }
 

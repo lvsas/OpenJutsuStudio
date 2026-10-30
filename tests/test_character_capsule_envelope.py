@@ -1,12 +1,7 @@
-"""Every character the studio can generate must be one it can save.
-
-build_capsule puts a recipe into envelope 2 unless the recipe is 6 or 7. Bumping
-the recipe schema without widening that envelope makes every new character
-unsavable, with a message about a contract rather than about a constant.
-"""
+"""One description of a capsule's artifacts, used by writing and by validation."""
 import unittest
 
-from character_capsule import allowed_recipe_versions
+from character_capsule import allowed_recipe_versions, expected_assets
 from character_recipe import SCHEMA_VERSION
 
 
@@ -19,6 +14,8 @@ class EnvelopeCoverageTests(unittest.TestCase):
     def test_the_oldest_envelope_still_refuses_newer_contracts(self):
         self.assertNotIn(SCHEMA_VERSION, allowed_recipe_versions(1))
 
+    def test_a_plain_character_holds_two_artifacts(self):
+        self.assertEqual(expected_assets({'face_refine': False}), {'image', 'caption'})
 
-if __name__ == '__main__':
-    unittest.main()
+    def test_a_refined_face_holds_its_base_image(self):
+        self.assertEqual(expected_assets({'face_refine': True}), {'image', 'caption', 'base_image'})

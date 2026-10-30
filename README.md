@@ -9,9 +9,9 @@ an H3 take to continue the story, then share a vertical comparison Reel.
 
 **Local-first · Your GPU, your footage · [Apache-2.0](LICENSE)**
 
-[![tests](https://github.com/lvsas/OpenJutsuStudio/actions/workflows/tests.yml/badge.svg)](https://github.com/lvsas/OpenJutsuStudio/actions/workflows/tests.yml)
-
 [Install](#install) · [Creative loop](#the-creative-loop) · [Roadmap](ROADMAP.md) · [Documentation](docs/README.md)
+
+[![tests](https://github.com/lvsas/OpenJutsuStudio/actions/workflows/tests.yml/badge.svg)](https://github.com/lvsas/OpenJutsuStudio/actions/workflows/tests.yml)
 
 <p align="center"><img src="docs/readme/demo.gif" alt="Three moments from the studio: the two reference boards, the recast shot, and the stitched continuation" width="820"></p>
 

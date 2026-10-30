@@ -1,0 +1,14 @@
+services:
+  studio:
+    build: .
+    image: openjutsu-studio:local
+    ports:
+      - "127.0.0.1:8000:8000"     # loopback only: the app has no authentication
+    environment:
+      # The SDK proxy runs on the host; the container reaches it through the gateway.
+      COMFY_BASE_URL: ${COMFY_BASE_URL:-http://host.docker.internal:8189}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./work:/app/work           # takes, media and jobs survive the container
+    restart: unless-stopped

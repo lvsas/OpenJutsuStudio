@@ -16,7 +16,8 @@ files**, not all features. The Character files live in a gated Hugging Face
 repository: they are pinned to a revision and sized, but they publish no hash and
 they need `HF_TOKEN` (after accepting the model terms) to download. `make deps`
 reports them as gated instead of failing an unauthenticated request.
-It does not install custom nodes. Descriptions, Characters and native continuation
+`make deps` installs those node packs from `dependencies.json` (registry archives are
+checked against their declared SHA-256). Descriptions, Characters and native continuation
 have additional prerequisites. Inventory verifies loader choices, not CUDA
 compatibility, installed source bytes or rendering quality.
 

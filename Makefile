@@ -2,12 +2,13 @@
 PY  := .venv/bin/python
 UV  := uv
 
-.PHONY: install deps run check test audit help
+.PHONY: install setup deps run check test audit help
 
 help:
 	@printf '%s\n' \
 	  'install   install the environment and the local SDK proxy' \
-	  'deps      install the declared node packs and weights into COMFYUI=/path' \
+	  'setup     app environment, node packs and models in one go (COMFYUI=/path)' \
+	  'deps      only the node packs and weights (COMFYUI=/path)' \
 	  'check     report what the executor is still missing (nodes, weights)' \
 	  'run       start the proxy and the studio on 127.0.0.1:8000' \
 	  'test      run the full test suite' \
@@ -15,6 +16,12 @@ help:
 
 install:
 	bash scripts/setup.sh --with-proxy
+
+setup:
+	@test -n "$(COMFYUI)" || (printf 'Usage: make setup COMFYUI=/path/to/ComfyUI\n' && exit 1)
+	bash scripts/setup.sh --with-proxy
+	$(PY) scripts/install_executor.py --comfyui "$(COMFYUI)" --install
+	$(PY) scripts/download_models.py --comfyui "$(COMFYUI)" --download
 
 deps:
 	@test -n "$(COMFYUI)" || (printf 'Usage: make deps COMFYUI=/path/to/ComfyUI\n' && exit 1)

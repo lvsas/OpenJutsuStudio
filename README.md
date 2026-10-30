@@ -9,7 +9,7 @@ an H3 take to continue the story, then share a vertical comparison Reel.
 
 **Local-first · Your GPU, your footage · [Apache-2.0](LICENSE)**
 
-[Install](#install-step-by-step) · [Creative loop](#the-creative-loop) · [Roadmap](ROADMAP.md) · [Documentation](docs/README.md)
+[Install](#install-quickstart) · [Creative loop](#the-creative-loop) · [Roadmap](ROADMAP.md) · [Documentation](docs/README.md)
 
 <p align="center"><img src="docs/readme/demo.gif" alt="Three moments from the studio: the two reference boards, the recast shot, and the stitched continuation" width="820"></p>
 
@@ -21,19 +21,32 @@ continuation it produced. Nothing here is a mock-up.*
 
 *The same studio, empty: an interface capture, not a generated-result quality claim.*
 
-## Quickstart
+## Install quickstart
 
 ```bash
 git clone https://github.com/lvsas/OpenJutsuStudio
 cd OpenJutsuStudio
-make install                      # Python 3.12 + FFmpeg + .venv + the local SDK proxy
-make deps COMFYUI=/path/to/ComfyUI  # the declared node packs and swap weights
-make check                        # prints what is still missing, exit 1 if anything is
-make run                          # proxy + studio together on 127.0.0.1:8000
+make setup COMFYUI=/path/to/ComfyUI   # app, node packs and models
+make check                            # what is still missing (exit 1 if anything)
+make run                              # proxy + studio on 127.0.0.1:8000
 ```
 
 `make run` starts the SDK proxy in the right order and stops it again on Ctrl+C,
 so there is only ever one command to remember.
+
+If you prefer to run the steps yourself, this is what `make setup` does:
+
+```bash
+bash scripts/setup.sh --with-proxy
+export COMFYUI_URL=http://127.0.0.1:8188
+env -u PYTHONPATH .venv/bin/comfy-api-proxy run \
+  --comfyui "$COMFYUI_URL" --host 127.0.0.1 --port 8189
+bash scripts/run_app.sh
+```
+
+The full walkthrough, including the executor side, is in
+[local setup](docs/local-setup.md).
+
 
 On Windows there is no `make`: run `python scripts/launch.py` instead. It does the
 same thing in Python — finds `.venv`, starts the proxy, waits for it, then serves
@@ -53,6 +66,23 @@ The local proxy is not decoration: the application speaks the Comfy **SDK v2**
 API, a stock ComfyUI serves v1, and a loopback process translates between them.
 If you already run an SDK v2 endpoint, point `OPENGENJUTSU_COMFY_BASE_URL` at it
 and the proxy disappears from the picture.
+
+### Docker, without ComfyUI
+
+The image runs the studio only. ComfyUI and its weights stay where they are: the app
+speaks the Comfy SDK v2 API through a proxy you control.
+
+```bash
+docker compose up --build          # http://127.0.0.1:8000
+```
+
+`COMFY_BASE_URL` (default `http://host.docker.internal:8189`) points at that proxy.
+The port is published to loopback on purpose: the app has no authentication, so it
+must never listen on a wildcard address. Takes and media live in `./work`, mounted from the
+host, so recreating the container does not lose them.
+
+What Docker does **not** solve: you still need a GPU machine running ComfyUI with the
+declared node packs and weights. `make check` names what is missing.
 
 ## The creative loop
 
@@ -100,43 +130,6 @@ See [executor setup](docs/executor-setup.md) for engine-specific prerequisites,
 [dependencies](docs/dependencies.md) for file roles, and
 [weight installation](docs/local-setup.md#prepare-fixed-swap-weights) for the explicit downloader.
 No model weights ship in this repository. There is no Docker installation in this preview.
-
-## Install, step by step
-
-`make install` runs these steps for you. This is what it does, in case you prefer
-to do it yourself or need to debug one of them.
-
-```bash
-# 1. App environment: uv, Python 3.12, FFmpeg, .venv, and the local SDK proxy
-bash scripts/setup.sh --with-proxy
-
-# 2. Start your prepared ComfyUI, then the proxy against it
-export COMFYUI_URL=http://127.0.0.1:8188
-env -u PYTHONPATH .venv/bin/comfy-api-proxy run \
-  --comfyui "$COMFYUI_URL" --host 127.0.0.1 --port 8189
-
-# 3. In a second terminal, the app
-bash scripts/run_app.sh      # or: python scripts/launch.py (Windows)
-```
-
-Open <http://127.0.0.1:8000>. App and proxy bind to loopback only.
-
-What each step does, and what it refuses to do:
-
-| Step | Installs | Refuses |
-| --- | --- | --- |
-| `make install` | the app, its `.venv`, and the local SDK proxy | starting services, touching ComfyUI |
-| `make deps` | the node packs declared in `dependencies.json` (registry archives are hash-checked), the swap weights, and the character models (`HF_TOKEN` needed: that repository is gated) | overwriting an existing pack, installing a pack with no declared source |
-| `make check` | nothing | passing silently when a node class or weight is missing |
-
-`make deps` does not install ComfyUI itself, and it does not download every model
-the app can use: [dependencies](docs/dependencies.md) lists exactly which files
-are covered. Anything else is named by `make check` so you can fetch it yourself.
-
-Then open **Settings** (`/settings`) to test and save the API-v2 target, the
-write-only API key and the engine model filenames. Test and Save do not submit a
-generation. A successful connection does not prove the engine is ready — see
-[local setup and troubleshooting](docs/local-setup.md).
 
 ## Documentation
 

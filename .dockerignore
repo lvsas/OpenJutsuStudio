@@ -1,0 +1,10 @@
+.git
+.venv
+work
+cache
+tests
+artifacts
+docs
+node_modules
+__pycache__
+*.pyc

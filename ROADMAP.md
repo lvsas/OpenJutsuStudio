@@ -62,6 +62,11 @@ one of them easier, faster or more reliable — never a feature for its own sake
 
 ## Foundations — the debt that makes the rest possible
 
+- **Install what is missing, from Settings.** The Resources panel lists the node classes
+  and weights a generation still needs, but it can only tell you the command to run. A
+  button would close the loop: it needs a validated ComfyUI folder setting, a background
+  job that runs the same two scripts, and a progress view. It only makes sense for a local
+  executor — a page cannot install on a machine it only reaches over HTTP.
 - **Keep the install honest.** Every step that fails should say why; `make check`
   names what is missing today, it could install it tomorrow.
 - **One library store.** Characters, takes, projects and reels are files and JSON

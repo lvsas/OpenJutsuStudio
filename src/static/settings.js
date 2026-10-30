@@ -227,6 +227,35 @@
       if (token === epoch) status.textContent = 'Settings loaded. No connection test has run.';
     }).catch(() => { status.textContent = 'Settings could not be loaded. Reload this page before testing or saving.'; }).finally(buttons);
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, {once: true});
-  else mount();
+  function resources() {
+    const summary = document.getElementById('resources-summary');
+    const list = document.getElementById('resources-missing');
+    if (!summary || !list) return;
+    fetch('/api/readiness', {headers: {Accept: 'application/json'}})
+      .then(response => (response.ok ? response.json() : Promise.reject(new Error('readiness'))))
+      .then(data => {
+        const nodes = Array.isArray(data.missing_nodes) ? data.missing_nodes : [];
+        const models = Array.isArray(data.missing_models) ? data.missing_models : [];
+        if (!nodes.length && !models.length) {
+          summary.textContent = data.ready
+            ? 'Nothing is missing: node classes and weights are in place.'
+            : 'The studio is not ready yet, but reports nothing missing. Run make doctor.';
+          return;
+        }
+        summary.textContent = nodes.length + ' node class(es) and ' + models.length + ' weight(s) are missing.';
+        for (const [kind, items] of [['node', nodes], ['weight', models]]) {
+          for (const name of items) {
+            const item = document.createElement('li');
+            item.textContent = kind + ': ' + String(name);
+            list.appendChild(item);
+          }
+        }
+        const commands = document.getElementById('resources-commands');
+        if (commands) commands.hidden = false;
+      })
+      .catch(() => { summary.textContent = 'Readiness could not be read. The studio may still be starting.'; });
+  }
+  function boot() { mount(); resources(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once: true});
+  else boot();
 })();

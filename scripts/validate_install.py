@@ -15,6 +15,8 @@ import json
 import shutil
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -79,11 +81,24 @@ def inspect(root: Path = ROOT, comfyui: Path | None = None) -> dict:
     return {'checks': checks, 'problems': problems, 'missing_packs': missing_packs}
 
 
+def probe_app(url: str) -> dict:
+    """Ask a running studio what it is missing; absence is not a failure."""
+    endpoint = url.rstrip('/') + '/api/readiness'
+    try:
+        with urllib.request.urlopen(endpoint, timeout=5) as response:
+            payload = json.loads(response.read().decode('utf-8'))
+    except (urllib.error.URLError, OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=ROOT, help='repository root')
     parser.add_argument('--comfyui', type=Path, default=None, help='ComfyUI root to inspect')
     parser.add_argument('--comfy', default=None, help='running executor URL to probe with check_dependencies')
+    parser.add_argument('--app', default=None,
+                        help='running studio URL to ask what it reports as missing')
     parser.add_argument('--json', action='store_true', help='machine-readable output')
     args = parser.parse_args(argv)
 
@@ -103,6 +118,21 @@ def main(argv=None) -> int:
                 print(f'  executor: {line}')
             if completed.returncode != 0:
                 report['problems'].append('the executor is missing node classes or weights')
+
+    if args.app:
+        readiness = probe_app(args.app)
+        if not readiness:
+            print(f'note     the studio at {args.app} is not answering; start it with make run')
+        else:
+            nodes = readiness.get('missing_nodes') or []
+            models = readiness.get('missing_models') or []
+            print(f'{"ok      " if readiness.get("ready") else "MISSING "} studio readiness')
+            if nodes:
+                print('  - missing node classes: ' + ', '.join(map(str, nodes)))
+                report['problems'].append('the studio reports missing node classes')
+            if models:
+                print('  - missing weights: ' + ', '.join(map(str, models)))
+                report['problems'].append('the studio reports missing weights')
 
     if args.json:
         print(json.dumps(report, indent=2))

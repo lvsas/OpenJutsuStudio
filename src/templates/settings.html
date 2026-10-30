@@ -85,6 +85,17 @@
       <div id="test-results" hidden></div>
       <p class="settings-help">Node and model diagnostics are read-only. Match the required model filenames on your ComfyUI target, then test again. This page does not install or rename files.</p>
     </section>
+    <section class="settings-card settings-resources" aria-labelledby="resources-title">
+      <h2 id="resources-title">Resources</h2>
+      <p id="resources-summary" class="settings-message" role="status" aria-live="polite">Checking what this machine is missing…</p>
+      <ul id="resources-missing"></ul>
+      <div id="resources-commands" hidden>
+        <p class="settings-help">Install what is missing, then restart ComfyUI:</p>
+        <pre><code>make deps COMFYUI=/path/to/ComfyUI
+make check</code></pre>
+      </div>
+      <p class="settings-help">This panel only reads <code>/api/readiness</code>. It never installs, downloads or renames anything.</p>
+    </section>
     <noscript><p class="settings-message">JavaScript is required to load, test and save compute settings. No settings have been changed.</p></noscript>
   </main>
 </body>

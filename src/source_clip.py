@@ -7,6 +7,7 @@ from pathlib import Path
 from h3_capsule import digest_file
 from h3_media import AUDIO_ARGS, ffmpeg, has_audio
 from media import ffprobe
+from media_probe import consistent_duration
 
 MAX_CLIP_SECONDS = 15
 
@@ -32,7 +33,7 @@ def probe_source(path):
         if not starts:
             raise ValueError('Cannot measure the H3 video timeline')
         duration = max(ends) - min(starts)
-    duration = float(duration)
+    duration = consistent_duration(duration, info['frames'], info['fps'])
     if not math.isfinite(duration) or duration <= 0:
         raise ValueError('Cannot measure the H3 video duration')
     return {**info, 'duration': duration,

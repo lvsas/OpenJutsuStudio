@@ -72,8 +72,12 @@ one of them easier, faster or more reliable — never a feature for its own sake
 - **Fewer, sharper tests.** Merge the overlapping UI contracts into one per screen and
   keep the tests that describe behaviour a person can observe, not the exact wording
   of a sentence.
-- **Keep the disk honest.** Takes, swaps and reels grow fast; show what is using space
-  and make deleting a take a one-click decision.
+- **Keep the disk honest.** Takes, swaps and reels grow fast; show what is using
+  space and make deleting a take a one-click decision.
+- **Reels on FFmpeg 7.** The social reel blends two streams with `xfade`, which
+  FFmpeg 7 refuses when the frame rate reads as `1/0` after `setpts`. Works on 5.1
+  and 6.1; on 7 the reel reports "the encoder could not create the reel". The fix
+  has to keep the frame count identical, so it is not a one-line reorder.
 
 H3 native state (MCTX/COND) is not interchangeable with LTX or image state. Every
 engine advertises what it can do; nothing is inferred from a shared button.

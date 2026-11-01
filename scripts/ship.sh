@@ -46,7 +46,7 @@ ssh "${SSH_OPTS[@]}" "$JURY" "cd ~/openjutsu && git fetch -q origin && git check
 ssh "${SSH_OPTS[@]}" "$JURY" 'cat > ~/apply-update.sh' <<'REMOTE'
 #!/usr/bin/env bash
 set -euo pipefail
-rsync -a --delete --exclude .git --exclude .venv --exclude work /home/studio/openjutsu/ /srv/ojs/app/
+rsync -a --delete --exclude .git --exclude .venv --exclude work $HOME/openjutsu/ /srv/ojs/app/
 chown -R ojs:ojs /srv/ojs/app
 systemctl restart ojs-app.service
 sleep 3

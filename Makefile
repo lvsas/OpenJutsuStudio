@@ -51,6 +51,3 @@ privacy:
 	$(PY) scripts/audit_privacy.py --history
 	$(PY) scripts/audit_privacy.py --refs
 
-
-ship: ## Publie main, attend la CI verte, prépare la mise à jour du jury.
-	@bash scripts/ship.sh

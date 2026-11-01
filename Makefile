@@ -50,4 +50,3 @@ privacy:
 	$(PY) scripts/audit_privacy.py
 	$(PY) scripts/audit_privacy.py --history
 	$(PY) scripts/audit_privacy.py --refs
-

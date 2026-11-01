@@ -6,9 +6,8 @@
 set -euo pipefail
 
 REPO="lvsas/OpenJutsuStudio"
-JURY="studio@192.168.1.74"
-SSH_KEY="${SHIP_SSH_KEY:-$HOME/.ssh/ojs_studio_ed25519}"
-SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$SSH_KEY")
+JURY="${SHIP_JURY_HOST:-ojs-jury}"
+SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
 BRANCH="main"
 
 step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
@@ -47,7 +46,7 @@ ssh "${SSH_OPTS[@]}" "$JURY" "cd ~/openjutsu && git fetch -q origin && git check
 ssh "${SSH_OPTS[@]}" "$JURY" 'cat > ~/apply-update.sh' <<'REMOTE'
 #!/usr/bin/env bash
 set -euo pipefail
-rsync -a --delete --exclude .git --exclude .venv /home/studio/openjutsu/ /srv/ojs/app/
+rsync -a --delete --exclude .git --exclude .venv --exclude work /home/studio/openjutsu/ /srv/ojs/app/
 chown -R ojs:ojs /srv/ojs/app
 systemctl restart ojs-app.service
 sleep 3

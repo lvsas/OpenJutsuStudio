@@ -1,6 +1,6 @@
 # Contributing to Open Jutsu Studio
 
-Keep changes focused, testable without inference hardware, and understandable to the next contributor. Discuss changes to public APIs, graph topology, recipe policies or artifact formats before implementing them. Contributions follow the repository's [MIT license](LICENSE); model weights and third-party assets have separate terms.
+Keep changes focused, testable without inference hardware, and understandable to the next contributor. Discuss changes to public APIs, graph topology, recipe policies or artifact formats before implementing them. Contributions follow the repository's [Apache-2.0](LICENSE); model weights and third-party assets have separate terms.
 
 ## Set up a development checkout
 
@@ -56,7 +56,7 @@ Run this in your own development checkout, not against another developer's activ
 - Node harnesses use DOM/HTTP doubles. They check state transitions and races, not browser layout, accessibility, native sharing support or visual quality.
 - A real clean install is a separate manual check in a fresh checkout, without copying `.venv`, `.env*`, caches or generated `work/` content. Bootstrap mocks do not verify package downloads.
 
-There is no checked-in CI workflow to substitute for these local checks. Report commands, outcomes and skips in the pull request; do not call a partial run the full suite.
+Continuous integration is defined in [.github/workflows/tests.yml](.github/workflows/tests.yml) and runs on pull requests and pushes to main. Report commands, outcomes and skips in the pull request; local mocks do not replace live-render acceptance.
 
 ## Find the right boundary
 
@@ -125,6 +125,6 @@ pip install -r requirements-dev.txt      # app + httpx (TestClient)
 PYTHONPATH=src:tests python -m unittest discover -s tests -q
 ```
 
-`requirements.txt` is what runs the app; `requirements-dev.txt` adds the one test
-dependency the suite needs. Continuous integration runs the same command on a clean
-Ubuntu runner.
+`requirements.txt` is what runs the app; `requirements-dev.txt` adds the HTTP
+test client and the local SDK proxy used by the test suite. Continuous integration
+runs the same command on a clean Ubuntu runner.

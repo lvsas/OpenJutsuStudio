@@ -5,10 +5,9 @@ one of them easier, faster or more reliable — never a feature for its own sake
 
 ## What comes next, in order
 
-1. **Install in one command.** It is three today (`make setup`, `make check`,
-   `make run`) and a container for people who prefer that. Next: `make check` should
-   be able to fix what it reports, and a Comfy Cloud path should exist for people
-   without a GPU.
+1. **A clear first run.** One documented path from installation to a verified
+   executor. Settings should explain missing resources and how to install them;
+   a managed Cloud path remains unverified until a real application run succeeds.
 2. **Pick a person, not a description** — click someone in the frame and let SAM 3.1
    follow them. The tracking trial already followed two people across 240 frames; it
    has to become a button.
